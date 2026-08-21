@@ -19,7 +19,7 @@
     <section id="consoleView" class="console-view" hidden>
       <header class="topbar">
         <button id="menuButton" class="icon-button" type="button" aria-label="Menü">☰</button>
-        <div class="brand"><strong>Region Console</strong><span>Hizmet alanı yönetimi</span></div>
+        <div class="brand"><strong>Region Console</strong></div>
         <label class="search"><span class="sr-only">Bölge ara</span><input id="regionSearch" type="search" placeholder="Bölge ara..." autocomplete="off"></label>
         <div class="topbar-actions">
           <button id="campaignButton" class="button topbar-action" type="button">Kampanyalar</button>
@@ -40,14 +40,13 @@
         </aside>
 
         <section class="map-stage">
-          <div id="breadcrumb" class="breadcrumb">Türkiye <span>›</span> Harita</div>
           <div id="map" class="map" role="application" aria-label="Bölge haritası"></div>
           <aside class="tool-panel" aria-label="Harita araçları">
-            <button class="tool active" data-tool="draw" type="button">⌁ &nbsp; Çizim Aracı</button>
-            <button class="tool" data-tool="edit" type="button">↔ &nbsp; Alan Düzenle</button>
-            <button class="tool" data-tool="delete" type="button">⌫ &nbsp; Alan Sil</button>
-            <button class="tool" data-tool="import" type="button">↥ &nbsp; İçe Aktar</button>
-            <button class="tool" data-tool="export" type="button">↧ &nbsp; Dışa Aktar</button>
+            <button class="tool active" data-tool="draw" type="button">⌁ &nbsp; Çizim</button>
+            <button class="tool" data-tool="edit" type="button">↔ &nbsp; Düzenle</button>
+            <button class="tool" data-tool="delete" type="button">⌫ &nbsp; Sil</button>
+            <button class="tool" data-tool="import" type="button">↥ &nbsp; İçe aktar</button>
+            <button class="tool" data-tool="export" type="button">↧ &nbsp; Dışa aktar</button>
             <button class="tool" data-tool="history" type="button">◷ &nbsp; Geçmiş</button>
             <button class="tool" data-tool="settings" type="button">⚙ &nbsp; Kullanıcı</button>
           </aside>
@@ -55,8 +54,8 @@
             <button id="resetMapButton" class="icon-button" type="button" aria-label="Haritayı sıfırla">↻</button>
             <button id="mapLayerButton" class="map-layer active" type="button">Harita</button>
             <button id="satelliteLayerButton" class="map-layer" type="button">Uydu</button>
-            <button id="zoomOutButton" class="icon-button" type="button">−</button>
-            <button id="zoomInButton" class="icon-button" type="button">+</button>
+            <button id="zoomOutButton" class="icon-button" type="button" aria-label="Uzaklaştır">−</button>
+            <button id="zoomInButton" class="icon-button" type="button" aria-label="Yakınlaştır">+</button>
           </div>
           <div id="editBar" class="edit-bar" hidden>
             <button id="undoButton" class="button" type="button">↶ Geri al</button>
