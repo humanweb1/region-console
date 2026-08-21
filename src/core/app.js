@@ -6,6 +6,7 @@ import { getElements, showLogin, showConsole, setCloudStatus, toast, openDialog 
 import { renderLogin } from "../features/auth/login.js";
 import { createMap, setLayer, resetView, invalidateMap, renderRegionsOnMap, fitToCoordinates } from "../features/map/map.js";
 import { renderRegions } from "../features/regions/regions.js";
+import { importRegionData } from "../features/regions/importer.js";
 import { createDrawingController } from "../features/drawing/drawing.js";
 import { bindPanels } from "../features/ui/panels.js";
 
@@ -197,24 +198,88 @@ function exportData() {
   URL.revokeObjectURL(url);
 }
 
+function importedMapCoordinates(regions) {
+  return (regions || []).flatMap((region) => {
+    const geometry = region?.geometry;
+    if (!geometry) return [];
+    if (geometry.type === "Polygon") return geometry.coordinates?.flat() || [];
+    if (geometry.type === "MultiPolygon") return geometry.coordinates?.flat(2) || [];
+    return [];
+  });
+}
+
 function importData() {
   const input = document.createElement("input");
   input.type = "file";
-  input.accept = "application/json,.json";
+  input.accept = ".json,.geojson,application/json,application/geo+json,text/json";
+  input.multiple = false;
   input.onchange = async () => {
     const file = input.files?.[0];
     if (!file) return;
+
     try {
-      const imported = JSON.parse(await file.text());
-      if (!imported?.regions) throw new Error("Geçersiz Region Console JSON dosyası.");
+      const text = await file.text();
+      if (!text.trim()) throw new Error("Dosya boş.");
+
+      let imported;
+      try {
+        imported = JSON.parse(text);
+      } catch {
+        throw new Error("Dosya geçerli JSON değil.");
+      }
+
+      const result = importRegionData(imported, file.name);
       const before = store.dataSnapshot();
-      store.set({ regions: imported.regions, campaigns: Array.isArray(imported.campaigns) ? imported.campaigns : store.get().campaigns });
-      store.recordHistory("JSON içe aktarıldı", before, store.dataSnapshot());
+
+      if (result.mode === "region-console") {
+        store.replaceData(result.regions
+          ? { regions: result.regions, campaigns: result.campaigns }
+          : { regions: store.get().regions, campaigns: result.campaigns }, { recordHistory: false });
+        store.recordHistory("Region Console JSON içe aktarıldı", before, store.dataSnapshot());
+      } else {
+        const current = store.get();
+        const currentCustom = Array.isArray(current.regions.custom) ? current.regions.custom : [];
+        const existingKeys = new Set(
+          currentCustom
+            .map((region) => region?.importMeta?.sourceId)
+            .filter((value) => value !== undefined && value !== null)
+            .map(String)
+        );
+
+        const freshRegions = result.regions.custom.filter(
+          (region) => !existingKeys.has(String(region.importMeta?.sourceId))
+        );
+        const duplicates = result.importedCount - freshRegions.length;
+
+        store.replaceData({
+          regions: {
+            ...current.regions,
+            custom: [...currentCustom, ...freshRegions],
+            selectedId: null
+          },
+          campaigns: current.campaigns
+        }, { recordHistory: false });
+        store.recordHistory("GeoJSON içe aktarıldı", before, store.dataSnapshot());
+
+        render();
+        const coordinates = importedMapCoordinates(freshRegions);
+        if (coordinates.length) fitToCoordinates(mapState, coordinates);
+
+        const duplicateMessage = duplicates ? ` ${duplicates} tekrar kayıt atlandı.` : "";
+        const skippedMessage = result.skippedCount ? ` ${result.skippedCount} geçersiz geometri atlandı.` : "";
+        scheduleSave();
+        toast(elements, `${freshRegions.length} bölge içe aktarıldı.${duplicateMessage}${skippedMessage}`);
+        return;
+      }
+
       render();
+      const coordinates = importedMapCoordinates(store.get().regions.custom);
+      if (coordinates.length) fitToCoordinates(mapState, coordinates);
       scheduleSave();
-      toast(elements, "Veri içe aktarıldı.");
+      toast(elements, `${result.importedCount} kayıt içe aktarıldı.`);
     } catch (error) {
-      toast(elements, `İçe aktarma başarısız: ${error.message}`);
+      console.error("[Region Console] Import failed:", error);
+      toast(elements, `İçe aktarma başarısız: ${error.message || "Bilinmeyen hata"}`);
     }
   };
   input.click();
@@ -272,7 +337,7 @@ async function startApplication(session) {
       store.loadPersisted(remote.state);
       store.update("cloud", { status: "ready", version: remote.version || null, updatedAt: remote.updated_at || null, error: null });
       renderRegionsOnMap(mapState, allCustomRegions());
-      const coordinates = allCustomRegions().flatMap((region) => region.geometry?.coordinates?.[0]?.map(([lat, lng]) => [lat, lng]) || []);
+      const coordinates = importedMapCoordinates(allCustomRegions());
       if (coordinates.length) fitToCoordinates(mapState, coordinates);
     } else {
       store.update("cloud", { status: "empty" });
