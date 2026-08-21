@@ -58,14 +58,20 @@ function normalizeSettings(settings = {}) {
   };
 }
 
+// Persisted region geometry follows RFC 7946 GeoJSON order: [longitude, latitude].
+// Leaflet uses [latitude, longitude], so the conversion happens only at this boundary.
 function geometryToLatLngs(geometry) {
   if (!geometry) return [];
   if (geometry.type === "Polygon") {
-    return (geometry.coordinates || []).map((ring) => (ring || []).map(([lng, lat]) => [lat, lng]));
+    return (geometry.coordinates || []).map((ring) =>
+      (ring || []).map(([lng, lat]) => [Number(lat), Number(lng)])
+    );
   }
   if (geometry.type === "MultiPolygon") {
     return (geometry.coordinates || []).flatMap((polygon) =>
-      (polygon || []).map((ring) => (ring || []).map(([lng, lat]) => [lat, lng]))
+      (polygon || []).map((ring) =>
+        (ring || []).map(([lng, lat]) => [Number(lat), Number(lng)])
+      )
     );
   }
   return [];
@@ -146,9 +152,14 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
   return bounds;
 }
 
+// fitToCoordinates also accepts standard GeoJSON [longitude, latitude] pairs.
 export function fitToCoordinates(mapState, coordinates = [], padding = [30, 30]) {
   if (!coordinates.length) return false;
-  mapState.map.fitBounds(L.latLngBounds(coordinates), { padding, maxZoom: 15, animate: true });
+  const latLngs = coordinates
+    .filter((point) => Array.isArray(point) && point.length >= 2)
+    .map(([lng, lat]) => [Number(lat), Number(lng)]);
+  if (!latLngs.length) return false;
+  mapState.map.fitBounds(L.latLngBounds(latLngs), { padding, maxZoom: 15, animate: true });
   return true;
 }
 
