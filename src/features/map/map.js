@@ -61,11 +61,11 @@ function normalizeSettings(settings = {}) {
 function geometryToLatLngs(geometry) {
   if (!geometry) return [];
   if (geometry.type === "Polygon") {
-    return (geometry.coordinates || []).map((ring) => (ring || []).map(([lat, lng]) => [lat, lng]));
+    return (geometry.coordinates || []).map((ring) => (ring || []).map(([lng, lat]) => [lat, lng]));
   }
   if (geometry.type === "MultiPolygon") {
     return (geometry.coordinates || []).flatMap((polygon) =>
-      (polygon || []).map((ring) => (ring || []).map(([lat, lng]) => [lat, lng]))
+      (polygon || []).map((ring) => (ring || []).map(([lng, lat]) => [lat, lng]))
     );
   }
   return [];
@@ -116,15 +116,23 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
       fillOpacity
     });
     polygon.bindTooltip(region.name || region.properties?.name || "Alan");
-    polygon.on("click", () => {
-      mapState.polygons.eachLayer((layer) => layer.setStyle({
-        weight: normalized.boundaryWeight,
-        fillOpacity: layer.options._baseFillOpacity ?? layer.options.fillOpacity
-      }));
+    polygon.on("click", (event) => {
+      L.DomEvent.stopPropagation(event);
+      mapState.polygons.eachLayer((layer) => {
+        if (!layer.options) return;
+        layer.setStyle({
+          weight: normalized.boundaryWeight,
+          fillOpacity: layer.options._baseFillOpacity ?? layer.options.fillOpacity
+        });
+      });
       polygon.setStyle({
         weight: Math.min(8, normalized.boundaryWeight + 1.5),
         fillOpacity: Math.min(0.9, fillOpacity + 0.12)
       });
+      store.update("regions", { selectedId: region.id });
+      document.dispatchEvent(new CustomEvent("region-console:region-selected", {
+        detail: { region, polygon, mapState }
+      }));
       mapState.map.fitBounds(polygon.getBounds(), { padding: [36, 36], maxZoom: 12, animate: true });
     });
     polygon.options._baseFillOpacity = fillOpacity;
