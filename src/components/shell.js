@@ -4,7 +4,7 @@ export function getElements() {
     "logoutButton", "themeButton", "menuButton", "headerMenu", "regionTree", "sidebar", "regionsToggle", "editBar",
     "selectedArea", "statCountries", "statProvinces", "statDistricts",
     "statArea", "statService", "statOutside", "toast", "appDialog",
-    "dialogTitle", "dialogBody", "dialogClose", "campaignButton", "usersButton"
+    "dialogTitle", "dialogBody", "dialogClose", "campaignButton", "usersButton", "filesButton"
   ];
   return Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 }
