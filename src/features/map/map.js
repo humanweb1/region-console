@@ -36,26 +36,48 @@ export function resetView(mapState) {
   mapState.map.setView([39.0, 35.0], 5);
 }
 
+function geometryToLatLngs(geometry) {
+  if (!geometry) return [];
+
+  if (geometry.type === "Polygon") {
+    return (geometry.coordinates || []).map((ring) =>
+      (ring || []).map(([lat, lng]) => [lat, lng])
+    );
+  }
+
+  if (geometry.type === "MultiPolygon") {
+    return (geometry.coordinates || []).flatMap((polygon) =>
+      (polygon || []).map((ring) =>
+        (ring || []).map(([lat, lng]) => [lat, lng])
+      )
+    );
+  }
+
+  return [];
+}
+
 export function renderRegionsOnMap(mapState, regions = []) {
   mapState.polygons.clearLayers();
   const bounds = [];
 
   for (const region of regions) {
-    const coordinates = region?.geometry?.coordinates?.[0];
-    if (!Array.isArray(coordinates) || coordinates.length < 4) continue;
+    const rings = geometryToLatLngs(region?.geometry);
+    if (!rings.length) continue;
 
-    const latlngs = coordinates.map(([lat, lng]) => [lat, lng]);
-    const polygon = L.polygon(latlngs, {
+    const validRings = rings.filter((ring) => ring.length >= 3);
+    if (!validRings.length) continue;
+
+    const polygon = L.polygon(validRings, {
       color: region.status === "outside" ? "#9aa0a5" : "#16c784",
       weight: 2,
       fillOpacity: 0.28
     });
-    polygon.bindTooltip(region.name || "Alan");
+    polygon.bindTooltip(region.name || region.properties?.name || "Alan");
     polygon.on("click", () => {
       polygon.setStyle({ weight: 4, fillOpacity: 0.42 });
     });
     polygon.addTo(mapState.polygons);
-    latlngs.forEach((point) => bounds.push(point));
+    validRings.flat().forEach((point) => bounds.push(point));
   }
 
   return bounds;
