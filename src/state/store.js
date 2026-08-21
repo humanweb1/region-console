@@ -48,7 +48,7 @@ function notify() {
 
 function snapshotData() {
   return structuredClone({
-    regions: state.regions,
+    regions: { ...state.regions, mapSettings: state.mapSettings },
     campaigns: state.campaigns,
     importedFiles: state.importedFiles,
     mapSettings: state.mapSettings
@@ -83,7 +83,7 @@ export const store = {
       regions: structuredClone(data.regions || state.regions),
       campaigns: structuredClone(data.campaigns || state.campaigns),
       importedFiles: structuredClone(data.importedFiles || state.importedFiles),
-      mapSettings: structuredClone({ ...state.mapSettings, ...(data.mapSettings || {}) })
+      mapSettings: structuredClone({ ...state.mapSettings, ...(data.mapSettings || data.regions?.mapSettings || {}) })
     };
     if (recordHistory) {
       this.recordHistory(label, before, snapshotData());
@@ -120,7 +120,7 @@ export const store = {
       regions: structuredClone(entry.before.regions),
       campaigns: structuredClone(entry.before.campaigns),
       importedFiles: structuredClone(entry.before.importedFiles || []),
-      mapSettings: structuredClone({ ...initialState.mapSettings, ...(entry.before.mapSettings || {}) }),
+      mapSettings: structuredClone({ ...initialState.mapSettings, ...(entry.before.mapSettings || entry.before.regions?.mapSettings || {}) }),
       history: { ...state.history, cursor: state.history.cursor - 1 }
     };
     notify();
@@ -135,7 +135,7 @@ export const store = {
       regions: structuredClone(next.after.regions),
       campaigns: structuredClone(next.after.campaigns),
       importedFiles: structuredClone(next.after.importedFiles || []),
-      mapSettings: structuredClone({ ...initialState.mapSettings, ...(next.after.mapSettings || {}) }),
+      mapSettings: structuredClone({ ...initialState.mapSettings, ...(next.after.mapSettings || next.after.regions?.mapSettings || {}) }),
       history: { ...state.history, cursor: state.history.cursor + 1 }
     };
     notify();
@@ -180,7 +180,7 @@ export const store = {
       },
       mapSettings: {
         ...initialState.mapSettings,
-        ...(data.mapSettings || {})
+        ...(data.mapSettings || data.regions?.mapSettings || {})
       },
       campaigns: Array.isArray(data.campaigns) ? data.campaigns : [],
       importedFiles,
