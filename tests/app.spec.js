@@ -52,11 +52,13 @@ test.describe("Region Console smoke tests", () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthenticatedBackend(page);
 
-    // External Leaflet assets can keep the browser's `load` event open in
-    // an offline/slow test environment. The app's own readiness is asserted
-    // below, so DOMContentLoaded is the correct navigation boundary here.
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("#consoleView")).toBeVisible({ timeout: 10_000 });
+    // Do not wait for DOMContentLoaded here. The app currently loads Leaflet
+    // from an external CDN with a classic script tag, so a slow/offline CDN
+    // can delay DOMContentLoaded even though the local app is already being
+    // served correctly. `commit` gives the test a deterministic navigation
+    // boundary; app readiness is asserted explicitly below.
+    await page.goto("/", { waitUntil: "commit", timeout: 10_000 });
+    await expect(page.locator("#consoleView")).toBeVisible({ timeout: 15_000 });
   });
 
   test("starts with a usable map and closed regions menu", async ({ page }) => {
