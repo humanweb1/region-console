@@ -5,12 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="color-scheme" content="dark light">
   <title>Region Console</title>
-
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    crossorigin=""
-  >
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="./src/styles/base.css">
   <link rel="stylesheet" href="./src/styles/shell.css">
   <link rel="stylesheet" href="./src/styles/sidebar.css">
@@ -24,15 +19,11 @@
     <section id="consoleView" class="console-view" hidden>
       <header class="topbar">
         <button id="menuButton" class="icon-button" type="button" aria-label="Menü">☰</button>
-        <div class="brand">
-          <strong>Region Console</strong>
-          <span>Hizmet alanı yönetimi</span>
-        </div>
-        <label class="search">
-          <span class="sr-only">Bölge ara</span>
-          <input id="regionSearch" type="search" placeholder="Bölge ara..." autocomplete="off">
-        </label>
+        <div class="brand"><strong>Region Console</strong><span>Hizmet alanı yönetimi</span></div>
+        <label class="search"><span class="sr-only">Bölge ara</span><input id="regionSearch" type="search" placeholder="Bölge ara..." autocomplete="off"></label>
         <div class="topbar-actions">
+          <button id="campaignButton" class="button topbar-action" type="button">Kampanyalar</button>
+          <button id="usersButton" class="button topbar-action" type="button">Alt kullanıcı</button>
           <span id="cloudStatus" class="cloud-status">Bulut hazırlanıyor…</span>
           <span id="versionLabel" class="version">v0.1.0</span>
           <button id="themeButton" class="icon-button" type="button" aria-label="Tema">☾</button>
@@ -42,24 +33,15 @@
 
       <main class="workspace">
         <aside id="sidebar" class="sidebar" aria-label="Bölgeler">
-          <div class="sidebar-head">
-            <h1>▱ Bölgeler</h1>
-            <button id="addRegionButton" class="icon-button" type="button" aria-label="Bölge ekle">+</button>
-          </div>
+          <div class="sidebar-head"><h1>▱ Bölgeler</h1><button id="addRegionButton" class="icon-button" type="button" aria-label="Bölge ekle">+</button></div>
           <input id="sidebarSearch" class="sidebar-search" type="search" placeholder="Bölge ara...">
           <div id="regionTree" class="region-tree"></div>
-          <div class="legend">
-            <strong>Lejant</strong>
-            <div><i class="dot dot-service"></i> Hizmet Verilen</div>
-            <div><i class="dot dot-outside"></i> Hizmet Dışı</div>
-            <div><i class="dot dot-custom"></i> Özel Alan</div>
-          </div>
+          <div class="legend"><strong>Lejant</strong><div><i class="dot dot-service"></i> Hizmet Verilen</div><div><i class="dot dot-outside"></i> Hizmet Dışı</div><div><i class="dot dot-custom"></i> Özel Alan</div></div>
         </aside>
 
         <section class="map-stage">
           <div id="breadcrumb" class="breadcrumb">Türkiye <span>›</span> Harita</div>
           <div id="map" class="map" role="application" aria-label="Bölge haritası"></div>
-
           <aside class="tool-panel" aria-label="Harita araçları">
             <button class="tool active" data-tool="draw" type="button">⌁ &nbsp; Çizim Aracı</button>
             <button class="tool" data-tool="edit" type="button">↔ &nbsp; Alan Düzenle</button>
@@ -67,9 +49,8 @@
             <button class="tool" data-tool="import" type="button">↥ &nbsp; İçe Aktar</button>
             <button class="tool" data-tool="export" type="button">↧ &nbsp; Dışa Aktar</button>
             <button class="tool" data-tool="history" type="button">◷ &nbsp; Geçmiş</button>
-            <button class="tool" data-tool="settings" type="button">⚙ &nbsp; Ayarlar</button>
+            <button class="tool" data-tool="settings" type="button">⚙ &nbsp; Kullanıcı</button>
           </aside>
-
           <div class="map-controls" aria-label="Harita kontrolleri">
             <button id="resetMapButton" class="icon-button" type="button" aria-label="Haritayı sıfırla">↻</button>
             <button id="mapLayerButton" class="map-layer active" type="button">Harita</button>
@@ -77,36 +58,26 @@
             <button id="zoomOutButton" class="icon-button" type="button">−</button>
             <button id="zoomInButton" class="icon-button" type="button">+</button>
           </div>
-
           <div id="editBar" class="edit-bar" hidden>
             <button id="undoButton" class="button" type="button">↶ Geri al</button>
             <button id="redoButton" class="button" type="button">↷ İleri al</button>
-            <span class="selection-info">Seçili Alan <strong id="selectedArea">0 m²</strong></span>
-            <label class="status-select">
-              <span>Durum</span>
-              <select id="areaStatus">
-                <option value="service">● Hizmet Verilen</option>
-                <option value="outside">● Hizmet Dışı</option>
-              </select>
-            </label>
+            <span class="selection-info">Çizim <strong id="selectedArea">0 nokta</strong></span>
+            <label class="status-select"><span>Durum</span><select id="areaStatus"><option value="service">● Hizmet Verilen</option><option value="outside">● Hizmet Dışı</option></select></label>
             <button id="saveButton" class="button button-primary" type="button">Kaydet</button>
           </div>
-
           <footer class="stats">
-            <span>Toplam Ülke: <b id="statCountries">0</b></span>
-            <span>Toplam İl: <b id="statProvinces">0</b></span>
-            <span>Toplam İlçe: <b id="statDistricts">0</b></span>
-            <span>Toplam Alan: <b id="statArea">0</b></span>
-            <span>Hizmet Verilen: <b id="statService">0</b></span>
-            <span>Hizmet Dışı: <b id="statOutside">0</b></span>
+            <span>Toplam Ülke: <b id="statCountries">0</b></span><span>Toplam İl: <b id="statProvinces">0</b></span><span>Toplam İlçe: <b id="statDistricts">0</b></span><span>Toplam Alan: <b id="statArea">0</b></span><span>Hizmet Verilen: <b id="statService">0</b></span><span>Hizmet Dışı: <b id="statOutside">0</b></span>
           </footer>
         </section>
       </main>
     </section>
 
+    <dialog id="appDialog" class="app-dialog">
+      <header class="dialog-header"><h2 id="dialogTitle">Region Console</h2><button id="dialogClose" class="icon-button" type="button" aria-label="Kapat">×</button></header>
+      <div id="dialogBody" class="dialog-body"></div>
+    </dialog>
     <div id="toast" class="toast" role="status" hidden></div>
   </div>
-
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="./src/core/runtime-config.js"></script>
   <script type="module" src="./src/core/app.js"></script>
