@@ -1,5 +1,4 @@
 import { store } from "../../state/store.js";
-import { config } from "../../core/config.js";
 import { upsertState } from "../../services/cloud.js";
 import { getElements, openDialog, toast } from "../../components/shell.js";
 
@@ -108,6 +107,8 @@ function syncRegistry() {
   if (!missing.length) return;
   store.set({ importedFiles: [...current, ...missing] });
 }
+
+store.subscribe(syncRegistry);
 
 document.addEventListener("DOMContentLoaded", () => {
   syncRegistry();
