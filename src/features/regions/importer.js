@@ -5,11 +5,13 @@ function isFiniteCoordinatePair(value) {
     && Number.isFinite(Number(value[1]));
 }
 
+// Internal geometry format is always standard GeoJSON: [longitude, latitude].
+// Leaflet conversion happens only at the map rendering boundary.
 function normalizeRing(ring) {
   if (!Array.isArray(ring)) return null;
   const points = ring
     .filter(isFiniteCoordinatePair)
-    .map(([lng, lat]) => [Number(lat), Number(lng)]);
+    .map(([lng, lat]) => [Number(lng), Number(lat)]);
   if (points.length < 3) return null;
 
   const first = points[0];
@@ -36,7 +38,7 @@ function normalizeGeometry(geometry) {
   return null;
 }
 
-function geometryLatLngs(geometry) {
+function geometryCoordinates(geometry) {
   if (!geometry) return [];
   if (geometry.type === "Polygon") return geometry.coordinates.flat();
   if (geometry.type === "MultiPolygon") return geometry.coordinates.flat(2);
@@ -44,10 +46,11 @@ function geometryLatLngs(geometry) {
 }
 
 function buildBounds(geometry) {
-  const points = geometryLatLngs(geometry);
+  const points = geometryCoordinates(geometry);
   if (!points.length) return null;
-  const lats = points.map(([lat]) => lat);
-  const lngs = points.map(([, lng]) => lng);
+
+  const lngs = points.map(([lng]) => lng);
+  const lats = points.map(([, lat]) => lat);
   return [
     [Math.min(...lats), Math.min(...lngs)],
     [Math.max(...lats), Math.max(...lngs)]
@@ -55,9 +58,7 @@ function buildBounds(geometry) {
 }
 
 function featureList(input) {
-  if (input?.type === "FeatureCollection" && Array.isArray(input.features)) {
-    return input.features;
-  }
+  if (input?.type === "FeatureCollection" && Array.isArray(input.features)) return input.features;
   if (input?.type === "Feature") return [input];
   if (input?.type === "Polygon" || input?.type === "MultiPolygon") {
     return [{ type: "Feature", geometry: input, properties: {} }];
@@ -143,9 +144,7 @@ export function importRegionData(input, fileName = "") {
     });
   });
 
-  if (!imported.length) {
-    throw new Error("Geçerli Polygon veya MultiPolygon bulunamadı.");
-  }
+  if (!imported.length) throw new Error("Geçerli Polygon veya MultiPolygon bulunamadı.");
 
   return {
     mode: "geojson",
