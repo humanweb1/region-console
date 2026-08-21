@@ -8,6 +8,25 @@ export function bindPanels(elements, mapState, drawing, handlers) {
     });
   });
 
+  elements.menuButton?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const open = !elements.headerMenu.hidden;
+    elements.headerMenu.hidden = open;
+    elements.menuButton.setAttribute("aria-expanded", String(!open));
+  });
+
+  elements.campaignButton?.addEventListener("click", () => {
+    elements.headerMenu.hidden = true;
+    elements.menuButton?.setAttribute("aria-expanded", "false");
+    handlers.onCampaigns?.();
+  });
+
+  elements.usersButton?.addEventListener("click", () => {
+    elements.headerMenu.hidden = true;
+    elements.menuButton?.setAttribute("aria-expanded", "false");
+    handlers.onUsers?.();
+  });
+
   elements.regionsToggle?.addEventListener("click", () => {
     const open = !elements.sidebar.hidden;
     elements.sidebar.hidden = open;
@@ -15,6 +34,11 @@ export function bindPanels(elements, mapState, drawing, handlers) {
   });
 
   document.addEventListener("click", (event) => {
+    if (!elements.headerMenu.hidden && !elements.headerMenu.contains(event.target) && !elements.menuButton.contains(event.target)) {
+      elements.headerMenu.hidden = true;
+      elements.menuButton.setAttribute("aria-expanded", "false");
+    }
+
     if (elements.sidebar.hidden) return;
     if (elements.sidebar.contains(event.target) || elements.regionsToggle.contains(event.target)) return;
     elements.sidebar.hidden = true;
@@ -22,7 +46,16 @@ export function bindPanels(elements, mapState, drawing, handlers) {
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || elements.sidebar.hidden) return;
+    if (event.key !== "Escape") return;
+
+    if (!elements.headerMenu.hidden) {
+      elements.headerMenu.hidden = true;
+      elements.menuButton.setAttribute("aria-expanded", "false");
+      elements.menuButton.focus();
+      return;
+    }
+
+    if (elements.sidebar.hidden) return;
     elements.sidebar.hidden = true;
     elements.regionsToggle.setAttribute("aria-expanded", "false");
     elements.regionsToggle.focus();
@@ -47,8 +80,6 @@ export function bindPanels(elements, mapState, drawing, handlers) {
   document.getElementById("themeButton").addEventListener("click", handlers.onTheme);
   document.getElementById("logoutButton").addEventListener("click", handlers.onLogout);
   document.getElementById("dialogClose")?.addEventListener("click", () => elements.appDialog.close());
-  document.getElementById("campaignButton")?.addEventListener("click", handlers.onCampaigns);
-  document.getElementById("usersButton")?.addEventListener("click", handlers.onUsers);
 
   document.getElementById("regionSearch").addEventListener("input", (e) => handlers.onSearch?.(e.target.value));
   document.getElementById("sidebarSearch").addEventListener("input", (e) => handlers.onSearch?.(e.target.value));
