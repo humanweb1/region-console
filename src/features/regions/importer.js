@@ -137,6 +137,7 @@ export function importRegionData(input, fileName = "") {
       updatedAt: now,
       importMeta: {
         format: "GeoJSON",
+        coordinateOrder: "lonlat",
         sourceId,
         sourceFile: fileName || null,
         properties
