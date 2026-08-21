@@ -15,16 +15,24 @@ export function bindPanels(elements, mapState, drawing, handlers) {
     elements.menuButton.setAttribute("aria-expanded", String(!open));
   });
 
-  elements.campaignButton?.addEventListener("click", () => {
+  const closeHeaderMenu = () => {
     elements.headerMenu.hidden = true;
     elements.menuButton?.setAttribute("aria-expanded", "false");
+  };
+
+  elements.campaignButton?.addEventListener("click", () => {
+    closeHeaderMenu();
     handlers.onCampaigns?.();
   });
 
   elements.usersButton?.addEventListener("click", () => {
-    elements.headerMenu.hidden = true;
-    elements.menuButton?.setAttribute("aria-expanded", "false");
+    closeHeaderMenu();
     handlers.onUsers?.();
+  });
+
+  elements.filesButton?.addEventListener("click", () => {
+    closeHeaderMenu();
+    handlers.onFiles?.();
   });
 
   elements.regionsToggle?.addEventListener("click", () => {
@@ -35,8 +43,7 @@ export function bindPanels(elements, mapState, drawing, handlers) {
 
   document.addEventListener("click", (event) => {
     if (!elements.headerMenu.hidden && !elements.headerMenu.contains(event.target) && !elements.menuButton.contains(event.target)) {
-      elements.headerMenu.hidden = true;
-      elements.menuButton.setAttribute("aria-expanded", "false");
+      closeHeaderMenu();
     }
 
     if (elements.sidebar.hidden) return;
@@ -49,8 +56,7 @@ export function bindPanels(elements, mapState, drawing, handlers) {
     if (event.key !== "Escape") return;
 
     if (!elements.headerMenu.hidden) {
-      elements.headerMenu.hidden = true;
-      elements.menuButton.setAttribute("aria-expanded", "false");
+      closeHeaderMenu();
       elements.menuButton.focus();
       return;
     }
