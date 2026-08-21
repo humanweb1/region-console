@@ -13,6 +13,24 @@ const DEFAULTS = {
 
 const elements = getElements();
 
+function installStyles() {
+  if (document.getElementById("mapSettingsStyles")) return;
+  const style = document.createElement("style");
+  style.id = "mapSettingsStyles";
+  style.textContent = `
+    .map-settings-form{display:grid;gap:12px;min-width:min(440px,80vw)}
+    .map-settings-group{display:grid;gap:8px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2)}
+    .map-settings-group>strong{font-size:11px;color:var(--text)}
+    .settings-row,.settings-range>span{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:11px}
+    .settings-row input[type=color]{width:34px;height:24px;padding:2px;border:1px solid var(--border);border-radius:5px;background:transparent;cursor:pointer}
+    .settings-range{display:grid;gap:6px}.settings-range output{color:var(--text);font-variant-numeric:tabular-nums}
+    .settings-range input[type=range]{width:100%;accent-color:var(--accent)}
+    .map-settings-actions{display:flex;justify-content:flex-end;gap:6px}.map-settings-actions .button{min-height:30px;font-size:11px}
+    @media(max-width:720px){.map-settings-form{min-width:0}}
+  `;
+  document.head.appendChild(style);
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -57,49 +75,26 @@ async function saveSettings(nextSettings, before) {
 }
 
 function renderSettings() {
+  installStyles();
   const settings = { ...DEFAULTS, ...store.get().mapSettings };
   openDialog(elements, "Harita ayarları", `
     <div class="map-settings-form">
       <div class="map-settings-group">
         <strong>Sınırlar</strong>
-        <label class="settings-row">
-          <span>Sınır rengi</span>
-          <input id="settingBoundaryColor" type="color" value="${escapeHtml(settings.boundaryColor)}">
-        </label>
-        <label class="settings-range">
-          <span>Kalınlık <output id="settingBoundaryWeightValue">${Number(settings.boundaryWeight).toFixed(1)} px</output></span>
-          <input id="settingBoundaryWeight" type="range" min="0.5" max="8" step="0.5" value="${Number(settings.boundaryWeight)}">
-        </label>
+        <label class="settings-row"><span>Sınır rengi</span><input id="settingBoundaryColor" type="color" value="${escapeHtml(settings.boundaryColor)}"></label>
+        <label class="settings-range"><span>Kalınlık <output id="settingBoundaryWeightValue">${Number(settings.boundaryWeight).toFixed(1)} px</output></span><input id="settingBoundaryWeight" type="range" min="0.5" max="8" step="0.5" value="${Number(settings.boundaryWeight)}"></label>
       </div>
-
       <div class="map-settings-group">
         <strong>Hizmet dışı alan</strong>
-        <label class="settings-row">
-          <span>Alan rengi</span>
-          <input id="settingOutsideColor" type="color" value="${escapeHtml(settings.outsideColor)}">
-        </label>
-        <label class="settings-range">
-          <span>Opaklık <output id="settingOutsideOpacityValue">${percent(settings.outsideOpacity)}</output></span>
-          <input id="settingOutsideOpacity" type="range" min="0" max="1" step="0.05" value="${Number(settings.outsideOpacity)}">
-        </label>
+        <label class="settings-row"><span>Alan rengi</span><input id="settingOutsideColor" type="color" value="${escapeHtml(settings.outsideColor)}"></label>
+        <label class="settings-range"><span>Opaklık <output id="settingOutsideOpacityValue">${percent(settings.outsideOpacity)}</output></span><input id="settingOutsideOpacity" type="range" min="0" max="1" step="0.05" value="${Number(settings.outsideOpacity)}"></label>
       </div>
-
       <div class="map-settings-group">
         <strong>Kampanyalı alan</strong>
-        <label class="settings-row">
-          <span>Alan rengi</span>
-          <input id="settingCampaignColor" type="color" value="${escapeHtml(settings.campaignColor)}">
-        </label>
-        <label class="settings-range">
-          <span>Opaklık <output id="settingCampaignOpacityValue">${percent(settings.campaignOpacity)}</output></span>
-          <input id="settingCampaignOpacity" type="range" min="0" max="1" step="0.05" value="${Number(settings.campaignOpacity)}">
-        </label>
+        <label class="settings-row"><span>Alan rengi</span><input id="settingCampaignColor" type="color" value="${escapeHtml(settings.campaignColor)}"></label>
+        <label class="settings-range"><span>Opaklık <output id="settingCampaignOpacityValue">${percent(settings.campaignOpacity)}</output></span><input id="settingCampaignOpacity" type="range" min="0" max="1" step="0.05" value="${Number(settings.campaignOpacity)}"></label>
       </div>
-
-      <div class="map-settings-actions">
-        <button id="resetMapSettings" class="button" type="button">Varsayılanlar</button>
-        <button id="saveMapSettings" class="button button-primary" type="button">Uygula</button>
-      </div>
+      <div class="map-settings-actions"><button id="resetMapSettings" class="button" type="button">Varsayılanlar</button><button id="saveMapSettings" class="button button-primary" type="button">Uygula</button></div>
     </div>
   `);
 
@@ -109,7 +104,6 @@ function renderSettings() {
   const campaignOpacity = body.querySelector("#settingCampaignOpacity");
 
   boundaryWeight.addEventListener("input", () => {
-    body.querySelector("#settingBoundaryWeightValue").value = `${Number(boundaryWeight.value).toFixed(1)} px`;
     body.querySelector("#settingBoundaryWeightValue").textContent = `${Number(boundaryWeight.value).toFixed(1)} px`;
   });
   outsideOpacity.addEventListener("input", () => {
@@ -120,10 +114,12 @@ function renderSettings() {
   });
 
   body.querySelector("#resetMapSettings").addEventListener("click", () => {
-    Object.entries(DEFAULTS).forEach(([key, value]) => {
-      const input = body.querySelector(`#setting${key.charAt(0).toUpperCase()}${key.slice(1)}`);
-      if (input) input.value = value;
-    });
+    body.querySelector("#settingBoundaryColor").value = DEFAULTS.boundaryColor;
+    body.querySelector("#settingBoundaryWeight").value = DEFAULTS.boundaryWeight;
+    body.querySelector("#settingOutsideColor").value = DEFAULTS.outsideColor;
+    body.querySelector("#settingOutsideOpacity").value = DEFAULTS.outsideOpacity;
+    body.querySelector("#settingCampaignColor").value = DEFAULTS.campaignColor;
+    body.querySelector("#settingCampaignOpacity").value = DEFAULTS.campaignOpacity;
     body.querySelector("#settingBoundaryWeightValue").textContent = `${DEFAULTS.boundaryWeight.toFixed(1)} px`;
     body.querySelector("#settingOutsideOpacityValue").textContent = percent(DEFAULTS.outsideOpacity);
     body.querySelector("#settingCampaignOpacityValue").textContent = percent(DEFAULTS.campaignOpacity);
@@ -152,7 +148,6 @@ function renderSettings() {
 function installMenuItem() {
   const menu = document.getElementById("headerMenu");
   if (!menu || document.getElementById("settingsButton")) return;
-
   const button = document.createElement("button");
   button.id = "settingsButton";
   button.className = "header-menu-item";
