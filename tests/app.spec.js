@@ -51,8 +51,12 @@ async function mockAuthenticatedBackend(page) {
 test.describe("Region Console smoke tests", () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthenticatedBackend(page);
-    await page.goto("/");
-    await expect(page.locator("#consoleView")).toBeVisible();
+
+    // External Leaflet assets can keep the browser's `load` event open in
+    // an offline/slow test environment. The app's own readiness is asserted
+    // below, so DOMContentLoaded is the correct navigation boundary here.
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#consoleView")).toBeVisible({ timeout: 10_000 });
   });
 
   test("starts with a usable map and closed regions menu", async ({ page }) => {
