@@ -19,6 +19,14 @@ const initialState = {
     drawing: false,
     layer: "standard"
   },
+  mapSettings: {
+    boundaryColor: "#ffffff",
+    boundaryWeight: 1.5,
+    outsideColor: "#4b5563",
+    outsideOpacity: 0.55,
+    campaignColor: "#ffd400",
+    campaignOpacity: 0.55
+  },
   history: {
     entries: [],
     cursor: -1
@@ -42,7 +50,8 @@ function snapshotData() {
   return structuredClone({
     regions: state.regions,
     campaigns: state.campaigns,
-    importedFiles: state.importedFiles
+    importedFiles: state.importedFiles,
+    mapSettings: state.mapSettings
   });
 }
 
@@ -73,7 +82,8 @@ export const store = {
       ...state,
       regions: structuredClone(data.regions || state.regions),
       campaigns: structuredClone(data.campaigns || state.campaigns),
-      importedFiles: structuredClone(data.importedFiles || state.importedFiles)
+      importedFiles: structuredClone(data.importedFiles || state.importedFiles),
+      mapSettings: structuredClone({ ...state.mapSettings, ...(data.mapSettings || {}) })
     };
     if (recordHistory) {
       this.recordHistory(label, before, snapshotData());
@@ -110,6 +120,7 @@ export const store = {
       regions: structuredClone(entry.before.regions),
       campaigns: structuredClone(entry.before.campaigns),
       importedFiles: structuredClone(entry.before.importedFiles || []),
+      mapSettings: structuredClone({ ...initialState.mapSettings, ...(entry.before.mapSettings || {}) }),
       history: { ...state.history, cursor: state.history.cursor - 1 }
     };
     notify();
@@ -124,6 +135,7 @@ export const store = {
       regions: structuredClone(next.after.regions),
       campaigns: structuredClone(next.after.campaigns),
       importedFiles: structuredClone(next.after.importedFiles || []),
+      mapSettings: structuredClone({ ...initialState.mapSettings, ...(next.after.mapSettings || {}) }),
       history: { ...state.history, cursor: state.history.cursor + 1 }
     };
     notify();
@@ -165,6 +177,10 @@ export const store = {
         countries: Array.isArray(data.countries) ? data.countries : [],
         custom,
         selectedId: null
+      },
+      mapSettings: {
+        ...initialState.mapSettings,
+        ...(data.mapSettings || {})
       },
       campaigns: Array.isArray(data.campaigns) ? data.campaigns : [],
       importedFiles,
