@@ -58,7 +58,7 @@ function render() {
   const status = statusMap[state.cloud.status];
   if (status) setCloudStatus(elements, status[0], status[1]);
 
-  renderRegions(elements.regionTree, state.regions.countries);
+  renderRegions(elements.regionTree, state.regions.countries, "", allCustomRegions());
   const current = stats();
   elements.statCountries.textContent = current.countries;
   elements.statProvinces.textContent = current.provinces;
@@ -78,7 +78,8 @@ async function persistState() {
     const saved = await upsertState(session.access_token, {
       ...store.dataSnapshot().regions,
       campaigns: store.get().campaigns,
-      history: store.get().history.entries
+      history: store.get().history.entries,
+      importedFiles: store.get().importedFiles
     });
     store.update("cloud", {
       status: "ready",
@@ -220,7 +221,6 @@ function importData() {
     try {
       const text = await file.text();
       if (!text.trim()) throw new Error("Dosya boş.");
-
       let imported;
       try {
         imported = JSON.parse(text);
@@ -232,9 +232,10 @@ function importData() {
       const before = store.dataSnapshot();
 
       if (result.mode === "region-console") {
-        store.replaceData(result.regions
-          ? { regions: result.regions, campaigns: result.campaigns }
-          : { regions: store.get().regions, campaigns: result.campaigns }, { recordHistory: false });
+        store.replaceData(
+          { regions: result.regions, campaigns: result.campaigns },
+          { recordHistory: false }
+        );
         store.recordHistory("Region Console JSON içe aktarıldı", before, store.dataSnapshot());
       } else {
         const current = store.get();
@@ -250,6 +251,27 @@ function importData() {
           (region) => !existingKeys.has(String(region.importMeta?.sourceId))
         );
         const duplicates = result.importedCount - freshRegions.length;
+        const importedAt = new Date().toISOString();
+        const registry = Array.isArray(current.importedFiles) ? current.importedFiles : [];
+        const nextRegistry = [
+          ...registry.filter((item) => String(item?.name) !== String(file.name)),
+          {
+            id: crypto.randomUUID(),
+            name: file.name,
+            size: file.size,
+            type: file.type || "application/geo+json",
+            importedAt,
+            regionCount: freshRegions.length
+          }
+        ];
+
+        freshRegions.forEach((region) => {
+          region.importMeta = {
+            ...(region.importMeta || {}),
+            sourceFile: file.name,
+            importedAt
+          };
+        });
 
         store.replaceData({
           regions: {
@@ -257,7 +279,8 @@ function importData() {
             custom: [...currentCustom, ...freshRegions],
             selectedId: null
           },
-          campaigns: current.campaigns
+          campaigns: current.campaigns,
+          importedFiles: nextRegistry
         }, { recordHistory: false });
         store.recordHistory("GeoJSON içe aktarıldı", before, store.dataSnapshot());
 
@@ -305,7 +328,7 @@ async function startApplication(session) {
       onSave: handleSave,
       onCampaigns: showCampaigns,
       onUsers: showUsers,
-      onSearch: (query) => renderRegions(elements.regionTree, store.get().regions.countries, query),
+      onSearch: (query) => renderRegions(elements.regionTree, store.get().regions.countries, query, allCustomRegions()),
       onTool: (tool) => {
         if (tool === "draw") drawing.begin();
         if (tool === "delete") handleDelete();
