@@ -18,6 +18,21 @@
 
     <section id="consoleView" class="console-view" hidden>
       <header class="topbar">
+        <div class="topbar-menu">
+          <button id="menuButton" class="icon-button menu-button" type="button" aria-label="Menüyü aç" aria-expanded="false" aria-controls="headerMenu" title="Menü">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </button>
+          <div id="headerMenu" class="header-menu" hidden>
+            <button id="campaignButton" class="header-menu-item" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14v12H5zM8 7V5h8v2M9 11h6M9 15h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Kampanyalar</span>
+            </button>
+            <button id="usersButton" class="header-menu-item" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6 19c.7-3 2.6-4.5 6-4.5s5.3 1.5 6 4.5M17 5.5a2.5 2.5 0 0 1 0 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <span>Kullanıcılar</span>
+            </button>
+          </div>
+        </div>
         <div class="brand"><strong>Region Console</strong></div>
         <label class="search"><span class="sr-only">Bölge ara</span><input id="regionSearch" type="search" placeholder="Bölge ara..." autocomplete="off"></label>
         <div class="topbar-actions">
@@ -50,12 +65,10 @@
           <aside class="tool-panel" aria-label="Araçlar">
             <button class="tool active" data-tool="draw" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19 19 5M5 19h5M14 5h5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Çizim</span></button>
             <button class="tool" data-tool="edit" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16 8-8 4 4-8 8H4v-4ZM14 6l2-2 4 4-2 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Düzenle</span></button>
-            <button class="tool" data-tool="delete" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Sil</span></button>
+            <button class="tool" data-tool="delete" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>Sil</span></button>
             <button class="tool" data-tool="import" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0-4 4m4-4 4 4M5 13v6h14v-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>İçe aktar</span></button>
             <button class="tool" data-tool="export" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 14v6h14v-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Dışa aktar</span></button>
             <button class="tool" data-tool="history" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5M4 4v4.5h4.5M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Geçmiş</span></button>
-            <button id="campaignButton" class="tool tool-action" data-tool="campaigns" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14v12H5zM8 7V5h8v2M9 11h6M9 15h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Kampanyalar</span></button>
-            <button id="usersButton" class="tool tool-action" data-tool="users" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6 19c.7-3 2.6-4.5 6-4.5s5.3 1.5 6 4.5M17 5.5a2.5 2.5 0 0 1 0 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>Alt kullanıcı</span></button>
           </aside>
           <div class="map-controls" aria-label="Harita kontrolleri">
             <button id="resetMapButton" class="icon-button" type="button" aria-label="Haritayı sıfırla" title="Haritayı sıfırla">↻</button>
