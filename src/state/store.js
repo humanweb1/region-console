@@ -24,6 +24,7 @@ const initialState = {
     cursor: -1
   },
   campaigns: [],
+  importedFiles: [],
   ui: {
     theme: "dark",
     activeTool: "draw"
@@ -40,7 +41,8 @@ function notify() {
 function snapshotData() {
   return structuredClone({
     regions: state.regions,
-    campaigns: state.campaigns
+    campaigns: state.campaigns,
+    importedFiles: state.importedFiles
   });
 }
 
@@ -70,7 +72,8 @@ export const store = {
     state = {
       ...state,
       regions: structuredClone(data.regions || state.regions),
-      campaigns: structuredClone(data.campaigns || state.campaigns)
+      campaigns: structuredClone(data.campaigns || state.campaigns),
+      importedFiles: structuredClone(data.importedFiles || state.importedFiles)
     };
     if (recordHistory) {
       this.recordHistory(label, before, snapshotData());
@@ -106,6 +109,7 @@ export const store = {
       ...state,
       regions: structuredClone(entry.before.regions),
       campaigns: structuredClone(entry.before.campaigns),
+      importedFiles: structuredClone(entry.before.importedFiles || []),
       history: { ...state.history, cursor: state.history.cursor - 1 }
     };
     notify();
@@ -119,6 +123,7 @@ export const store = {
       ...state,
       regions: structuredClone(next.after.regions),
       campaigns: structuredClone(next.after.campaigns),
+      importedFiles: structuredClone(next.after.importedFiles || []),
       history: { ...state.history, cursor: state.history.cursor + 1 }
     };
     notify();
@@ -131,14 +136,38 @@ export const store = {
 
   loadPersisted(remoteState) {
     const data = remoteState || {};
+    const custom = Array.isArray(data.custom) ? data.custom : [];
+    let importedFiles = Array.isArray(data.importedFiles) ? data.importedFiles : [];
+
+    if (!importedFiles.length) {
+      const legacyGroups = new Map();
+      custom.forEach((region) => {
+        const fileName = region?.importMeta?.sourceFile;
+        if (!fileName) return;
+        const key = String(fileName);
+        if (!legacyGroups.has(key)) {
+          legacyGroups.set(key, {
+            id: `legacy-file-${key}`,
+            name: key,
+            size: null,
+            importedAt: region.importMeta.importedAt || region.createdAt || new Date().toISOString(),
+            regionCount: 0
+          });
+        }
+        legacyGroups.get(key).regionCount += 1;
+      });
+      importedFiles = [...legacyGroups.values()];
+    }
+
     state = {
       ...state,
       regions: {
         countries: Array.isArray(data.countries) ? data.countries : [],
-        custom: Array.isArray(data.custom) ? data.custom : [],
+        custom,
         selectedId: null
       },
       campaigns: Array.isArray(data.campaigns) ? data.campaigns : [],
+      importedFiles,
       history: {
         entries: Array.isArray(data.history) ? data.history.slice(-50) : [],
         cursor: Array.isArray(data.history) ? data.history.length - 1 : -1
