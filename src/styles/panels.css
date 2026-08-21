@@ -32,6 +32,23 @@
 .status-select { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; }
 .status-select select { border: 0; background: transparent; color: var(--text); outline: 0; font-size: 11px; }
 
+.files-list { display: grid; gap: 7px; }
+.file-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel-2);
+}
+.file-main { min-width: 0; display: grid; gap: 3px; }
+.file-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.file-main span,
+.file-main small { color: var(--muted); font-size: 10px; }
+.file-delete { flex: 0 0 auto; min-height: 28px; padding: 0 8px; }
+
 .stats {
   position: absolute;
   z-index: 650;
@@ -65,4 +82,5 @@
   }
   .edit-bar .button { flex: 0 0 auto; }
   .selection-info, .status-select { flex: 0 0 auto; }
+  .file-card { align-items: flex-start; }
 }
