@@ -1,8 +1,8 @@
 export function bindPanels(elements, mapState, drawing, handlers) {
-  document.querySelectorAll(".tool").forEach((button) => {
+  document.querySelectorAll(".tool:not(.tool-action)").forEach((button) => {
     button.addEventListener("click", () => {
       const tool = button.dataset.tool;
-      document.querySelectorAll(".tool").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tool:not(.tool-action)").forEach((b) => b.classList.remove("active"));
       button.classList.add("active");
       handlers.onTool?.(tool);
     });
