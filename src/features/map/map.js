@@ -60,21 +60,14 @@ function normalizeSettings(settings = {}) {
 
 function geometryToLatLngs(geometry) {
   if (!geometry) return [];
-
   if (geometry.type === "Polygon") {
-    return (geometry.coordinates || []).map((ring) =>
-      (ring || []).map(([lat, lng]) => [lat, lng])
-    );
+    return (geometry.coordinates || []).map((ring) => (ring || []).map(([lat, lng]) => [lat, lng]));
   }
-
   if (geometry.type === "MultiPolygon") {
     return (geometry.coordinates || []).flatMap((polygon) =>
-      (polygon || []).map((ring) =>
-        (ring || []).map(([lat, lng]) => [lat, lng])
-      )
+      (polygon || []).map((ring) => (ring || []).map(([lat, lng]) => [lat, lng]))
     );
   }
-
   return [];
 }
 
@@ -85,20 +78,7 @@ function isCampaignRegion(region) {
 function renderOutsideMask(mapState, serviceRings, settings) {
   mapState.mask.clearLayers();
   const outer = [[89, -180], [89, 180], [-89, 180], [-89, -180], [89, -180]];
-
-  if (!serviceRings.length) {
-    L.polygon([outer], {
-      stroke: false,
-      fillColor: settings.outsideColor,
-      fillOpacity: settings.outsideOpacity,
-      interactive: false
-    }).addTo(mapState.mask);
-    return;
-  }
-
-  const holes = serviceRings
-    .filter((ring) => ring.length >= 3)
-    .map((ring) => ring.slice().reverse());
+  const holes = serviceRings.filter((ring) => ring.length >= 3).map((ring) => ring.slice().reverse());
 
   L.polygon([outer, ...holes], {
     stroke: false,
@@ -117,17 +97,12 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
   for (const region of regions) {
     const rings = geometryToLatLngs(region?.geometry);
     if (!rings.length) continue;
-
     const validRings = rings.filter((ring) => ring.length >= 3);
     if (!validRings.length) continue;
 
     const outside = region.status === "outside";
     const campaign = isCampaignRegion(region);
-    const fillColor = outside
-      ? normalized.outsideColor
-      : campaign
-        ? normalized.campaignColor
-        : "transparent";
+    const fillColor = outside ? normalized.outsideColor : campaign ? normalized.campaignColor : "transparent";
     const fillOpacity = outside
       ? Math.min(0.9, normalized.outsideOpacity + 0.08)
       : campaign
@@ -156,7 +131,7 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
     polygon.addTo(mapState.polygons);
     validRings.flat().forEach((point) => bounds.push(point));
 
-    if (!outside && !campaign) serviceRings.push(validRings[0]);
+    if (!outside) serviceRings.push(validRings[0]);
   }
 
   renderOutsideMask(mapState, serviceRings, normalized);
@@ -165,11 +140,7 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
 
 export function fitToCoordinates(mapState, coordinates = [], padding = [30, 30]) {
   if (!coordinates.length) return false;
-  mapState.map.fitBounds(L.latLngBounds(coordinates), {
-    padding,
-    maxZoom: 15,
-    animate: true
-  });
+  mapState.map.fitBounds(L.latLngBounds(coordinates), { padding, maxZoom: 15, animate: true });
   return true;
 }
 
