@@ -1,12 +1,12 @@
 {
   "name": "region-console",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Clean foundation for Region Console.",
+  "description": "Region Console region management application.",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "check": "node --check src/core/app.js && node --check src/core/config.js && node --check src/state/store.js && node --check src/services/auth.js && node --check src/services/cloud.js"
+    "check": "node --check src/core/app.js && node --check src/core/config.js && node --check src/state/store.js && node --check src/services/auth.js && node --check src/services/cloud.js && node --check src/features/auth/login.js && node --check src/features/drawing/drawing.js && node --check src/features/map/map.js && node --check src/features/regions/regions.js && node --check src/features/ui/panels.js"
   },
   "devDependencies": {
     "wrangler": "^4.125.0"

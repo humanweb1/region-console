@@ -3,9 +3,9 @@ export function getElements() {
     "loginView", "consoleView", "cloudStatus", "versionLabel",
     "logoutButton", "themeButton", "regionTree", "editBar",
     "selectedArea", "statCountries", "statProvinces", "statDistricts",
-    "statArea", "statService", "statOutside", "toast"
+    "statArea", "statService", "statOutside", "toast", "appDialog",
+    "dialogTitle", "dialogBody", "dialogClose", "campaignButton", "usersButton"
   ];
-
   return Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 }
 
@@ -31,4 +31,14 @@ export function toast(elements, message) {
   toast.timer = window.setTimeout(() => {
     elements.toast.hidden = true;
   }, 3200);
+}
+
+export function openDialog(elements, title, body) {
+  elements.dialogTitle.textContent = title;
+  elements.dialogBody.innerHTML = body;
+  elements.appDialog.showModal();
+}
+
+export function closeDialog(elements) {
+  if (elements.appDialog.open) elements.appDialog.close();
 }

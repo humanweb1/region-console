@@ -10,7 +10,6 @@ function authHeaders(accessToken) {
 
 async function request(path, accessToken, options = {}) {
   assertConfig();
-
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeout ?? 10000);
 
@@ -34,13 +33,9 @@ async function request(path, accessToken, options = {}) {
 
     if (!response.ok) {
       throw new Error(
-        data?.message ||
-        data?.msg ||
-        data?.hint ||
-        `Bulut isteği başarısız (${response.status}).`
+        data?.message || data?.msg || data?.hint || `Bulut isteği başarısız (${response.status}).`
       );
     }
-
     return data;
   } finally {
     clearTimeout(timeout);
@@ -68,6 +63,29 @@ export async function saveState(accessToken, state, version = null) {
     {
       method: "PATCH",
       headers: { Prefer: "return=representation" },
+      body: JSON.stringify(body)
+    }
+  );
+
+  return rows?.[0] || null;
+}
+
+export async function upsertState(accessToken, state) {
+  const body = {
+    id: "main",
+    state,
+    version: Date.now(),
+    updated_at: new Date().toISOString()
+  };
+
+  const rows = await request(
+    "/rest/v1/region_console_state",
+    accessToken,
+    {
+      method: "POST",
+      headers: {
+        Prefer: "resolution=merge-duplicates,return=representation"
+      },
       body: JSON.stringify(body)
     }
   );

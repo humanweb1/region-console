@@ -26,12 +26,14 @@ export function bindPanels(elements, mapState, drawing, handlers) {
 
   document.getElementById("themeButton").addEventListener("click", handlers.onTheme);
   document.getElementById("logoutButton").addEventListener("click", handlers.onLogout);
+  document.getElementById("dialogClose")?.addEventListener("click", () => elements.appDialog.close());
+  document.getElementById("campaignButton")?.addEventListener("click", handlers.onCampaigns);
+  document.getElementById("usersButton")?.addEventListener("click", handlers.onUsers);
 
-  document.getElementById("regionSearch").addEventListener("input", (e) => {
-    handlers.onSearch?.(e.target.value);
-  });
+  document.getElementById("regionSearch").addEventListener("input", (e) => handlers.onSearch?.(e.target.value));
+  document.getElementById("sidebarSearch").addEventListener("input", (e) => handlers.onSearch?.(e.target.value));
 
-  document.getElementById("sidebarSearch").addEventListener("input", (e) => {
-    handlers.onSearch?.(e.target.value);
-  });
+  document.getElementById("undoButton")?.addEventListener("click", handlers.onUndo);
+  document.getElementById("redoButton")?.addEventListener("click", handlers.onRedo);
+  document.getElementById("saveButton")?.addEventListener("click", handlers.onSave);
 }
