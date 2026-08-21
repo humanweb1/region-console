@@ -3,7 +3,8 @@ export function createMap() {
     center: [39.0, 35.0],
     zoom: 5,
     zoomControl: false,
-    attributionControl: true
+    attributionControl: true,
+    doubleClickZoom: true
   });
 
   const standard = L.tileLayer(
@@ -28,11 +29,46 @@ export function setLayer(mapState, name) {
   Object.values(layers).forEach((layer) => {
     if (map.hasLayer(layer)) map.removeLayer(layer);
   });
-  layers[name].addTo(map);
+  (layers[name] || layers.standard).addTo(map);
 }
 
 export function resetView(mapState) {
   mapState.map.setView([39.0, 35.0], 5);
+}
+
+export function renderRegionsOnMap(mapState, regions = []) {
+  mapState.polygons.clearLayers();
+  const bounds = [];
+
+  for (const region of regions) {
+    const coordinates = region?.geometry?.coordinates?.[0];
+    if (!Array.isArray(coordinates) || coordinates.length < 4) continue;
+
+    const latlngs = coordinates.map(([lat, lng]) => [lat, lng]);
+    const polygon = L.polygon(latlngs, {
+      color: region.status === "outside" ? "#9aa0a5" : "#16c784",
+      weight: 2,
+      fillOpacity: 0.28
+    });
+    polygon.bindTooltip(region.name || "Alan");
+    polygon.on("click", () => {
+      polygon.setStyle({ weight: 4, fillOpacity: 0.42 });
+    });
+    polygon.addTo(mapState.polygons);
+    latlngs.forEach((point) => bounds.push(point));
+  }
+
+  return bounds;
+}
+
+export function fitToCoordinates(mapState, coordinates = [], padding = [30, 30]) {
+  if (!coordinates.length) return false;
+  mapState.map.fitBounds(L.latLngBounds(coordinates), {
+    padding,
+    maxZoom: 15,
+    animate: true
+  });
+  return true;
 }
 
 export function invalidateMap(mapState) {
