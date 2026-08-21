@@ -55,6 +55,53 @@ function snapshotData() {
   });
 }
 
+function swapPair([first, second]) {
+  return [second, first];
+}
+
+function swapGeometryCoordinates(geometry) {
+  if (!geometry) return geometry;
+  if (geometry.type === "Polygon") {
+    return {
+      ...geometry,
+      coordinates: (geometry.coordinates || []).map((ring) =>
+        (ring || []).map((point) => Array.isArray(point) ? swapPair(point) : point)
+      )
+    };
+  }
+  if (geometry.type === "MultiPolygon") {
+    return {
+      ...geometry,
+      coordinates: (geometry.coordinates || []).map((polygon) =>
+        (polygon || []).map((ring) =>
+          (ring || []).map((point) => Array.isArray(point) ? swapPair(point) : point)
+        )
+      )
+    };
+  }
+  return geometry;
+}
+
+function migrateCustomRegions(custom) {
+  return (Array.isArray(custom) ? custom : []).map((region) => {
+    const meta = region?.importMeta;
+    if (!meta?.format || meta.format !== "GeoJSON" || meta.coordinateOrder) return region;
+
+    // Versions before the coordinate-order fix persisted [latitude, longitude].
+    // New imports explicitly carry coordinateOrder="lonlat", so this migration
+    // only touches legacy imported GeoJSON regions.
+    return {
+      ...region,
+      geometry: swapGeometryCoordinates(region.geometry),
+      importMeta: {
+        ...meta,
+        coordinateOrder: "lonlat",
+        migratedAt: new Date().toISOString()
+      }
+    };
+  });
+}
+
 export const store = {
   get() {
     return state;
@@ -148,7 +195,7 @@ export const store = {
 
   loadPersisted(remoteState) {
     const data = remoteState || {};
-    const custom = Array.isArray(data.custom) ? data.custom : [];
+    const custom = migrateCustomRegions(Array.isArray(data.custom) ? data.custom : []);
     let importedFiles = Array.isArray(data.importedFiles) ? data.importedFiles : [];
 
     if (!importedFiles.length) {
