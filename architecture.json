@@ -1,13 +1,26 @@
 {
   "project": "region-console",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "principles": [
     "single bootstrap",
     "single state store",
     "single auth service",
     "single cloud service",
     "feature isolation",
-    "no layered fix scripts",
-    "no secrets in frontend"
-  ]
+    "no secrets in frontend",
+    "RLS enforced authorization",
+    "server-only admin auth operations"
+  ],
+  "features": [
+    "polygon drawing",
+    "cloud persistence",
+    "undo redo",
+    "history",
+    "campaigns",
+    "json import export",
+    "password recovery",
+    "sub-user invitations"
+  ],
+  "roles": ["admin", "sub_user", "viewer"],
+  "server": "supabase/functions/invite-user/index.ts"
 }
