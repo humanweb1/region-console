@@ -1,0 +1,25 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "TR-TEST-01",
+      "properties": {
+        "name": "Test Bölgesi",
+        "code": "TR-TEST-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [26.0, 38.0],
+            [27.0, 38.0],
+            [27.0, 39.0],
+            [26.0, 39.0],
+            [26.0, 38.0]
+          ]
+        ]
+      }
+    }
+  ]
+}
