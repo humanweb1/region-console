@@ -37,6 +37,9 @@
 .tool {
   width: 100%;
   min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border: 0;
   border-bottom: 1px solid var(--border);
   background: transparent;
@@ -47,6 +50,14 @@
   font-weight: 650;
   line-height: 1;
 }
+
+.tool svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.tool span { min-width: 0; }
 .tool:last-child { border-bottom: 0; }
 .tool:hover { background: var(--panel-2); }
 .tool.active { background: var(--accent); color: #111; }
@@ -88,5 +99,6 @@
 @media (max-width: 720px) {
   .tool-panel { width: 122px; right: 7px; top: 7px; }
   .tool { min-height: 34px; padding: 0 8px; font-size: 10px; }
+  .tool svg { width: 13px; height: 13px; flex-basis: 13px; }
   .map-controls { right: 7px; bottom: calc(var(--stats-height) + 7px); }
 }
