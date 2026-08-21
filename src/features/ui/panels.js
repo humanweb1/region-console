@@ -8,6 +8,26 @@ export function bindPanels(elements, mapState, drawing, handlers) {
     });
   });
 
+  elements.regionsToggle?.addEventListener("click", () => {
+    const open = !elements.sidebar.hidden;
+    elements.sidebar.hidden = open;
+    elements.regionsToggle.setAttribute("aria-expanded", String(!open));
+  });
+
+  document.addEventListener("click", (event) => {
+    if (elements.sidebar.hidden) return;
+    if (elements.sidebar.contains(event.target) || elements.regionsToggle.contains(event.target)) return;
+    elements.sidebar.hidden = true;
+    elements.regionsToggle.setAttribute("aria-expanded", "false");
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || elements.sidebar.hidden) return;
+    elements.sidebar.hidden = true;
+    elements.regionsToggle.setAttribute("aria-expanded", "false");
+    elements.regionsToggle.focus();
+  });
+
   document.getElementById("zoomInButton").addEventListener("click", () => mapState.map.zoomIn());
   document.getElementById("zoomOutButton").addEventListener("click", () => mapState.map.zoomOut());
   document.getElementById("resetMapButton").addEventListener("click", handlers.onResetMap);
