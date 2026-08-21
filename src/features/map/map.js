@@ -1,3 +1,5 @@
+import { store } from "../../state/store.js";
+
 const DEFAULT_MAP_SETTINGS = {
   boundaryColor: "#ffffff",
   boundaryWeight: 1.5,
@@ -82,8 +84,9 @@ function isCampaignRegion(region) {
 
 function renderOutsideMask(mapState, serviceRings, settings) {
   mapState.mask.clearLayers();
+  const outer = [[89, -180], [89, 180], [-89, 180], [-89, -180], [89, -180]];
+
   if (!serviceRings.length) {
-    const outer = [[89, -180], [89, 180], [-89, 180], [-89, -180], [89, -180]];
     L.polygon([outer], {
       stroke: false,
       fillColor: settings.outsideColor,
@@ -93,7 +96,6 @@ function renderOutsideMask(mapState, serviceRings, settings) {
     return;
   }
 
-  const outer = [[89, -180], [89, 180], [-89, 180], [-89, -180], [89, -180]];
   const holes = serviceRings
     .filter((ring) => ring.length >= 3)
     .map((ring) => ring.slice().reverse());
@@ -106,8 +108,8 @@ function renderOutsideMask(mapState, serviceRings, settings) {
   }).addTo(mapState.mask);
 }
 
-export function renderRegionsOnMap(mapState, regions = [], settings = DEFAULT_MAP_SETTINGS) {
-  const normalized = normalizeSettings(settings);
+export function renderRegionsOnMap(mapState, regions = [], settings = null) {
+  const normalized = normalizeSettings(settings || store.get().mapSettings);
   mapState.polygons.clearLayers();
   const bounds = [];
   const serviceRings = [];
@@ -140,17 +142,21 @@ export function renderRegionsOnMap(mapState, regions = [], settings = DEFAULT_MA
     });
     polygon.bindTooltip(region.name || region.properties?.name || "Alan");
     polygon.on("click", () => {
-      mapState.polygons.eachLayer((layer) => layer.setStyle({ weight: normalized.boundaryWeight, fillOpacity: layer.options._baseFillOpacity ?? layer.options.fillOpacity }));
-      polygon.setStyle({ weight: Math.min(8, normalized.boundaryWeight + 1.5), fillOpacity: Math.min(0.9, fillOpacity + 0.12) });
+      mapState.polygons.eachLayer((layer) => layer.setStyle({
+        weight: normalized.boundaryWeight,
+        fillOpacity: layer.options._baseFillOpacity ?? layer.options.fillOpacity
+      }));
+      polygon.setStyle({
+        weight: Math.min(8, normalized.boundaryWeight + 1.5),
+        fillOpacity: Math.min(0.9, fillOpacity + 0.12)
+      });
       mapState.map.fitBounds(polygon.getBounds(), { padding: [36, 36], maxZoom: 12, animate: true });
     });
     polygon.options._baseFillOpacity = fillOpacity;
     polygon.addTo(mapState.polygons);
     validRings.flat().forEach((point) => bounds.push(point));
 
-    if (!outside && !campaign) {
-      serviceRings.push(validRings[0]);
-    }
+    if (!outside && !campaign) serviceRings.push(validRings[0]);
   }
 
   renderOutsideMask(mapState, serviceRings, normalized);
