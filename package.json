@@ -1,0 +1,14 @@
+{
+  "name": "region-console",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clean foundation for Region Console.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "node --check src/core/app.js && node --check src/core/config.js && node --check src/state/store.js && node --check src/services/auth.js && node --check src/services/cloud.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.125.0"
+  }
+}

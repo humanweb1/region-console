@@ -1,0 +1,13 @@
+{
+  "project": "region-console",
+  "version": "0.1.0",
+  "principles": [
+    "single bootstrap",
+    "single state store",
+    "single auth service",
+    "single cloud service",
+    "feature isolation",
+    "no layered fix scripts",
+    "no secrets in frontend"
+  ]
+}

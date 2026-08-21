@@ -1,0 +1,167 @@
+.map-stage {
+  position: relative;
+
+  width: 100%;
+  height: 100%;
+
+  min-width: 0;
+  min-height: 0;
+
+  overflow: hidden;
+  background: #dfe7ea;
+}
+
+.map {
+  position: absolute;
+
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+
+  width: 100%;
+  height: 100%;
+
+  min-width: 0;
+  min-height: 0;
+
+  z-index: 0;
+}
+
+.breadcrumb {
+  position: absolute;
+  z-index: 500;
+
+  top: 12px;
+  left: 12px;
+
+  max-width: calc(100% - var(--tool-width) - 36px);
+
+  padding: 11px 14px;
+
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 8px;
+
+  background: rgba(11,15,18,.92);
+  color: var(--text);
+
+  box-shadow: 0 10px 25px rgba(0,0,0,.18);
+}
+
+.breadcrumb span {
+  color: var(--muted);
+  padding: 0 6px;
+}
+
+.tool-panel {
+  position: absolute;
+  z-index: 600;
+
+  top: 12px;
+  right: 12px;
+
+  width: var(--tool-width);
+
+  overflow: hidden;
+
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  background: rgba(17,23,27,.97);
+
+  box-shadow: 0 18px 40px rgba(0,0,0,.28);
+}
+
+.tool {
+  width: 100%;
+  min-height: 56px;
+
+  border: 0;
+  border-bottom: 1px solid var(--border);
+
+  background: transparent;
+  color: var(--text);
+
+  text-align: left;
+
+  padding: 0 14px;
+
+  font-weight: 700;
+}
+
+.tool:last-child {
+  border-bottom: 0;
+}
+
+.tool:hover {
+  background: var(--panel-2);
+}
+
+.tool.active {
+  background: var(--accent);
+  color: #111;
+}
+
+.map-controls {
+  position: absolute;
+  z-index: 600;
+
+  right: 12px;
+  bottom: calc(var(--stats-height) + 12px);
+
+  display: flex;
+  align-items: center;
+
+  gap: 4px;
+
+  padding: 5px;
+
+  border: 1px solid var(--border);
+  border-radius: 9px;
+
+  background: rgba(17,23,27,.96);
+
+  box-shadow: 0 14px 30px rgba(0,0,0,.25);
+}
+
+.map-layer {
+  min-width: 68px;
+  height: 42px;
+
+  border: 1px solid var(--border);
+  border-radius: 7px;
+
+  background: var(--panel-2);
+  color: var(--text);
+
+  font-weight: 800;
+}
+
+.map-layer.active {
+  background: var(--accent);
+  color: #111;
+}
+
+@media (max-width: 720px) {
+  .tool-panel {
+    width: 142px;
+    right: 8px;
+    top: 8px;
+  }
+
+  .tool {
+    min-height: 48px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .breadcrumb {
+    top: 8px;
+    left: 8px;
+  }
+
+  .map-controls {
+    right: 8px;
+    bottom: calc(var(--stats-height) + 8px);
+  }
+}
