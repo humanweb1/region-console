@@ -23,37 +23,46 @@
         <div class="topbar-actions">
           <span id="cloudStatus" class="cloud-status">Bulut hazırlanıyor…</span>
           <span id="versionLabel" class="version">v0.1.0</span>
-          <button id="themeButton" class="icon-button" type="button" aria-label="Tema">☾</button>
+          <button id="themeButton" class="icon-button" type="button" aria-label="Tema" title="Tema değiştir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.2A8.4 8.4 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
           <button id="logoutButton" class="button button-light" type="button">Çıkış</button>
         </div>
       </header>
 
       <main class="workspace">
-        <aside id="sidebar" class="sidebar" aria-label="Bölgeler">
-          <div class="sidebar-head"><h1>▱ Bölgeler</h1><button id="addRegionButton" class="icon-button" type="button" aria-label="Bölge ekle">+</button></div>
-          <input id="sidebarSearch" class="sidebar-search" type="search" placeholder="Bölge ara...">
+        <button id="regionsToggle" class="regions-toggle" type="button" aria-expanded="false" aria-controls="sidebar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16M4 12h16M4 17.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span>Bölgeler</span>
+          <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+
+        <aside id="sidebar" class="sidebar" aria-label="Bölgeler" hidden>
+          <div class="sidebar-head">
+            <h1>Bölgeler</h1>
+            <button id="addRegionButton" class="icon-button" type="button" aria-label="Bölge ekle" title="Bölge ekle">+</button>
+          </div>
+          <input id="sidebarSearch" class="sidebar-search" type="search" placeholder="Bölge ara..." autocomplete="off">
           <div id="regionTree" class="region-tree"></div>
-          <div class="legend"><strong>Lejant</strong><div><i class="dot dot-service"></i> Hizmet Verilen</div><div><i class="dot dot-outside"></i> Hizmet Dışı</div><div><i class="dot dot-custom"></i> Özel Alan</div></div>
+          <div class="legend"><div><i class="dot dot-service"></i> Hizmet Verilen</div><div><i class="dot dot-outside"></i> Hizmet Dışı</div><div><i class="dot dot-custom"></i> Özel Alan</div></div>
         </aside>
 
         <section class="map-stage">
           <div id="map" class="map" role="application" aria-label="Bölge haritası"></div>
           <aside class="tool-panel" aria-label="Araçlar">
-            <button class="tool active" data-tool="draw" type="button">⌁ &nbsp; Çizim</button>
-            <button class="tool" data-tool="edit" type="button">↔ &nbsp; Düzenle</button>
-            <button class="tool" data-tool="delete" type="button">⌫ &nbsp; Sil</button>
-            <button class="tool" data-tool="import" type="button">↥ &nbsp; İçe aktar</button>
-            <button class="tool" data-tool="export" type="button">↧ &nbsp; Dışa aktar</button>
-            <button class="tool" data-tool="history" type="button">◷ &nbsp; Geçmiş</button>
-            <button id="campaignButton" class="tool tool-action" type="button">▣ &nbsp; Kampanyalar</button>
-            <button id="usersButton" class="tool tool-action" type="button">♙ &nbsp; Alt kullanıcı</button>
+            <button class="tool active" data-tool="draw" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19 19 5M5 19h5M14 5h5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Çizim</span></button>
+            <button class="tool" data-tool="edit" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16 8-8 4 4-8 8H4v-4ZM14 6l2-2 4 4-2 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Düzenle</span></button>
+            <button class="tool" data-tool="delete" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Sil</span></button>
+            <button class="tool" data-tool="import" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0-4 4m4-4 4 4M5 13v6h14v-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>İçe aktar</span></button>
+            <button class="tool" data-tool="export" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 14v6h14v-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Dışa aktar</span></button>
+            <button class="tool" data-tool="history" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5M4 4v4.5h4.5M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Geçmiş</span></button>
+            <button id="campaignButton" class="tool tool-action" data-tool="campaigns" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14v12H5zM8 7V5h8v2M9 11h6M9 15h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Kampanyalar</span></button>
+            <button id="usersButton" class="tool tool-action" data-tool="users" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6 19c.7-3 2.6-4.5 6-4.5s5.3 1.5 6 4.5M17 5.5a2.5 2.5 0 0 1 0 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>Alt kullanıcı</span></button>
           </aside>
           <div class="map-controls" aria-label="Harita kontrolleri">
-            <button id="resetMapButton" class="icon-button" type="button" aria-label="Haritayı sıfırla">↻</button>
+            <button id="resetMapButton" class="icon-button" type="button" aria-label="Haritayı sıfırla" title="Haritayı sıfırla">↻</button>
             <button id="mapLayerButton" class="map-layer active" type="button">Harita</button>
             <button id="satelliteLayerButton" class="map-layer" type="button">Uydu</button>
-            <button id="zoomOutButton" class="icon-button" type="button" aria-label="Uzaklaştır">−</button>
-            <button id="zoomInButton" class="icon-button" type="button" aria-label="Yakınlaştır">+</button>
+            <button id="zoomOutButton" class="icon-button" type="button" aria-label="Uzaklaştır" title="Uzaklaştır">−</button>
+            <button id="zoomInButton" class="icon-button" type="button" aria-label="Yakınlaştır" title="Yakınlaştır">+</button>
           </div>
           <div id="editBar" class="edit-bar" hidden>
             <button id="undoButton" class="button" type="button">↶ Geri al</button>
