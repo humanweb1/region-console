@@ -45,6 +45,30 @@ function stats() {
   };
 }
 
+function regionCoordinates(region) {
+  const geometry = region?.geometry;
+  if (!geometry) return [];
+  if (geometry.type === "Polygon") return geometry.coordinates?.flat() || [];
+  if (geometry.type === "MultiPolygon") return geometry.coordinates?.flat(2) || [];
+  return [];
+}
+
+function bindRegionFocus() {
+  elements.regionTree.querySelectorAll("[data-region-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const region = allCustomRegions().find((item) => String(item.id) === String(button.dataset.regionId));
+      if (!region) return;
+      const coordinates = regionCoordinates(region);
+      if (coordinates.length) {
+        fitToCoordinates(mapState, coordinates, [45, 45]);
+      }
+      store.update("regions", { selectedId: region.id });
+      elements.regionTree.querySelectorAll(".region-row").forEach((row) => row.classList.remove("selected"));
+      button.classList.add("selected");
+    });
+  });
+}
+
 function render() {
   const state = store.get();
   elements.versionLabel.textContent = `v${config.version}`;
@@ -59,6 +83,7 @@ function render() {
   if (status) setCloudStatus(elements, status[0], status[1]);
 
   renderRegions(elements.regionTree, state.regions.countries, "", allCustomRegions());
+  bindRegionFocus();
   const current = stats();
   elements.statCountries.textContent = current.countries;
   elements.statProvinces.textContent = current.provinces;
@@ -217,7 +242,6 @@ function importData() {
   input.onchange = async () => {
     const file = input.files?.[0];
     if (!file) return;
-
     try {
       const text = await file.text();
       if (!text.trim()) throw new Error("Dosya boş.");
@@ -328,7 +352,7 @@ async function startApplication(session) {
       onSave: handleSave,
       onCampaigns: showCampaigns,
       onUsers: showUsers,
-      onSearch: (query) => renderRegions(elements.regionTree, store.get().regions.countries, query, allCustomRegions()),
+      onSearch: (query) => { renderRegions(elements.regionTree, store.get().regions.countries, query, allCustomRegions()); bindRegionFocus(); },
       onTool: (tool) => {
         if (tool === "draw") drawing.begin();
         if (tool === "delete") handleDelete();
@@ -419,6 +443,7 @@ function showPasswordReset(elements, recoverySession) {
     } catch (err) {
       error.textContent = err.message || "Şifre güncellenemedi.";
       error.hidden = false;
+    } finally {
       button.disabled = false;
       button.textContent = "Şifreyi güncelle";
     }
@@ -428,31 +453,16 @@ function showPasswordReset(elements, recoverySession) {
 async function bootstrap() {
   document.documentElement.dataset.theme = localStorage.getItem("region-console-theme") || "dark";
   store.subscribe(render);
-
-  try {
-    const recoverySession = await restoreRecoverySession();
-    if (recoverySession) return showPasswordReset(elements, recoverySession);
-  } catch (error) {
-    showLogin(elements);
-    toast(elements, error.message || "Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş.");
-    return;
-  }
-
-  try {
-    const existingRecovery = await getRecoverySession();
-    if (existingRecovery) return showPasswordReset(elements, existingRecovery);
-  } catch {
-    sessionStorage.removeItem("region-console-recovery");
-  }
-
   renderLogin(elements.loginView, startApplication);
   try {
+    const recovery = await restoreRecoverySession();
+    if (recovery) {
+      showPasswordReset(elements, recovery);
+      return;
+    }
     const session = await restoreSession();
     if (session) await startApplication(session);
-    else {
-      showLogin(elements);
-      store.update("auth", { status: "anonymous" });
-    }
+    else { showLogin(elements); store.update("auth", { status: "anonymous" }); }
   } catch (error) {
     console.error("[Region Console] Bootstrap failed:", error);
     showLogin(elements);
