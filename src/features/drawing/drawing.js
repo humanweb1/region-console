@@ -80,7 +80,17 @@ export function createDrawingController(mapState, onChange) {
 
   function consumeDraft() {
     if (!draft || points.length < 3) return null;
-    const latlngs = points.map((point) => [point.lat, point.lng]);
+
+    // Persist geometry as standard GeoJSON [longitude, latitude].
+    const coordinates = points.map((point) => [point.lng, point.lat]);
+    if (
+      coordinates.length
+      && (coordinates[0][0] !== coordinates.at(-1)[0]
+        || coordinates[0][1] !== coordinates.at(-1)[1])
+    ) {
+      coordinates.push([...coordinates[0]]);
+    }
+
     const bounds = draft.getBounds();
     return {
       id: crypto.randomUUID(),
@@ -89,7 +99,7 @@ export function createDrawingController(mapState, onChange) {
       status: "service",
       geometry: {
         type: "Polygon",
-        coordinates: [[...latlngs, latlngs[0]]]
+        coordinates: [coordinates]
       },
       bounds: [
         [bounds.getSouth(), bounds.getWest()],
