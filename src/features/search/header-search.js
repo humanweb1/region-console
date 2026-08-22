@@ -1,5 +1,6 @@
 import { store } from "../../state/store.js";
 import { getElements, openDialog } from "../../components/shell.js";
+import { fitToCoordinates } from "../map/map.js";
 
 const elements = getElements();
 const input = document.getElementById("regionSearch");
@@ -77,16 +78,42 @@ function iconFor(type) {
   return "B";
 }
 
+function geometryCoordinates(data) {
+  const geometry = data?.geometry || data?.properties?.geometry;
+  if (!geometry) return [];
+  if (geometry.type === "Polygon") return geometry.coordinates?.flat() || [];
+  if (geometry.type === "MultiPolygon") return geometry.coordinates?.flat(2) || [];
+  if (geometry.type === "LineString") return geometry.coordinates || [];
+  if (geometry.type === "MultiLineString") return geometry.coordinates?.flat() || [];
+  if (geometry.type === "Point") return geometry.coordinates ? [geometry.coordinates] : [];
+  return [];
+}
+
+function focusEntryOnMap(entry) {
+  const mapState = window.__regionConsoleMapState;
+  if (!mapState) return;
+  const coordinates = geometryCoordinates(entry.data);
+  if (coordinates.length) fitToCoordinates(mapState, coordinates, [36, 36]);
+}
+
 function showGenericInfo(entry) {
   const data = entry.data || {};
-  const geometry = data.geometry;
   const properties = data.properties || {};
   const count = Number(data.count || 0);
+  const status = data.status === "outside"
+    ? "Hizmet dışı"
+    : data.status === "campaign" || data.campaign === true || data.campaignId
+      ? "Kampanyalı"
+      : data.status
+        ? "Hizmet veriliyor"
+        : "-";
   const fields = [
     ["Tür", entry.type],
     ["Konum", entry.path],
+    ["Durum", status],
     count ? ["Kayıt", count] : null,
-    geometry?.type ? ["Geometri", geometry.type] : null,
+    data.campaignId ? ["Kampanya ID", data.campaignId] : null,
+    data.geometry?.type ? ["Geometri", data.geometry.type] : null,
     properties.code || data.code ? ["Kod", properties.code || data.code] : null
   ].filter(Boolean);
 
@@ -97,15 +124,7 @@ function selectEntry(entry) {
   results.hidden = true;
   input.value = entry.name;
   input.blur();
-
-  if (entry.type === "bölge" && entry.data?.id) {
-    store.update("regions", { selectedId: entry.data.id });
-    document.dispatchEvent(new CustomEvent("region-console:region-selected", {
-      detail: { region: entry.data, mapState: window.__regionConsoleMapState || null }
-    }));
-    return;
-  }
-
+  focusEntryOnMap(entry);
   showGenericInfo(entry);
 }
 
