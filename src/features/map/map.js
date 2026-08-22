@@ -28,12 +28,15 @@ export function createMap() {
     { maxZoom: 19, attribution: "Tiles &copy; Esri" }
   );
 
-  return {
+  const mapState = {
     map,
     layers: { standard, satellite },
     polygons: L.featureGroup().addTo(map),
     mask: L.featureGroup().addTo(map)
   };
+
+  window.__regionConsoleMapState = mapState;
+  return mapState;
 }
 
 export function setLayer(mapState, name) {
