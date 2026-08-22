@@ -33,11 +33,9 @@ function publish() {
   }));
 }
 
-function renderDialog() {
-  const elements = getElements();
+function renderBody(elements) {
   const allSelected = layerDefinitions.every(({ key }) => visibility[key]);
-
-  openDialog(elements, "Katmanlar", `
+  elements.dialogBody.innerHTML = `
     <div class="layer-dialog">
       <div class="layer-dialog-head">
         <span>Haritada gösterilecek katmanları seçin.</span>
@@ -52,13 +50,13 @@ function renderDialog() {
         `).join("")}
       </div>
     </div>
-  `);
+  `;
 
   elements.dialogBody.querySelectorAll("input[data-layer-key]").forEach((input) => {
     input.addEventListener("change", () => {
       visibility[input.dataset.layerKey] = input.checked;
       publish();
-      renderDialog();
+      renderBody(elements);
     });
   });
 
@@ -68,8 +66,14 @@ function renderDialog() {
       visibility[key] = next;
     });
     publish();
-    renderDialog();
+    renderBody(elements);
   });
 }
 
-document.addEventListener("region-console:layers-open", renderDialog);
+function openLayersDialog() {
+  const elements = getElements();
+  openDialog(elements, "Katmanlar", "");
+  renderBody(elements);
+}
+
+document.addEventListener("region-console:layers-open", openLayersDialog);
