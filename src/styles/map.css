@@ -83,6 +83,53 @@
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
 }
 
+.boundary-vertex-marker-wrap,
+.boundary-midpoint-marker-wrap {
+  background: transparent;
+  border: 0;
+}
+
+.boundary-vertex-marker {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  border: 2px solid #ff7a00;
+  border-radius: 50%;
+  background: #fff;
+  color: #111;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+}
+
+.boundary-vertex-marker:active { cursor: grabbing; }
+
+.boundary-midpoint-marker {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 1px solid #ff7a00;
+  border-radius: 50%;
+  background: #fff7ed;
+  color: #ff7a00;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+}
+
+.boundary-midpoint-marker:hover {
+  transform: scale(1.12);
+  background: #fff;
+}
+
 .leaflet-tooltip {
   font-size: 10px;
   font-weight: 650;
