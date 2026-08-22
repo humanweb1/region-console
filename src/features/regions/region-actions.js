@@ -7,6 +7,7 @@ let selected = null;
 let editing = false;
 let editLayer = null;
 let editMarkers = [];
+let editMidMarkers = [];
 let draftName = "";
 
 function escapeHtml(value) {
@@ -119,7 +120,9 @@ function showCampaignDialog() {
 
 function geometryToLatLngs(geometry) {
   if (geometry?.type !== "Polygon") return [];
-  return (geometry.coordinates?.[0] || []).map(([lng, lat]) => L.latLng(lat, lng));
+  const ring = (geometry.coordinates?.[0] || []).map(([lng, lat]) => L.latLng(lat, lng));
+  if (ring.length > 1 && ring[0].equals(ring[ring.length - 1])) ring.pop();
+  return ring;
 }
 
 function latLngsToGeometry(latLngs) {
@@ -130,7 +133,100 @@ function latLngsToGeometry(latLngs) {
 
 function clearEditMarkers() {
   editMarkers.forEach((marker) => marker.remove());
+  editMidMarkers.forEach((marker) => marker.remove());
   editMarkers = [];
+  editMidMarkers = [];
+}
+
+function syncEditLayer() {
+  if (!editLayer) return;
+  editLayer.setLatLngs(editMarkers.map((marker) => marker.getLatLng()));
+}
+
+function vertexIcon(index) {
+  return L.divIcon({
+    className: "boundary-vertex-marker-wrap",
+    html: `<span class="boundary-vertex-marker" title="Nokta ${index + 1}">${index + 1}</span>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  });
+}
+
+function midpointIcon() {
+  return L.divIcon({
+    className: "boundary-midpoint-marker-wrap",
+    html: `<span class="boundary-midpoint-marker" title="Araya nokta ekle">+</span>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9]
+  });
+}
+
+function renderEditHandles() {
+  clearEditMarkers();
+  const map = selected?.mapState?.map;
+  if (!map || editLayer == null) return;
+
+  const points = editLayer.getLatLngs()[0] || [];
+  if (points.length < 3) return;
+
+  points.forEach((point, index) => {
+    const marker = L.marker(point, {
+      draggable: true,
+      autoPan: true,
+      keyboard: false,
+      zIndexOffset: 1200,
+      icon: vertexIcon(index)
+    }).addTo(map);
+
+    marker._boundaryIndex = index;
+    marker.on("dragstart", () => {
+      editMidMarkers.forEach((midpoint) => midpoint.remove());
+      editMidMarkers = [];
+    });
+    marker.on("drag", () => {
+      syncEditLayer();
+    });
+    marker.on("dragend", () => {
+      syncEditLayer();
+      renderEditHandles();
+    });
+    marker.on("dblclick", (event) => {
+      L.DomEvent.stopPropagation(event);
+      const currentIndex = editMarkers.indexOf(marker);
+      if (currentIndex < 0) return;
+      if (editMarkers.length <= 3) {
+        toast(elements, "Sınır için en az 3 nokta gerekir.");
+        return;
+      }
+      editMarkers.splice(currentIndex, 1);
+      syncEditLayer();
+      renderEditHandles();
+    });
+    editMarkers.push(marker);
+  });
+
+  const currentPoints = editMarkers.map((marker) => marker.getLatLng());
+  currentPoints.forEach((point, index) => {
+    const next = currentPoints[(index + 1) % currentPoints.length];
+    const midpoint = L.latLng((point.lat + next.lat) / 2, (point.lng + next.lng) / 2);
+    const marker = L.marker(midpoint, {
+      draggable: false,
+      keyboard: false,
+      zIndexOffset: 1100,
+      icon: midpointIcon()
+    }).addTo(map);
+
+    marker.on("click", (event) => {
+      L.DomEvent.stopPropagation(event);
+      const insertAt = index + 1;
+      const newPoint = marker.getLatLng();
+      const nextPoints = currentPoints.slice();
+      nextPoints.splice(insertAt, 0, newPoint);
+      editLayer.setLatLngs(nextPoints);
+      renderEditHandles();
+    });
+    editMidMarkers.push(marker);
+  });
 }
 
 function stopBoundaryEdit() {
@@ -146,23 +242,12 @@ function startBoundaryEdit() {
   stopBoundaryEdit();
   editing = true;
   const latLngs = geometryToLatLngs(region.geometry);
+  if (latLngs.length < 3) {
+    editing = false;
+    return toast(elements, "Bu bölgenin düzenlenebilir en az 3 sınır noktası yok.");
+  }
   editLayer = L.polygon(latLngs, { color: "#ff7a00", weight: 3, dashArray: "5 5", fillOpacity: 0.08, interactive: false }).addTo(selected.mapState.polygons);
-  editMarkers = latLngs.map((point) => {
-    const marker = L.circleMarker(point, { radius: 6, color: "#ff7a00", weight: 2, fillColor: "#ffffff", fillOpacity: 1 }).addTo(selected.mapState.map);
-    marker.on("mousedown", () => {
-      const move = (event) => {
-        marker.setLatLng(event.latlng);
-        editLayer.setLatLngs(editMarkers.map((item) => item.getLatLng()));
-      };
-      const up = () => {
-        selected.mapState.map.off("mousemove", move);
-        selected.mapState.map.off("mouseup", up);
-      };
-      selected.mapState.map.on("mousemove", move);
-      selected.mapState.map.on("mouseup", up);
-    });
-    return marker;
-  });
+  renderEditHandles();
   renderPanel();
 }
 
