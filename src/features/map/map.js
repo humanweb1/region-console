@@ -9,6 +9,18 @@ const DEFAULT_MAP_SETTINGS = {
   campaignOpacity: 0.55
 };
 
+const DEFAULT_LAYER_VISIBILITY = {
+  country: true,
+  province: true,
+  district: true,
+  neighborhood: true,
+  cemetery: true,
+  special: true,
+  service: true,
+  outside: true,
+  campaign: true
+};
+
 export function createMap() {
   const map = L.map("map", {
     center: [39.0, 35.0],
@@ -61,23 +73,69 @@ function normalizeSettings(settings = {}) {
   };
 }
 
-// Persisted region geometry follows RFC 7946 GeoJSON order: [longitude, latitude].
-// Leaflet uses [latitude, longitude], so the conversion happens only at this boundary.
-function geometryToLatLngs(geometry) {
-  if (!geometry) return [];
-  if (geometry.type === "Polygon") {
-    return (geometry.coordinates || []).map((ring) =>
-      (ring || []).map(([lng, lat]) => [Number(lat), Number(lng)])
-    );
+function normalizeLayerVisibility(visibility = {}) {
+  return { ...DEFAULT_LAYER_VISIBILITY, ...(visibility || {}) };
+}
+
+function normalizeLayerValue(value) {
+  return String(value ?? "")
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replaceAll("ı", "i")
+    .replaceAll("ş", "s")
+    .replaceAll("ğ", "g")
+    .replaceAll("ü", "u")
+    .replaceAll("ö", "o")
+    .replaceAll("ç", "c")
+    .replaceAll("-", "_")
+    .replaceAll(" ", "_");
+}
+
+function regionProperties(region) {
+  return region?.importMeta?.properties || region?.properties || {};
+}
+
+function resolveRegionLayer(region) {
+  const properties = regionProperties(region);
+  const raw = [
+    region?.layerType,
+    region?.layer,
+    region?.regionType,
+    region?.category,
+    properties.layerType,
+    properties.layer,
+    properties.regionType,
+    properties.category,
+    properties.featureType,
+    properties.type,
+    properties.level,
+    properties.admin_level,
+    properties.adminLevel
+  ].find((value) => value !== undefined && value !== null && value !== "");
+
+  const normalized = normalizeLayerValue(raw);
+  const numericAdmin = Number(raw);
+  if (Number.isFinite(numericAdmin)) {
+    if (numericAdmin <= 0) return "country";
+    if (numericAdmin === 1) return "province";
+    if (numericAdmin === 2) return "district";
+    if (numericAdmin >= 3) return "neighborhood";
   }
-  if (geometry.type === "MultiPolygon") {
-    return (geometry.coordinates || []).flatMap((polygon) =>
-      (polygon || []).map((ring) =>
-        (ring || []).map(([lng, lat]) => [Number(lat), Number(lng)])
-      )
-    );
-  }
-  return [];
+
+  if (["country", "ulke", "admin0", "adm0", "national"].includes(normalized)) return "country";
+  if (["province", "il", "state", "admin1", "adm1"].includes(normalized)) return "province";
+  if (["district", "ilce", "county", "admin2", "adm2"].includes(normalized)) return "district";
+  if (["neighborhood", "mahalle", "admin3", "adm3", "quarter"].includes(normalized)) return "neighborhood";
+  if (["cemetery", "mezarlik", "mezarligi", "graveyard"].includes(normalized)) return "cemetery";
+  if (["special", "ozel", "ozel_bolge", "custom"].includes(normalized)) return "special";
+
+  return "special";
+}
+
+function resolveStatusLayer(region) {
+  if (isCampaignRegion(region)) return "campaign";
+  if (region?.status === "outside") return "outside";
+  return "service";
 }
 
 function isCampaignRegion(region) {
@@ -99,6 +157,7 @@ function renderOutsideMask(mapState, serviceRings, settings) {
 
 export function renderRegionsOnMap(mapState, regions = [], settings = null) {
   const normalized = normalizeSettings(settings || store.get().mapSettings);
+  const visibility = normalizeLayerVisibility(window.__regionConsoleLayerVisibility || store.get().layerVisibility);
   mapState.polygons.clearLayers();
   const bounds = [];
   const serviceRings = [];
@@ -111,6 +170,12 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
 
     const outside = region.status === "outside";
     const campaign = isCampaignRegion(region);
+    if (!outside) serviceRings.push(...validRings);
+
+    const regionLayer = resolveRegionLayer(region);
+    const statusLayer = resolveStatusLayer(region);
+    if (!visibility[regionLayer] || !visibility[statusLayer]) continue;
+
     const fillColor = outside ? normalized.outsideColor : campaign ? normalized.campaignColor : "transparent";
     const fillOpacity = outside
       ? Math.min(0.9, normalized.outsideOpacity + 0.08)
@@ -147,12 +212,29 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
     polygon.options._baseFillOpacity = fillOpacity;
     polygon.addTo(mapState.polygons);
     validRings.flat().forEach((point) => bounds.push(point));
-
-    if (!outside) serviceRings.push(validRings[0]);
   }
 
   renderOutsideMask(mapState, serviceRings, normalized);
   return bounds;
+}
+
+// Persisted region geometry follows RFC 7946 GeoJSON order: [longitude, latitude].
+// Leaflet uses [latitude, longitude], so the conversion happens only at this boundary.
+function geometryToLatLngs(geometry) {
+  if (!geometry) return [];
+  if (geometry.type === "Polygon") {
+    return (geometry.coordinates || []).map((ring) =>
+      (ring || []).map(([lng, lat]) => [Number(lat), Number(lng)])
+    );
+  }
+  if (geometry.type === "MultiPolygon") {
+    return (geometry.coordinates || []).flatMap((polygon) =>
+      (polygon || []).map((ring) =>
+        (ring || []).map(([lng, lat]) => [Number(lat), Number(lng)])
+      )
+    );
+  }
+  return [];
 }
 
 // fitToCoordinates also accepts standard GeoJSON [longitude, latitude] pairs.
@@ -169,3 +251,10 @@ export function fitToCoordinates(mapState, coordinates = [], padding = [30, 30])
 export function invalidateMap(mapState) {
   requestAnimationFrame(() => mapState.map.invalidateSize({ pan: false }));
 }
+
+// Re-render immediately when the layer chooser changes.
+document.addEventListener("region-console:layers-changed", () => {
+  const mapState = window.__regionConsoleMapState;
+  if (!mapState) return;
+  renderRegionsOnMap(mapState, store.get().regions.custom);
+});
