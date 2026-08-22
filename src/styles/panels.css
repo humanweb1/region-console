@@ -79,6 +79,11 @@
 .dialog-actions { display: flex; justify-content: flex-end; gap: 6px; }
 .dialog-actions .button { min-height: 31px; font-size: 10px; }
 
+.info-grid { display: grid; gap: 5px; }
+.info-row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 7px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); }
+.info-row span { color: var(--muted); font-size: 10px; }
+.info-row strong { color: var(--text); font-size: 11px; text-align: right; }
+
 .selection-info,
 .status-select {
   min-height: 34px;
