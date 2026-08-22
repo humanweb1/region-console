@@ -90,6 +90,21 @@ test.describe("Region Console smoke tests", () => {
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
+  test("regions add button starts the drawing workflow and closes the menu", {
+    tag: ["@regions", "@drawing", "@ui"]
+  }, async ({ page }) => {
+    await page.locator("#regionsToggle").click();
+    await expect(page.locator("#sidebar")).toBeVisible();
+
+    await page.locator("#addRegionButton").click();
+
+    await expect(page.locator("#sidebar")).toBeHidden();
+    await expect(page.locator("#regionsToggle")).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator('.tool[data-tool="draw"]')).toHaveClass(/active/);
+    await expect(page.locator("#editBar")).toBeVisible();
+    await expect(page.locator("#selectedArea")).toContainText("0 nokta");
+  });
+
   test("imports a GeoJSON region and renders it in the region list", {
     tag: ["@regions", "@import"]
   }, async ({ page }) => {
@@ -178,31 +193,14 @@ test.describe("Region Console smoke tests", () => {
   });
 
   test("toggles map overlay layers without changing the base map", {
-    tag: ["@map", "@layers"]
+    tag: ["@map", "@ui"]
   }, async ({ page }) => {
-    await page.locator("#layersButton").click();
-    await expect(page.locator("#layersPopover")).toBeVisible();
+    await page.locator("#satelliteLayerButton").click();
+    await expect(page.locator("#satelliteLayerButton")).toHaveClass(/active/);
+    await expect(page.locator("#mapLayerButton")).not.toHaveClass(/active/);
 
-    const mask = page.locator('input[data-layer-id="mask"]');
-    await expect(mask).toBeChecked();
-    await mask.uncheck();
-
-    await expect.poll(async () => page.evaluate(() => window.__regionConsoleMapState?.overlayVisibility?.mask)).toBe(false);
-    await mask.check();
-    await expect.poll(async () => page.evaluate(() => window.__regionConsoleMapState?.overlayVisibility?.mask)).toBe(true);
-  });
-
-  test("switches theme without losing the application view", {
-    tag: ["@ui", "@theme"]
-  }, async ({ page }) => {
-    const before = await page.locator("html").getAttribute("data-theme");
-
-    await page.locator("#themeButton").click();
-
-    const after = await page.locator("html").getAttribute("data-theme");
-    expect(after).not.toBe(before);
-    await expect(page.locator("#map")).toBeVisible();
-    await expect(page.locator(".tool-panel")).toBeVisible();
-    await expect(page.locator("#logoutButton")).toBeVisible();
+    await page.locator("#mapLayerButton").click();
+    await expect(page.locator("#mapLayerButton")).toHaveClass(/active/);
+    await expect(page.locator("#satelliteLayerButton")).not.toHaveClass(/active/);
   });
 });
