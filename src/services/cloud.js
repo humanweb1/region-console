@@ -61,8 +61,15 @@ export async function loadState(accessToken) {
 }
 
 export async function saveState(accessToken, state, version = null) {
+  // History contains full before/after geometry snapshots and must remain
+  // client-side. Persisting it with the cloud state multiplies GeoJSON size
+  // and can turn a sub-megabyte state into many megabytes.
+  const cloudState = state && typeof state === "object"
+    ? { ...state, history: [] }
+    : state;
+
   const payload = {
-    p_state: state,
+    p_state: cloudState,
     p_version: version ?? Date.now()
   };
 
