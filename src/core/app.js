@@ -369,7 +369,6 @@ async function startApplication(session) {
       onSave: handleSave,
       onCampaigns: showCampaigns,
       onUsers: showUsers,
-      onSearch: (query) => { renderRegions(elements.regionTree, store.get().regions.countries, query, allCustomRegions()); bindRegionFocus(); },
       onTool: (tool) => {
         if (tool === "draw") drawing.begin();
         if (tool === "delete") handleDelete();
