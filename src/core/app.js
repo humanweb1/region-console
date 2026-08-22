@@ -237,14 +237,25 @@ function importedMapCoordinates(regions) {
   });
 }
 
+function restoreRegionsSidebar(wasOpen) {
+  if (!wasOpen || !elements.sidebar) return;
+  elements.sidebar.hidden = false;
+  elements.regionsToggle?.setAttribute("aria-expanded", "true");
+}
+
 function importData() {
+  const sidebarWasOpen = elements.sidebar ? !elements.sidebar.hidden : false;
   const input = document.createElement("input");
   input.type = "file";
   input.accept = ".json,.geojson,application/json,application/geo+json,text/json";
   input.multiple = false;
+  input.oncancel = () => restoreRegionsSidebar(sidebarWasOpen);
   input.onchange = async () => {
     const file = input.files?.[0];
-    if (!file) return;
+    if (!file) {
+      restoreRegionsSidebar(sidebarWasOpen);
+      return;
+    }
     try {
       const text = await file.text();
       if (!text.trim()) throw new Error("Dosya boş.");
@@ -318,6 +329,7 @@ function importData() {
         const duplicateMessage = duplicates ? ` ${duplicates} tekrar kayıt atlandı.` : "";
         const skippedMessage = result.skippedCount ? ` ${result.skippedCount} geçersiz geometri atlandı.` : "";
         scheduleSave();
+        restoreRegionsSidebar(sidebarWasOpen);
         toast(elements, `${freshRegions.length} bölge içe aktarıldı.${duplicateMessage}${skippedMessage}`);
         return;
       }
@@ -326,8 +338,10 @@ function importData() {
       const coordinates = importedMapCoordinates(store.get().regions.custom);
       if (coordinates.length) fitToCoordinates(mapState, coordinates);
       scheduleSave();
+      restoreRegionsSidebar(sidebarWasOpen);
       toast(elements, `${result.importedCount} kayıt içe aktarıldı.`);
     } catch (error) {
+      restoreRegionsSidebar(sidebarWasOpen);
       console.error("[Region Console] Import failed:", error);
       toast(elements, `İçe aktarma başarısız: ${error.message || "Bilinmeyen hata"}`);
     }
