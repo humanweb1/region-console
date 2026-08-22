@@ -51,6 +51,13 @@ async function mockAuthenticatedBackend(page) {
 test.describe("Region Console smoke tests", () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthenticatedBackend(page);
+    page.on("dialog", async (dialog) => {
+      if (dialog.type() === "prompt") {
+        await dialog.accept("6");
+        return;
+      }
+      await dialog.dismiss();
+    });
     await page.goto("/", { waitUntil: "commit", timeout: 10_000 });
     await expect(page.locator("#consoleView")).toBeVisible({ timeout: 15_000 });
   });
