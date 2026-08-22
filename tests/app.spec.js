@@ -14,6 +14,9 @@ async function mockAuthenticatedBackend(page) {
     }
     await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify([{ id: "main", version: 1, updated_at: new Date().toISOString(), state: {} }]) });
   });
+  await page.route("**/rest/v1/rpc/save_region_console_state", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ id: "main", version: Date.now(), updated_at: new Date().toISOString() }) });
+  });
   await page.addInitScript(() => {
     sessionStorage.setItem("region-console-session", JSON.stringify({ access_token: "playwright-test-token", refresh_token: "playwright-test-refresh-token", expires_in: 3600, token_type: "bearer" }));
   });
