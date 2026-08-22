@@ -95,6 +95,7 @@ test.describe("Region Console smoke tests", () => {
     await chooser.setFiles(fixturePath);
 
     await expect(page.locator("#toast")).toContainText("1 bölge içe aktarıldı", { timeout: 10_000 });
+    await expect(page.locator("#sidebar")).toBeVisible();
     await expect(page.locator("#statArea")).toHaveText("1");
     await expect(page.locator(".region-row[data-region-id]")).toContainText("Test Bölgesi");
   });
@@ -107,6 +108,7 @@ test.describe("Region Console smoke tests", () => {
     const chooser = await chooserPromise;
     await chooser.setFiles(fixturePath);
     await expect(page.locator("#toast")).toContainText("1 bölge içe aktarıldı", { timeout: 10_000 });
+    await expect(page.locator("#sidebar")).toBeVisible();
 
     await page.locator(".region-row[data-region-id]").click();
     await expect(page.locator("#regionActionPanel")).toBeVisible();
@@ -122,6 +124,7 @@ test.describe("Region Console smoke tests", () => {
     const chooser = await chooserPromise;
     await chooser.setFiles(fixturePath);
     await expect(page.locator("#toast")).toContainText("1 bölge içe aktarıldı", { timeout: 10_000 });
+    await expect(page.locator("#sidebar")).toBeVisible();
 
     await page.locator(".region-row[data-region-id]").click();
     await expect(page.locator("#regionActionPanel")).toBeVisible();
