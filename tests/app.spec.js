@@ -105,6 +105,36 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator("#selectedArea")).toContainText("0 nokta");
   });
 
+  test("numbers every drawing point and avoids an extra point on finish", {
+    tag: ["@drawing", "@map", "@ui"]
+  }, async ({ page }) => {
+    await page.locator('.tool[data-tool="draw"]').click();
+    const map = page.locator("#map");
+    const box = await map.boundingBox();
+    expect(box).not.toBeNull();
+
+    const points = [
+      { x: 220, y: 180 },
+      { x: 420, y: 180 },
+      { x: 420, y: 360 }
+    ];
+
+    for (const point of points) {
+      await map.click({ position: point });
+      await page.waitForTimeout(240);
+    }
+
+    await expect(page.locator(".draw-point-marker")).toHaveCount(3);
+    await expect(page.locator(".draw-point-marker").nth(0)).toHaveText("1");
+    await expect(page.locator(".draw-point-marker").nth(1)).toHaveText("2");
+    await expect(page.locator(".draw-point-marker").nth(2)).toHaveText("3");
+    await expect(page.locator("#selectedArea")).toHaveText("3 nokta");
+
+    await map.dblclick({ position: points[2], delay: 80 });
+    await expect(page.locator(".draw-point-marker")).toHaveCount(3);
+    await expect(page.locator("#selectedArea")).toHaveText("3 nokta");
+  });
+
   test("imports a GeoJSON region and renders it in the region list", {
     tag: ["@regions", "@import"]
   }, async ({ page }) => {
