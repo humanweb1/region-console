@@ -56,10 +56,18 @@ function getSearchEntries() {
 
 function matches(entry, normalizedQuery) {
   if (!normalizedQuery) return false;
-  const haystack = JSON.stringify(entry.data || {}).toLocaleLowerCase("tr-TR");
-  return entry.name.toLocaleLowerCase("tr-TR").includes(normalizedQuery)
-    || entry.path.toLocaleLowerCase("tr-TR").includes(normalizedQuery)
-    || haystack.includes(normalizedQuery);
+  const data = entry.data || {};
+  const properties = data.properties || {};
+  const fields = [
+    entry.name,
+    entry.path,
+    data.code,
+    properties.code,
+    data.slug,
+    properties.slug,
+    data.id
+  ].filter(Boolean).map(normalize);
+  return fields.some((field) => field.includes(normalizedQuery));
 }
 
 function iconFor(type) {
