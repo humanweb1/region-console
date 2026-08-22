@@ -96,11 +96,7 @@ function focusEntryOnMap(entry) {
   if (coordinates.length) fitToCoordinates(mapState, coordinates, [36, 36]);
 }
 
-function countChildren(item) {
-  return childItems(item).length;
-}
-
-function showInfoDialog(entry) {
+function showGenericInfo(entry) {
   const data = entry.data || {};
   const properties = data.properties || {};
   const count = Number(data.count || 0);
@@ -111,23 +107,17 @@ function showInfoDialog(entry) {
       : data.status
         ? "Hizmet veriliyor"
         : "-";
-
   const fields = [
     ["Tür", entry.type],
     ["Konum", entry.path],
     ["Durum", status],
-    entry.type === "ülke" ? ["İl", countChildren(data)] : null,
     count ? ["Kayıt", count] : null,
     data.campaignId ? ["Kampanya ID", data.campaignId] : null,
     data.geometry?.type ? ["Geometri", data.geometry.type] : null,
     properties.code || data.code ? ["Kod", properties.code || data.code] : null
   ].filter(Boolean);
 
-  openDialog(
-    elements,
-    entry.type === "ülke" ? `Ülke · ${entry.name}` : entry.name,
-    `<div class="region-dialog"><div class="info-grid">${fields.map(([label, value]) => `<div class="info-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div></div>`
-  );
+  openDialog(elements, entry.name, `<div class="region-dialog"><div class="info-grid">${fields.map(([label, value]) => `<div class="info-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div></div>`);
 }
 
 function selectEntry(entry) {
@@ -135,7 +125,7 @@ function selectEntry(entry) {
   input.value = entry.name;
   input.blur();
   focusEntryOnMap(entry);
-  showInfoDialog(entry);
+  showGenericInfo(entry);
 }
 
 function renderResults() {
