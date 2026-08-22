@@ -182,42 +182,128 @@ function showCampaigns() {
   elements.dialogBody.querySelector("#newCampaign")?.addEventListener("click", () => {
     const name = window.prompt("Kampanya adı:");
     if (!name?.trim()) return;
-    const current = store.get();
-    const campaignsNext = [...current.campaigns, { id: crypto.randomUUID(), name: name.trim(), status: "active", description: "" }];
-    store.update("campaigns", campaignsNext);
-    render();
-    scheduleSave();
+    const description = window.prompt("Kampanya açıklaması:") || "";
+    commitData("Kampanya oluşturuldu", () => {
+      store.set({ campaigns: [...store.get().campaigns, { id: crypto.randomUUID(), name: name.trim(), description, status: "aktif", createdAt: new Date().toISOString() }] });
+    });
     showCampaigns();
   });
 }
 
 function showUsers() {
-  const users = store.get().users || [];
-  openDialog(elements, "Kullanıcılar", `<div class="dialog-toolbar"><strong>${users.length} kullanıcı</strong></div><div class="user-list">${users.map((user) => `<article class="user-card"><strong>${escapeHtml(user.full_name || user.email || "Kullanıcı")}</strong><span>${escapeHtml(user.role_name || user.role || "kullanıcı")}</span></article>`).join("") || `<p class="dialog-muted">Henüz kullanıcı yok.</p>`}</div>`);
+  openDialog(elements, "Alt kullanıcı oluştur", `<p class="dialog-muted">Yönetici hesabından güvenli davet gönderin. Davet işlemi Supabase Edge Function üzerinden service-role anahtarını tarayıcıya açmadan yapılır.</p><form id="inviteUserForm" class="dialog-form"><label>Ad<input name="name" required></label><label>E-posta<input name="email" type="email" required></label><label>Rol<select name="role"><option value="sub_user">Alt kullanıcı</option><option value="viewer">Görüntüleyici</option></select></label><button class="button button-primary" type="submit">Davet gönder</button><p id="inviteUserError" class="form-error"></p></form>`);
+  elements.dialogBody.querySelector("#inviteUserForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const error = form.querySelector("#inviteUserError");
+    error.textContent = "";
+    const session = store.get().auth.session;
+    const formData = new FormData(form);
+    const button = form.querySelector("button");
+    button.disabled = true;
+    try {
+      await inviteSubUser(session?.access_token, {
+        name: String(formData.get("name") || "").trim(),
+        email: String(formData.get("email") || "").trim(),
+        role: String(formData.get("role") || "sub_user")
+      });
+      elements.appDialog.close();
+      toast(elements, "Alt kullanıcı daveti gönderildi.");
+    } catch (err) {
+      error.textContent = err.message;
+    } finally {
+      button.disabled = false;
+    }
+  });
 }
 
-async function importData() {
+function exportData() {
+  const blob = new Blob([JSON.stringify(store.dataSnapshot(), null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `region-console-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function importedMapCoordinates(regions) {
+  return (regions || []).flatMap((region) => {
+    const geometry = region?.geometry;
+    if (!geometry) return [];
+    if (geometry.type === "Polygon") return geometry.coordinates?.flat() || [];
+    if (geometry.type === "MultiPolygon") return geometry.coordinates?.flat(2) || [];
+    return [];
+  });
+}
+
+function importData() {
   const input = document.createElement("input");
   input.type = "file";
-  input.accept = ".geojson,.json,application/geo+json,application/json";
+  input.accept = ".json,.geojson,application/json,application/geo+json,text/json";
+  input.multiple = false;
   input.onchange = async () => {
     const file = input.files?.[0];
     if (!file) return;
     try {
-      const result = await importRegionData(file);
-      const current = store.get();
-      const nextRegistry = [...(current.importedFiles || []), ...(result.files || [])];
-      if (result.regions?.length) {
-        const before = store.dataSnapshot();
-        const freshRegions = result.regions;
-        const currentCustom = current.regions.custom || [];
-        const existingIds = new Set(currentCustom.map((item) => String(item.id)));
-        const duplicates = freshRegions.filter((item) => existingIds.has(String(item.id))).length;
-        const uniqueRegions = freshRegions.filter((item) => !existingIds.has(String(item.id)));
+      const text = await file.text();
+      if (!text.trim()) throw new Error("Dosya boş.");
+      let imported;
+      try {
+        imported = JSON.parse(text);
+      } catch {
+        throw new Error("Dosya geçerli JSON değil.");
+      }
+
+      const result = importRegionData(imported, file.name);
+      const before = store.dataSnapshot();
+
+      if (result.mode === "region-console") {
+        store.replaceData(
+          { regions: result.regions, campaigns: result.campaigns },
+          { recordHistory: false }
+        );
+        store.recordHistory("Region Console JSON içe aktarıldı", before, store.dataSnapshot());
+      } else {
+        const current = store.get();
+        const currentCustom = Array.isArray(current.regions.custom) ? current.regions.custom : [];
+        const existingKeys = new Set(
+          currentCustom
+            .map((region) => region?.importMeta?.sourceId)
+            .filter((value) => value !== undefined && value !== null)
+            .map(String)
+        );
+
+        const freshRegions = result.regions.custom.filter(
+          (region) => !existingKeys.has(String(region.importMeta?.sourceId))
+        );
+        const duplicates = result.importedCount - freshRegions.length;
+        const importedAt = new Date().toISOString();
+        const registry = Array.isArray(current.importedFiles) ? current.importedFiles : [];
+        const nextRegistry = [
+          ...registry.filter((item) => String(item?.name) !== String(file.name)),
+          {
+            id: crypto.randomUUID(),
+            name: file.name,
+            size: file.size,
+            type: file.type || "application/geo+json",
+            importedAt,
+            regionCount: freshRegions.length
+          }
+        ];
+
+        freshRegions.forEach((region) => {
+          region.importMeta = {
+            ...(region.importMeta || {}),
+            sourceFile: file.name,
+            importedAt
+          };
+        });
+
         store.replaceData({
           regions: {
             ...current.regions,
-            custom: [...currentCustom, ...uniqueRegions],
+            custom: [...currentCustom, ...freshRegions],
             selectedId: null
           },
           campaigns: current.campaigns,
@@ -226,13 +312,13 @@ async function importData() {
         store.recordHistory("GeoJSON içe aktarıldı", before, store.dataSnapshot());
 
         render();
-        const coordinates = importedMapCoordinates(uniqueRegions);
+        const coordinates = importedMapCoordinates(freshRegions);
         if (coordinates.length) fitToCoordinates(mapState, coordinates);
 
         const duplicateMessage = duplicates ? ` ${duplicates} tekrar kayıt atlandı.` : "";
         const skippedMessage = result.skippedCount ? ` ${result.skippedCount} geçersiz geometri atlandı.` : "";
         scheduleSave();
-        toast(elements, `${uniqueRegions.length} bölge içe aktarıldı.${duplicateMessage}${skippedMessage}`);
+        toast(elements, `${freshRegions.length} bölge içe aktarıldı.${duplicateMessage}${skippedMessage}`);
         return;
       }
 
@@ -346,53 +432,44 @@ function showPasswordReset(elements, recoverySession) {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     error.hidden = true;
-    if (password.value !== confirm.value) { error.textContent = "Şifreler eşleşmiyor."; error.hidden = false; return; }
+    if (password.value.length < 8) { error.textContent = "Şifre en az 8 karakter olmalıdır."; error.hidden = false; return; }
+    if (password.value !== confirm.value) { error.textContent = "Şifreler aynı değil."; error.hidden = false; return; }
     button.disabled = true;
+    button.textContent = "Güncelleniyor…";
     try {
-      await updatePassword(recoverySession.access_token, password.value);
-      sessionStorage.removeItem("region-console-recovery-session");
-      toast(elements, "Şifreniz güncellendi. Yeni şifrenizle giriş yapabilirsiniz.");
-      renderLogin(view);
-    } catch (updateError) {
-      error.textContent = updateError.message || "Şifre güncellenemedi.";
+      await updatePassword(password.value);
+      sessionStorage.removeItem("region-console-recovery");
+      window.history.replaceState({}, document.title, window.location.pathname);
+      showLogin(elements);
+      renderLogin(elements.loginView, startApplication);
+      toast(elements, "Şifreniz başarıyla güncellendi. Yeni şifrenizle giriş yapabilirsiniz.");
+    } catch (err) {
+      error.textContent = err.message || "Şifre güncellenemedi.";
       error.hidden = false;
+    } finally {
       button.disabled = false;
+      button.textContent = "Şifreyi güncelle";
     }
   });
 }
 
-function importedMapCoordinates(regions) {
-  return (regions || []).flatMap((region) => regionCoordinates(region));
-}
-
-async function exportData() {
-  const state = store.dataSnapshot();
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `region-console-${new Date().toISOString().slice(0, 10)}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-async function boot() {
-  const recoverySession = getRecoverySession();
-  if (recoverySession) {
-    showPasswordReset(elements, recoverySession);
-    return;
+async function bootstrap() {
+  document.documentElement.dataset.theme = localStorage.getItem("region-console-theme") || "dark";
+  store.subscribe(render);
+  renderLogin(elements.loginView, startApplication);
+  try {
+    const recovery = await restoreRecoverySession();
+    if (recovery) {
+      showPasswordReset(elements, recovery);
+      return;
+    }
+    const session = await restoreSession();
+    if (session) await startApplication(session);
+    else { showLogin(elements); store.update("auth", { status: "anonymous" }); }
+  } catch (error) {
+    console.error("[Region Console] Bootstrap failed:", error);
+    showLogin(elements);
   }
-  renderLogin(elements.loginView);
-  const session = await restoreSession();
-  if (session) {
-    await startApplication(session);
-    return;
-  }
-  showLogin(elements);
 }
 
-restoreRecoverySession();
-boot().catch((error) => {
-  console.error("[Region Console] Boot failed:", error);
-  showLogin(elements);
-});
+bootstrap();
