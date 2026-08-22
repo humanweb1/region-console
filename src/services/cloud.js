@@ -54,7 +54,8 @@ async function request(path, accessToken, options = {}) {
 export async function loadState(accessToken) {
   const rows = await request(
     "/rest/v1/region_console_state?id=eq.main&select=id,state,version,updated_at&limit=1",
-    accessToken
+    accessToken,
+    { timeout: 30000 }
   );
   return rows?.[0] || null;
 }
@@ -70,6 +71,7 @@ export async function saveState(accessToken, state, version = null) {
     accessToken,
     {
       method: "POST",
+      timeout: 30000,
       body: JSON.stringify(payload)
     }
   );
