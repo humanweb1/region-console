@@ -137,7 +137,7 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator("#statArea")).toHaveText("0");
   });
 
-  test("searches from the header and opens the selected region information panel", async ({ page }) => {
+  test("searches from the header, focuses the selected region, and opens its info dialog", async ({ page }) => {
     await page.locator("#regionsToggle").click();
 
     const chooserPromise = page.waitForEvent("filechooser");
@@ -154,8 +154,15 @@ test.describe("Region Console smoke tests", () => {
 
     await page.locator(".header-search-item").first().click();
     await expect(page.locator("#headerSearchResults")).toBeHidden();
-    await expect(page.locator("#regionActionPanel")).toBeVisible();
-    await expect(page.locator("#regionNameInput")).toHaveValue("Test Bölgesi");
+    await expect(page.locator("#appDialog")).toBeVisible();
+    await expect(page.locator("#dialogTitle")).toHaveText("Test Bölgesi");
+    await expect(page.locator("#dialogBody")).toContainText("bölge");
+
+    await expect.poll(async () => page.evaluate(() => {
+      const map = window.__regionConsoleMapState?.map;
+      const center = map?.getCenter?.();
+      return center ? [Number(center.lat.toFixed(1)), Number(center.lng.toFixed(1))] : null;
+    })).toEqual([38.5, 26.5]);
   });
 
   test("toggles map overlay layers without changing the base map", async ({ page }) => {
