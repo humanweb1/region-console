@@ -62,7 +62,9 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator("#consoleView")).toBeVisible({ timeout: 15_000 });
   });
 
-  test("starts with a usable map and closed regions menu", async ({ page }) => {
+  test("starts with a usable map and closed regions menu", {
+    tag: ["@smoke", "@map", "@cloud", "@auth", "@drawing"]
+  }, async ({ page }) => {
     const map = page.locator("#map");
     const box = await map.boundingBox();
 
@@ -73,7 +75,9 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator("#cloudStatus")).toContainText("Bulut bağlı");
   });
 
-  test("opens and closes the regions menu without a duplicate search field", async ({ page }) => {
+  test("opens and closes the regions menu without a duplicate search field", {
+    tag: ["@regions", "@ui"]
+  }, async ({ page }) => {
     const toggle = page.locator("#regionsToggle");
 
     await toggle.click();
@@ -86,7 +90,9 @@ test.describe("Region Console smoke tests", () => {
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
-  test("imports a GeoJSON region and renders it in the region list", async ({ page }) => {
+  test("imports a GeoJSON region and renders it in the region list", {
+    tag: ["@regions", "@import"]
+  }, async ({ page }) => {
     await page.locator("#regionsToggle").click();
 
     const chooserPromise = page.waitForEvent("filechooser");
@@ -100,7 +106,9 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator(".region-row[data-region-id]")).toContainText("Test Bölgesi");
   });
 
-  test("opens the same region information panel from the regions menu", async ({ page }) => {
+  test("opens the same region information panel from the regions menu", {
+    tag: ["@regions", "@ui"]
+  }, async ({ page }) => {
     await page.locator("#regionsToggle").click();
 
     const chooserPromise = page.waitForEvent("filechooser");
@@ -116,7 +124,9 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator("#regionDeleteButton")).toBeVisible();
   });
 
-  test("deletes the selected region from the information panel", async ({ page }) => {
+  test("deletes the selected region from the information panel", {
+    tag: ["@regions"]
+  }, async ({ page }) => {
     await page.locator("#regionsToggle").click();
 
     const chooserPromise = page.waitForEvent("filechooser");
@@ -137,7 +147,9 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator("#statArea")).toHaveText("0");
   });
 
-  test("searches from the header, focuses the selected region, and opens its info dialog", async ({ page }) => {
+  test("searches from the header, focuses the selected region, and opens its info dialog", {
+    tag: ["@regions", "@search", "@map"]
+  }, async ({ page }) => {
     await page.locator("#regionsToggle").click();
 
     const chooserPromise = page.waitForEvent("filechooser");
@@ -165,7 +177,9 @@ test.describe("Region Console smoke tests", () => {
     })).toEqual([38.5, 26.5]);
   });
 
-  test("toggles map overlay layers without changing the base map", async ({ page }) => {
+  test("toggles map overlay layers without changing the base map", {
+    tag: ["@map", "@layers"]
+  }, async ({ page }) => {
     await page.locator("#layersButton").click();
     await expect(page.locator("#layersPopover")).toBeVisible();
 
@@ -178,7 +192,9 @@ test.describe("Region Console smoke tests", () => {
     await expect.poll(async () => page.evaluate(() => window.__regionConsoleMapState?.overlayVisibility?.mask)).toBe(true);
   });
 
-  test("switches theme without losing the application view", async ({ page }) => {
+  test("switches theme without losing the application view", {
+    tag: ["@ui", "@theme"]
+  }, async ({ page }) => {
     const before = await page.locator("html").getAttribute("data-theme");
 
     await page.locator("#themeButton").click();
