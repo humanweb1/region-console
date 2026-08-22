@@ -93,6 +93,41 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator(".region-row[data-region-id]")).toContainText("Test Bölgesi");
   });
 
+  test("opens the same region information panel from the regions menu", async ({ page }) => {
+    await page.locator("#regionsToggle").click();
+
+    const chooserPromise = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "İçe aktar" }).click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles(fixturePath);
+    await expect(page.locator("#toast")).toContainText("1 bölge içe aktarıldı", { timeout: 10_000 });
+
+    await page.locator(".region-row[data-region-id]").click();
+    await expect(page.locator("#regionActionPanel")).toBeVisible();
+    await expect(page.locator("#regionNameInput")).toHaveValue("Test Bölgesi");
+    await expect(page.locator("#regionDeleteButton")).toBeVisible();
+  });
+
+  test("deletes the selected region from the information panel", async ({ page }) => {
+    await page.locator("#regionsToggle").click();
+
+    const chooserPromise = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "İçe aktar" }).click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles(fixturePath);
+    await expect(page.locator("#toast")).toContainText("1 bölge içe aktarıldı", { timeout: 10_000 });
+
+    await page.locator(".region-row[data-region-id]").click();
+    await expect(page.locator("#regionActionPanel")).toBeVisible();
+
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.locator("#regionDeleteButton").click();
+
+    await expect(page.locator("#regionActionPanel")).toBeHidden();
+    await expect(page.locator(".region-row[data-region-id]")).toHaveCount(0);
+    await expect(page.locator("#statArea")).toHaveText("0");
+  });
+
   test("searches from the header and opens the selected region information panel", async ({ page }) => {
     await page.locator("#regionsToggle").click();
 
