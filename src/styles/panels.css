@@ -84,6 +84,16 @@
 .info-row span { color: var(--muted); font-size: 10px; }
 .info-row strong { color: var(--text); font-size: 11px; text-align: right; }
 
+.layer-dialog { display: grid; gap: 10px; }
+.layer-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 10px; }
+.layer-dialog-head .button { min-height: 28px; padding: 0 8px; font-size: 10px; white-space: nowrap; }
+.layer-options { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.layer-option { min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); color: var(--text); cursor: pointer; font-size: 11px; }
+.layer-option:hover { border-color: var(--accent); }
+.layer-option-main { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.layer-option-icon { width: 16px; color: var(--muted); text-align: center; }
+.layer-option input { margin: 0; accent-color: var(--accent); }
+
 .selection-info,
 .status-select {
   min-height: 34px;
@@ -118,4 +128,5 @@
   .region-action-panel { right: 7px; bottom: calc(var(--stats-height) + 46px); width: min(310px, calc(100% - 14px)); }
   .region-action-buttons { grid-template-columns: 1fr 1fr; }
   .region-action-buttons .button:last-child { grid-column: 1 / -1; }
+  .layer-options { grid-template-columns: 1fr; }
 }
