@@ -88,7 +88,6 @@ export function bindPanels(elements, mapState, drawing, handlers) {
   document.getElementById("dialogClose")?.addEventListener("click", () => elements.appDialog.close());
 
   document.getElementById("regionSearch").addEventListener("input", (e) => handlers.onSearch?.(e.target.value));
-  document.getElementById("sidebarSearch").addEventListener("input", (e) => handlers.onSearch?.(e.target.value));
 
   document.getElementById("undoButton")?.addEventListener("click", handlers.onUndo);
   document.getElementById("redoButton")?.addEventListener("click", handlers.onRedo);
