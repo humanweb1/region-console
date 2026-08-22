@@ -56,6 +56,28 @@ function commitRegion(label, updater) {
   saveCloud();
 }
 
+function deleteSelectedRegion() {
+  const region = getRegion();
+  if (!region) return;
+  const name = region.name || "Bölge";
+  if (!window.confirm(`“${name}” alanı silinsin mi? Bu işlem geri alınabilir.`)) return;
+
+  commitRegion("Bölge silindi", () => {
+    const current = getRegion();
+    if (!current) return;
+    store.update("regions", {
+      custom: store.get().regions.custom.filter((item) => String(item.id) !== String(current.id)),
+      selectedId: null
+    });
+  });
+
+  selected = null;
+  draftName = "";
+  stopBoundaryEdit();
+  document.getElementById("regionActionPanel")?.remove();
+  toast(elements, "Bölge silindi.");
+}
+
 function showServiceDialog() {
   const region = getRegion();
   if (!region) return;
@@ -183,7 +205,7 @@ function renderPanel() {
   }
   const campaigns = activeCampaigns();
   const campaign = campaigns.find((item) => String(item.id) === String(region.campaignId));
-  panel.innerHTML = `<div class="region-action-head"><input id="regionNameInput" class="region-name-input" value="${escapeHtml(draftName || region.name || "Bölge")}" aria-label="Bölge adı"><button id="regionPanelClose" class="icon-button region-panel-close" type="button" aria-label="Kapat">×</button></div>${campaign ? `<div class="region-campaign-badge">${escapeHtml(campaign.name)}</div>` : ""}<div class="region-action-buttons">${isService(region) ? `<button id="regionServiceButton" class="button region-action-danger" type="button">Hizmete kapat</button>` : `<button id="regionServiceButton" class="button button-primary" type="button">Hizmete aç</button>`}<button id="regionCampaignButton" class="button" type="button">Kampanya</button><button id="regionBoundaryButton" class="button" type="button">${editing ? "Sınır düzenleniyor" : "Sınırları düzenle"}</button></div><div class="region-panel-footer"><button id="regionCancelButton" class="button" type="button">Vazgeç</button><button id="regionSaveButton" class="button button-primary" type="button">Kaydet</button></div>`;
+  panel.innerHTML = `<div class="region-action-head"><input id="regionNameInput" class="region-name-input" value="${escapeHtml(draftName || region.name || "Bölge")}" aria-label="Bölge adı"><button id="regionPanelClose" class="icon-button region-panel-close" type="button" aria-label="Kapat">×</button></div>${campaign ? `<div class="region-campaign-badge">${escapeHtml(campaign.name)}</div>` : ""}<div class="region-action-buttons">${isService(region) ? `<button id="regionServiceButton" class="button region-action-danger" type="button">Hizmete kapat</button>` : `<button id="regionServiceButton" class="button button-primary" type="button">Hizmete aç</button>`}<button id="regionCampaignButton" class="button" type="button">Kampanya</button><button id="regionBoundaryButton" class="button" type="button">${editing ? "Sınır düzenleniyor" : "Sınırları düzenle"}</button></div><div class="region-panel-footer"><button id="regionDeleteButton" class="button region-action-danger" type="button">Alanı sil</button><button id="regionCancelButton" class="button" type="button">Vazgeç</button><button id="regionSaveButton" class="button button-primary" type="button">Kaydet</button></div>`;
   panel.querySelector("#regionNameInput").addEventListener("input", (event) => { draftName = event.target.value; });
   panel.querySelector("#regionPanelClose").addEventListener("click", () => { cancelPanelChanges(); selected = null; panel.remove(); store.update("regions", { selectedId: null }); });
   panel.querySelector("#regionServiceButton").addEventListener("click", () => {
@@ -198,6 +220,7 @@ function renderPanel() {
   });
   panel.querySelector("#regionCampaignButton").addEventListener("click", showCampaignDialog);
   panel.querySelector("#regionBoundaryButton").addEventListener("click", () => { if (!editing) startBoundaryEdit(); });
+  panel.querySelector("#regionDeleteButton").addEventListener("click", deleteSelectedRegion);
   panel.querySelector("#regionCancelButton").addEventListener("click", cancelPanelChanges);
   panel.querySelector("#regionSaveButton").addEventListener("click", savePanelChanges);
 }
