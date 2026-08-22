@@ -1,11 +1,17 @@
 export function bindPanels(elements, mapState, drawing, handlers) {
-  document.querySelectorAll(".tool:not(.tool-action)").forEach((button) => {
+  document.querySelectorAll(".tool:not(.tool-action):not([data-tool=\"layers\"])").forEach((button) => {
     button.addEventListener("click", () => {
       const tool = button.dataset.tool;
       document.querySelectorAll(".tool:not(.tool-action)").forEach((b) => b.classList.remove("active"));
       button.classList.add("active");
       handlers.onTool?.(tool);
     });
+  });
+
+  document.querySelector('[data-tool="layers"]')?.addEventListener("click", () => {
+    document.querySelectorAll(".tool:not(.tool-action)").forEach((b) => b.classList.remove("active"));
+    document.querySelector('[data-tool="layers"]')?.classList.add("active");
+    document.dispatchEvent(new CustomEvent("region-console:layers-open"));
   });
 
   elements.menuButton?.addEventListener("click", (event) => {
