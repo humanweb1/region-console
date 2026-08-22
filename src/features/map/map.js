@@ -40,6 +40,7 @@ export function createMap() {
     layers: { standard, satellite },
     polygons: L.featureGroup().addTo(map),
     mask: L.featureGroup().addTo(map),
+    regionLayers: [],
     overlayVisibility: { ...DEFAULT_OVERLAY_VISIBILITY }
   };
 
@@ -109,22 +110,15 @@ function renderOutsideMask(mapState, serviceRings, settings) {
   }
 }
 
-function addRegionLayer(mapState, polygon, kind) {
-  polygon._regionLayerKind = kind;
-  if (mapState.overlayVisibility[kind]) {
-    polygon.addTo(mapState.polygons);
-  }
-}
-
-function refreshRegionLayerVisibility(mapState) {
-  mapState.polygons.eachLayer((layer) => {
+function syncRegionLayerVisibility(mapState) {
+  for (const layer of mapState.regionLayers) {
     const kind = layer._regionLayerKind;
-    if (!kind) return;
+    if (!kind) continue;
     const shouldShow = mapState.overlayVisibility[kind];
-    const hasLayer = mapState.polygons.hasLayer(layer);
-    if (shouldShow && !hasLayer) mapState.polygons.addLayer(layer);
-    if (!shouldShow && hasLayer) mapState.polygons.removeLayer(layer);
-  });
+    const isShown = mapState.polygons.hasLayer(layer);
+    if (shouldShow && !isShown) mapState.polygons.addLayer(layer);
+    if (!shouldShow && isShown) mapState.polygons.removeLayer(layer);
+  }
 }
 
 export function setOverlayVisibility(mapState, name, visible) {
@@ -140,10 +134,7 @@ export function setOverlayVisibility(mapState, name, visible) {
     return true;
   }
 
-  // Region polygons are stored in one visible FeatureGroup so the drawing
-  // controller can continue to use mapState.polygons. Visibility is tracked
-  // per region layer and does not interfere with draft drawing layers.
-  refreshRegionLayerVisibility(mapState);
+  syncRegionLayerVisibility(mapState);
   return true;
 }
 
@@ -154,6 +145,7 @@ export function getOverlayVisibility(mapState) {
 export function renderRegionsOnMap(mapState, regions = [], settings = null) {
   const normalized = normalizeSettings(settings || store.get().mapSettings);
   mapState.polygons.clearLayers();
+  mapState.regionLayers = [];
   const bounds = [];
   const serviceRings = [];
 
@@ -182,13 +174,13 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
     polygon.bindTooltip(region.name || region.properties?.name || "Alan");
     polygon.on("click", (event) => {
       L.DomEvent.stopPropagation(event);
-      mapState.polygons.eachLayer((layer) => {
-        if (!layer.options || !layer._regionLayerKind) return;
+      for (const layer of mapState.regionLayers) {
+        if (!layer.options) continue;
         layer.setStyle({
           weight: normalized.boundaryWeight,
           fillOpacity: layer.options._baseFillOpacity ?? layer.options.fillOpacity
         });
-      });
+      }
       polygon.setStyle({
         weight: Math.min(8, normalized.boundaryWeight + 1.5),
         fillOpacity: Math.min(0.9, fillOpacity + 0.12)
@@ -200,7 +192,9 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
       mapState.map.fitBounds(polygon.getBounds(), { padding: [36, 36], maxZoom: 12, animate: true });
     });
     polygon.options._baseFillOpacity = fillOpacity;
-    addRegionLayer(mapState, polygon, kind);
+    polygon._regionLayerKind = kind;
+    mapState.regionLayers.push(polygon);
+    if (mapState.overlayVisibility[kind]) polygon.addTo(mapState.polygons);
     validRings.flat().forEach((point) => bounds.push(point));
 
     if (!outside) serviceRings.push(validRings[0]);
