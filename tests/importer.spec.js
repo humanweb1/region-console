@@ -2,7 +2,9 @@ import { test, expect } from "@playwright/test";
 import { importRegionData } from "../src/features/regions/importer.js";
 
 test.describe("GeoJSON import normalization", () => {
-  test("keeps persisted geometry in standard [longitude, latitude] order", () => {
+  test("keeps persisted geometry in standard [longitude, latitude] order", {
+    tag: "@import"
+  }, () => {
     const result = importRegionData({
       type: "Feature",
       id: "TR-TEST",
