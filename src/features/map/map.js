@@ -9,6 +9,13 @@ const DEFAULT_MAP_SETTINGS = {
   campaignOpacity: 0.55
 };
 
+const DEFAULT_OVERLAY_VISIBILITY = {
+  regions: true,
+  outside: true,
+  campaign: true,
+  mask: true
+};
+
 export function createMap() {
   const map = L.map("map", {
     center: [39.0, 35.0],
@@ -32,7 +39,8 @@ export function createMap() {
     map,
     layers: { standard, satellite },
     polygons: L.featureGroup().addTo(map),
-    mask: L.featureGroup().addTo(map)
+    mask: L.featureGroup().addTo(map),
+    overlayVisibility: { ...DEFAULT_OVERLAY_VISIBILITY }
   };
 
   window.__regionConsoleMapState = mapState;
@@ -61,8 +69,6 @@ function normalizeSettings(settings = {}) {
   };
 }
 
-// Persisted region geometry follows RFC 7946 GeoJSON order: [longitude, latitude].
-// Leaflet uses [latitude, longitude], so the conversion happens only at this boundary.
 function geometryToLatLngs(geometry) {
   if (!geometry) return [];
   if (geometry.type === "Polygon") {
@@ -95,6 +101,54 @@ function renderOutsideMask(mapState, serviceRings, settings) {
     fillOpacity: settings.outsideOpacity,
     interactive: false
   }).addTo(mapState.mask);
+
+  if (mapState.overlayVisibility.mask) {
+    if (!mapState.map.hasLayer(mapState.mask)) mapState.mask.addTo(mapState.map);
+  } else if (mapState.map.hasLayer(mapState.mask)) {
+    mapState.map.removeLayer(mapState.mask);
+  }
+}
+
+function addRegionLayer(mapState, polygon, kind) {
+  polygon._regionLayerKind = kind;
+  if (mapState.overlayVisibility[kind]) {
+    polygon.addTo(mapState.polygons);
+  }
+}
+
+function refreshRegionLayerVisibility(mapState) {
+  mapState.polygons.eachLayer((layer) => {
+    const kind = layer._regionLayerKind;
+    if (!kind) return;
+    const shouldShow = mapState.overlayVisibility[kind];
+    const hasLayer = mapState.polygons.hasLayer(layer);
+    if (shouldShow && !hasLayer) mapState.polygons.addLayer(layer);
+    if (!shouldShow && hasLayer) mapState.polygons.removeLayer(layer);
+  });
+}
+
+export function setOverlayVisibility(mapState, name, visible) {
+  if (!(name in DEFAULT_OVERLAY_VISIBILITY)) return false;
+  mapState.overlayVisibility[name] = Boolean(visible);
+
+  if (name === "mask") {
+    if (mapState.overlayVisibility.mask) {
+      mapState.mask.addTo(mapState.map);
+    } else {
+      mapState.map.removeLayer(mapState.mask);
+    }
+    return true;
+  }
+
+  // Region polygons are stored in one visible FeatureGroup so the drawing
+  // controller can continue to use mapState.polygons. Visibility is tracked
+  // per region layer and does not interfere with draft drawing layers.
+  refreshRegionLayerVisibility(mapState);
+  return true;
+}
+
+export function getOverlayVisibility(mapState) {
+  return { ...mapState.overlayVisibility };
 }
 
 export function renderRegionsOnMap(mapState, regions = [], settings = null) {
@@ -111,6 +165,7 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
 
     const outside = region.status === "outside";
     const campaign = isCampaignRegion(region);
+    const kind = outside ? "outside" : campaign ? "campaign" : "regions";
     const fillColor = outside ? normalized.outsideColor : campaign ? normalized.campaignColor : "transparent";
     const fillOpacity = outside
       ? Math.min(0.9, normalized.outsideOpacity + 0.08)
@@ -128,7 +183,7 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
     polygon.on("click", (event) => {
       L.DomEvent.stopPropagation(event);
       mapState.polygons.eachLayer((layer) => {
-        if (!layer.options) return;
+        if (!layer.options || !layer._regionLayerKind) return;
         layer.setStyle({
           weight: normalized.boundaryWeight,
           fillOpacity: layer.options._baseFillOpacity ?? layer.options.fillOpacity
@@ -145,7 +200,7 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
       mapState.map.fitBounds(polygon.getBounds(), { padding: [36, 36], maxZoom: 12, animate: true });
     });
     polygon.options._baseFillOpacity = fillOpacity;
-    polygon.addTo(mapState.polygons);
+    addRegionLayer(mapState, polygon, kind);
     validRings.flat().forEach((point) => bounds.push(point));
 
     if (!outside) serviceRings.push(validRings[0]);
@@ -155,7 +210,6 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
   return bounds;
 }
 
-// fitToCoordinates also accepts standard GeoJSON [longitude, latitude] pairs.
 export function fitToCoordinates(mapState, coordinates = [], padding = [30, 30]) {
   if (!coordinates.length) return false;
   const latLngs = coordinates
