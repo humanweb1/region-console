@@ -93,7 +93,7 @@ function selectEntry(entry) {
   if (entry.type === "bölge" && entry.data?.id) {
     store.update("regions", { selectedId: entry.data.id });
     document.dispatchEvent(new CustomEvent("region-console:region-selected", {
-      detail: { region: entry.data, mapState: null }
+      detail: { region: entry.data, mapState: window.__regionConsoleMapState || null }
     }));
     return;
   }
