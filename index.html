@@ -45,6 +45,7 @@
             <button class="tool" data-tool="import" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0-4 4m4-4 4 4M5 13v6h14v-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>İçe aktar</span></button>
             <button class="tool" data-tool="export" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 14v6h14v-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Dışa aktar</span></button>
             <button class="tool" data-tool="history" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5M4 4v4.5h4.5M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>Geçmiş</span></button>
+            <button class="tool" data-tool="layers" type="button" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4 8 4-8 4-8-4 8-4Zm-8 8 8 4 8-4M4 16l8 4 8-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Katmanlar</span></button>
           </aside>
           <div class="map-controls" aria-label="Harita kontrolleri"><button id="resetMapButton" class="icon-button" type="button" aria-label="Haritayı sıfırla" title="Haritayı sıfırla">↻</button><button id="mapLayerButton" class="map-layer active" type="button">Harita</button><button id="satelliteLayerButton" class="map-layer" type="button">Uydu</button><button id="zoomOutButton" class="icon-button" type="button" aria-label="Uzaklaştır" title="Uzaklaştır">−</button><button id="zoomInButton" class="icon-button" type="button" aria-label="Yakınlaştır" title="Yakınlaştır">+</button></div>
           <div id="editBar" class="edit-bar" hidden><button id="undoButton" class="button" type="button">↶ Geri al</button><button id="redoButton" class="button" type="button">↷ İleri al</button><span class="selection-info">Çizim <strong id="selectedArea">0 nokta</strong></span><label class="status-select"><span>Durum</span><select id="areaStatus"><option value="service">● Hizmet Verilen</option><option value="outside">● Hizmet Dışı</option></select></label><button id="saveButton" class="button button-primary" type="button">Kaydet</button></div>
@@ -62,5 +63,6 @@
   <script type="module" src="./src/features/settings/map-settings.js"></script>
   <script type="module" src="./src/features/regions/region-actions.js"></script>
   <script type="module" src="./src/features/search/header-search.js"></script>
+  <script type="module" src="./src/features/map/layers.js"></script>
 </body>
 </html>
