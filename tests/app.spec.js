@@ -169,6 +169,45 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator("#regionDeleteButton")).toBeVisible();
   });
 
+  test("edits boundary vertices and adds a vertex between existing pins", {
+    tag: ["@regions", "@map", "@boundary-edit"]
+  }, async ({ page }) => {
+    await page.locator("#regionsToggle").click();
+
+    const chooserPromise = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "İçe aktar" }).click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles(fixturePath);
+    await expect(page.locator("#toast")).toContainText("1 bölge içe aktarıldı", { timeout: 10_000 });
+
+    await page.locator(".region-row[data-region-id]").click();
+    await page.locator("#regionBoundaryButton").click();
+
+    const vertices = page.locator(".boundary-vertex-marker");
+    const midpoints = page.locator(".boundary-midpoint-marker");
+    const initialVertexCount = await vertices.count();
+
+    expect(initialVertexCount).toBeGreaterThanOrEqual(3);
+    await expect(midpoints).toHaveCount(initialVertexCount);
+
+    await expect(page.locator(".boundary-vertex-marker").first()).toBeVisible();
+    await expect(page.locator(".boundary-midpoint-marker").first()).toBeVisible();
+
+    const firstVertexMarker = page.locator(".boundary-vertex-marker").first();
+    await expect(firstVertexMarker).toHaveCSS("cursor", "grab");
+
+    await page.locator(".boundary-midpoint-marker").first().click();
+    await expect(vertices).toHaveCount(initialVertexCount + 1);
+    await expect(midpoints).toHaveCount(initialVertexCount + 1);
+
+    const draggableState = await page.evaluate(() => {
+      const layers = Object.values(window.__regionConsoleMapState?.map?._layers || {});
+      const marker = layers.find((layer) => layer?._boundaryIndex === 0 && typeof layer.dragging?.enabled === "function");
+      return marker ? marker.dragging.enabled() : false;
+    });
+    expect(draggableState).toBe(true);
+  });
+
   test("deletes the selected region from the information panel", {
     tag: ["@regions"]
   }, async ({ page }) => {
