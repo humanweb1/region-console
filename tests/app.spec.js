@@ -51,7 +51,6 @@ async function mockAuthenticatedBackend(page) {
 test.describe("Region Console smoke tests", () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthenticatedBackend(page);
-
     await page.goto("/", { waitUntil: "commit", timeout: 10_000 });
     await expect(page.locator("#consoleView")).toBeVisible({ timeout: 15_000 });
   });
@@ -147,6 +146,19 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator("#headerSearchResults")).toBeHidden();
     await expect(page.locator("#regionActionPanel")).toBeVisible();
     await expect(page.locator("#regionNameInput")).toHaveValue("Test Bölgesi");
+  });
+
+  test("toggles map overlay layers without changing the base map", async ({ page }) => {
+    await page.locator("#layersButton").click();
+    await expect(page.locator("#layersPopover")).toBeVisible();
+
+    const mask = page.locator('input[data-layer-id="mask"]');
+    await expect(mask).toBeChecked();
+    await mask.uncheck();
+
+    await expect.poll(async () => page.evaluate(() => window.__regionConsoleMapState?.overlayVisibility?.mask)).toBe(false);
+    await mask.check();
+    await expect.poll(async () => page.evaluate(() => window.__regionConsoleMapState?.overlayVisibility?.mask)).toBe(true);
   });
 
   test("switches theme without losing the application view", async ({ page }) => {
