@@ -3,8 +3,32 @@ name: Region Console Tests
 on:
   push:
     branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "supabase/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "playwright.config.js"
+      - "wrangler.jsonc"
+      - ".github/workflows/test.yml"
   pull_request:
     branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "supabase/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "playwright.config.js"
+      - "wrangler.jsonc"
+      - ".github/workflows/test.yml"
+
+concurrency:
+  group: region-console-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -12,11 +36,13 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,7 +56,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run tests
+      - name: Run affected tests only
         run: npm test
 
       - name: Upload Playwright report
@@ -40,7 +66,7 @@ jobs:
           name: playwright-report
           path: playwright-report/
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 7
 
       - name: Upload failure artifacts
         if: failure()
@@ -49,4 +75,4 @@ jobs:
           name: playwright-failures
           path: test-results/
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 7
