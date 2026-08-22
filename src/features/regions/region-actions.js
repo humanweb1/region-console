@@ -1,5 +1,5 @@
 import { store } from "../../state/store.js";
-import { upsertState } from "../../services/cloud.js";
+import { saveState } from "../../services/cloud.js";
 import { openDialog, closeDialog, getElements, toast } from "../../components/shell.js";
 
 const elements = getElements();
@@ -33,7 +33,7 @@ async function saveCloud() {
   if (!session?.access_token) return;
   const snapshot = store.dataSnapshot();
   try {
-    const saved = await upsertState(session.access_token, {
+    const saved = await saveState(session.access_token, {
       ...snapshot.regions,
       campaigns: snapshot.campaigns,
       history: store.get().history.entries,
