@@ -32,7 +32,7 @@ async function request(path, accessToken, options = {}) {
     }
 
     if (!response.ok) {
-      const detail = data?.message || data?.msg || data?.hint || data?.error_description || `HTTP ${response.status}`;
+      const detail = data?.message || data?.msg || data?.hint || data?.error_description || data?.details || `HTTP ${response.status}`;
       const error = new Error(`Bulut isteği başarısız (${response.status}): ${detail}`);
       error.status = response.status;
       error.details = data;
@@ -60,23 +60,21 @@ export async function loadState(accessToken) {
 }
 
 export async function saveState(accessToken, state, version = null) {
-  const body = {
-    state,
-    version: version ?? Date.now(),
-    updated_at: new Date().toISOString()
+  const payload = {
+    p_state: state,
+    p_version: version ?? Date.now()
   };
 
-  const rows = await request(
-    "/rest/v1/region_console_state?id=eq.main",
+  const result = await request(
+    "/rest/v1/rpc/save_region_console_state",
     accessToken,
     {
-      method: "PATCH",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify(body)
+      method: "POST",
+      body: JSON.stringify(payload)
     }
   );
 
-  return rows?.[0] || null;
+  return Array.isArray(result) ? result[0] || null : result || null;
 }
 
 export async function upsertState(accessToken, state) {
