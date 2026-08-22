@@ -41,6 +41,23 @@ export function bindPanels(elements, mapState, drawing, handlers) {
     elements.regionsToggle.setAttribute("aria-expanded", String(!open));
   });
 
+  // The + button in the regions menu is a shortcut for the same drawing
+  // workflow as the toolbar's "Çizim" action. It must also close the menu so
+  // the map remains unobstructed while the user draws.
+  elements.addRegionButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    elements.sidebar.hidden = true;
+    elements.regionsToggle?.setAttribute("aria-expanded", "false");
+
+    document.querySelectorAll(".tool:not(.tool-action)").forEach((button) => {
+      button.classList.toggle("active", button.dataset.tool === "draw");
+    });
+
+    handlers.onTool?.("draw");
+  });
+
   document.addEventListener("click", (event) => {
     if (!elements.headerMenu.hidden && !elements.headerMenu.contains(event.target) && !elements.menuButton.contains(event.target)) {
       closeHeaderMenu();
