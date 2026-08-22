@@ -1,7 +1,7 @@
 export function getElements() {
   const ids = [
     "loginView", "consoleView", "cloudStatus", "versionLabel",
-    "logoutButton", "themeButton", "menuButton", "headerMenu", "regionTree", "sidebar", "regionsToggle", "editBar",
+    "logoutButton", "themeButton", "menuButton", "headerMenu", "regionTree", "sidebar", "regionsToggle", "addRegionButton", "editBar",
     "selectedArea", "statCountries", "statProvinces", "statDistricts",
     "statArea", "statService", "statOutside", "toast", "appDialog",
     "dialogTitle", "dialogBody", "dialogClose", "campaignButton", "usersButton", "filesButton"
