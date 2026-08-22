@@ -31,15 +31,17 @@ console.log(files.length ? files.map((file) => `  - ${file}`).join("\n") : "  - 
 
 const tags = new Set();
 const testFiles = new Set();
-let runAll = false;
 
 for (const file of files) {
   if (file === "tests/app.spec.js") testFiles.add("tests/app.spec.js");
   if (file === "tests/importer.spec.js") testFiles.add("tests/importer.spec.js");
 
+  if (file === "tests/affected-tests.mjs" || file === "tests/check-affected.mjs") {
+    tags.add("@smoke");
+  }
+
   if (file === "playwright.config.js" || file === "tests/static-server.mjs") {
-    runAll = true;
-    continue;
+    tags.add("@smoke");
   }
 
   if (file.startsWith("tests/fixtures/")) tags.add("@import");
@@ -47,7 +49,7 @@ for (const file of files) {
   if (file.startsWith("src/features/regions/")) tags.add("@regions");
   if (file === "src/features/search/header-search.js") tags.add("@search");
   if (file.startsWith("src/features/map/")) tags.add("@map");
-  if (file === "src/features/ui/") tags.add("@ui");
+  if (file.startsWith("src/features/ui/")) tags.add("@ui");
   if (file.startsWith("src/features/auth/")) tags.add("@auth");
   if (file.startsWith("src/features/drawing/")) tags.add("@drawing");
   if (file === "src/services/cloud.js") tags.add("@cloud");
@@ -65,12 +67,9 @@ for (const file of files) {
   }
 
   if (file.endsWith(".css") || file === "index.html") tags.add("@ui");
-
   if (file.startsWith("supabase/") || file.startsWith("migrations/")) tags.add("@cloud");
 
-  if (file.startsWith(".github/")) {
-    continue;
-  }
+  if (file.startsWith(".github/")) continue;
 
   const knownSource =
     file.startsWith("src/") ||
@@ -83,26 +82,10 @@ for (const file of files) {
   if (!knownSource && /\.(?:js|mjs|cjs|html|css|json)$/.test(file)) tags.add("@smoke");
 }
 
-if (runAll) {
-  console.log("Test scope: full Playwright suite (test harness/config changed).");
-  process.exit(spawnSync("npx", ["playwright", "test"], { stdio: "inherit", shell: process.platform === "win32" }).status ?? 1);
-}
-
-if (testFiles.size) {
-  for (const file of testFiles) {
-    if (file === "tests/app.spec.js") {
-      tags.add("@app-spec-changed");
-    }
-  }
-}
-
-const grepTags = [...tags].filter((tag) => tag !== "@app-spec-changed");
+const grepTags = [...tags];
 const args = ["playwright", "test"];
 
-if (testFiles.size && grepTags.length === 0) {
-  args.push(...testFiles);
-} else if (testFiles.size && grepTags.length) {
-  // A changed spec plus affected source: run the changed spec directly.
+if (testFiles.size) {
   args.push(...testFiles);
 } else if (grepTags.length) {
   args.push("--grep", grepTags.join("|"));
