@@ -78,13 +78,14 @@ test.describe("Region Console smoke tests", () => {
     await page.locator("#regionCreateForm").getByRole("button", { name: "Ekle" }).click();
 
     const country = page.locator('.region-row[data-country-id]').filter({ hasText: "Test Ülkesi" });
-    await country.locator(".. ").locator('[data-add-child-type="province"]').click();
+    const countryWrap = country.locator("xpath=..");
+    await countryWrap.locator('[data-add-child-type="province"]').click();
     await page.locator('#regionCreateForm input[name="name"]').fill("Test İli");
     await page.locator("#regionCreateForm").getByRole("button", { name: "Ekle" }).click();
     await expect(page.locator(".region-row")).toContainText("Test İli");
 
     page.once("dialog", (dialog) => dialog.accept());
-    await country.locator(".. ").locator('[data-delete-node-id]').click();
+    await countryWrap.locator('[data-delete-node-id]').click();
     await expect(page.locator('.region-row[data-country-id]').filter({ hasText: "Test Ülkesi" })).toHaveCount(0);
     await expect(page.locator(".region-row").filter({ hasText: "Test İli" })).toHaveCount(0);
   });
