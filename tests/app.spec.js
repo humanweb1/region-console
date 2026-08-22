@@ -52,11 +52,6 @@ test.describe("Region Console smoke tests", () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthenticatedBackend(page);
 
-    // Do not wait for DOMContentLoaded here. The app currently loads Leaflet
-    // from an external CDN with a classic script tag, so a slow/offline CDN
-    // can delay DOMContentLoaded even though the local app is already being
-    // served correctly. `commit` gives the test a deterministic navigation
-    // boundary; app readiness is asserted explicitly below.
     await page.goto("/", { waitUntil: "commit", timeout: 10_000 });
     await expect(page.locator("#consoleView")).toBeVisible({ timeout: 15_000 });
   });
@@ -72,12 +67,13 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator("#cloudStatus")).toContainText("Bulut bağlı");
   });
 
-  test("opens and closes the regions menu", async ({ page }) => {
+  test("opens and closes the regions menu without a duplicate search field", async ({ page }) => {
     const toggle = page.locator("#regionsToggle");
 
     await toggle.click();
     await expect(page.locator("#sidebar")).toBeVisible();
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("#sidebarSearch")).toHaveCount(0);
 
     await toggle.click();
     await expect(page.locator("#sidebar")).toBeHidden();
@@ -95,6 +91,27 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator("#toast")).toContainText("1 bölge içe aktarıldı", { timeout: 10_000 });
     await expect(page.locator("#statArea")).toHaveText("1");
     await expect(page.locator(".region-row[data-region-id]")).toContainText("Test Bölgesi");
+  });
+
+  test("searches from the header and opens the selected region information panel", async ({ page }) => {
+    await page.locator("#regionsToggle").click();
+
+    const chooserPromise = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "İçe aktar" }).click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles(fixturePath);
+    await expect(page.locator("#toast")).toContainText("1 bölge içe aktarıldı", { timeout: 10_000 });
+
+    await page.locator("#regionsToggle").click();
+    await page.locator("#regionSearch").fill("Test");
+
+    await expect(page.locator("#headerSearchResults")).toBeVisible();
+    await expect(page.locator(".header-search-item")).toContainText("Test Bölgesi");
+
+    await page.locator(".header-search-item").first().click();
+    await expect(page.locator("#headerSearchResults")).toBeHidden();
+    await expect(page.locator("#regionActionPanel")).toBeVisible();
+    await expect(page.locator("#regionNameInput")).toHaveValue("Test Bölgesi");
   });
 
   test("switches theme without losing the application view", async ({ page }) => {
