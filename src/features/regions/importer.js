@@ -1,3 +1,21 @@
+const REGION_TYPES = {
+  country: { label: "Ülke", level: 0, parentType: null },
+  province: { label: "İl", level: 1, parentType: "country" },
+  district: { label: "İlçe", level: 2, parentType: "province" },
+  neighborhood: { label: "Mahalle", level: 3, parentType: "district" },
+  cemetery: { label: "Mezarlık", level: 4, parentType: "neighborhood" },
+  independent: { label: "Bağımsız Bölge", level: 0, parentType: null }
+};
+
+const REGION_TYPE_OPTIONS = [
+  ["country", "Ülke"],
+  ["province", "İl"],
+  ["district", "İlçe"],
+  ["neighborhood", "Mahalle"],
+  ["cemetery", "Mezarlık"],
+  ["independent", "Bağımsız Bölge"]
+];
+
 function isFiniteCoordinatePair(value) {
   return Array.isArray(value)
     && value.length >= 2
@@ -83,7 +101,64 @@ function stableSourceId(feature, index) {
   );
 }
 
-export function importRegionData(input, fileName = "") {
+function normalizeRegionType(value) {
+  const raw = String(value || "").trim().toLocaleLowerCase("tr-TR");
+  const aliases = {
+    country: "country", countries: "country", ülke: "country",
+    il: "province", province: "province", provinces: "province",
+    ilçe: "district", ilce: "district", district: "district",
+    mahalle: "neighborhood", neighborhood: "neighborhood",
+    mezarlık: "cemetery", mezarlik: "cemetery", cemetery: "cemetery",
+    bağımsız: "independent", "bağımsız bölge": "independent",
+    bagimsiz: "independent", "bagimsiz bolge": "independent", independent: "independent"
+  };
+  return aliases[raw] || null;
+}
+
+function askRegionType() {
+  if (typeof window === "undefined" || typeof window.prompt !== "function") return "independent";
+
+  const options = REGION_TYPE_OPTIONS.map(([value, label], index) => `${index + 1}. ${label}`).join("\n");
+  const answer = window.prompt(
+    `İçe aktarılan dosyanın bölge tipini seçin:\n\n${options}\n\n1-6 arasında seçim yapın.`,
+    "6"
+  );
+
+  if (answer === null) throw new Error("İçe aktarma iptal edildi.");
+
+  const normalized = normalizeRegionType(answer);
+  if (normalized) return normalized;
+
+  const numeric = Number.parseInt(String(answer).trim(), 10);
+  if (numeric >= 1 && numeric <= REGION_TYPE_OPTIONS.length) return REGION_TYPE_OPTIONS[numeric - 1][0];
+
+  throw new Error("Geçersiz bölge tipi seçildi.");
+}
+
+function hierarchyMeta(regionType, properties = {}) {
+  const definition = REGION_TYPES[regionType] || REGION_TYPES.independent;
+  const parentId = properties.parentId
+    ?? properties.parent_id
+    ?? properties.parentID
+    ?? properties.parentCode
+    ?? properties.parent_code
+    ?? null;
+
+  return {
+    type: regionType,
+    label: definition.label,
+    level: definition.level,
+    parentType: definition.parentType,
+    parentId: parentId == null || parentId === "" ? null : String(parentId),
+    rootType: definition.level === 0 ? regionType : "country"
+  };
+}
+
+export function getRegionTypeOptions() {
+  return REGION_TYPE_OPTIONS.map(([value, label]) => ({ value, label }));
+}
+
+export function importRegionData(input, fileName = "", regionType = null) {
   if (isRegionConsoleExport(input)) {
     return {
       mode: "region-console",
@@ -98,6 +173,7 @@ export function importRegionData(input, fileName = "") {
     };
   }
 
+  const selectedType = normalizeRegionType(regionType) || askRegionType();
   const features = featureList(input);
   if (!features.length) {
     throw new Error("Dosyada FeatureCollection, Feature, Polygon veya MultiPolygon bulunamadı.");
@@ -128,13 +204,14 @@ export function importRegionData(input, fileName = "") {
     const now = new Date().toISOString();
     imported.push({
       id: `import-${sourceId}-${crypto.randomUUID()}`,
-      type: "custom",
+      type: selectedType,
       name,
       status: "service",
       geometry,
       bounds: buildBounds(geometry),
       createdAt: now,
       updatedAt: now,
+      hierarchy: hierarchyMeta(selectedType, properties),
       importMeta: {
         format: "GeoJSON",
         coordinateOrder: "lonlat",
@@ -149,6 +226,8 @@ export function importRegionData(input, fileName = "") {
 
   return {
     mode: "geojson",
+    regionType: selectedType,
+    regionTypeLabel: REGION_TYPES[selectedType].label,
     regions: { countries: [], custom: imported, selectedId: null },
     campaigns: [],
     importedCount: imported.length,
