@@ -96,9 +96,58 @@
 }
 .map-layer.active { background: var(--accent); color: #111; }
 
+.layers-control {
+  position: relative;
+  display: flex;
+}
+
+.layers-control > .map-layer {
+  min-width: 64px;
+}
+
+.layers-popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  width: 220px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--overlay-bg);
+  color: var(--overlay-text);
+  box-shadow: var(--overlay-shadow);
+}
+
+.layers-popover > strong {
+  display: block;
+  padding: 2px 4px 7px;
+  font-size: 10px;
+}
+
+.layers-list {
+  display: grid;
+  gap: 2px;
+}
+
+.layer-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 6px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.layer-toggle:hover { background: var(--panel-2); }
+.layer-toggle input { margin: 2px 0 0; accent-color: var(--accent); }
+.layer-toggle span { display: grid; gap: 2px; min-width: 0; }
+.layer-toggle b { font-size: 10px; font-weight: 700; }
+.layer-toggle small { color: var(--muted); font-size: 9px; line-height: 1.25; }
+
 @media (max-width: 720px) {
   .tool-panel { width: 122px; right: 7px; top: 7px; }
   .tool { min-height: 34px; padding: 0 8px; font-size: 10px; }
   .tool svg { width: 13px; height: 13px; flex-basis: 13px; }
   .map-controls { right: 7px; bottom: calc(var(--stats-height) + 7px); }
+  .layers-popover { width: 200px; }
 }
