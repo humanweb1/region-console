@@ -26,14 +26,13 @@
           </div>
         </div>
         <div class="brand"><strong>Region Console</strong></div>
-        <label class="search"><span class="sr-only">Bölge ara</span><input id="regionSearch" type="search" placeholder="Bölge ara..." autocomplete="off"></label>
+        <label class="search"><span class="sr-only">Bölge ara</span><input id="regionSearch" type="search" placeholder="Bölge ara..." autocomplete="off"><div id="headerSearchResults" class="header-search-results" hidden></div></label>
         <div class="topbar-actions"><span id="cloudStatus" class="cloud-status">Bulut hazırlanıyor…</span><span id="versionLabel" class="version">v0.1.0</span><button id="themeButton" class="icon-button" type="button" aria-label="Tema" title="Tema değiştir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.2A8.4 8.4 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button><button id="logoutButton" class="button button-light" type="button">Çıkış</button></div>
       </header>
       <main class="workspace">
         <button id="regionsToggle" class="regions-toggle" type="button" aria-expanded="false" aria-controls="sidebar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16M4 12h16M4 17.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Bölgeler</span><svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <aside id="sidebar" class="sidebar" aria-label="Bölgeler" hidden>
           <div class="sidebar-head"><h1>Bölgeler</h1><button id="addRegionButton" class="icon-button" type="button" aria-label="Bölge ekle" title="Bölge ekle">+</button></div>
-          <input id="sidebarSearch" class="sidebar-search" type="search" placeholder="Bölge ara..." autocomplete="off">
           <div id="regionTree" class="region-tree"></div>
           <div class="legend"><div><i class="dot dot-service"></i> Hizmet Verilen</div><div><i class="dot dot-outside"></i> Hizmet Dışı</div><div><i class="dot dot-custom"></i> Özel Alan</div></div>
         </aside>
@@ -62,5 +61,6 @@
   <script type="module" src="./src/features/files/files.js"></script>
   <script type="module" src="./src/features/settings/map-settings.js"></script>
   <script type="module" src="./src/features/regions/region-actions.js"></script>
+  <script type="module" src="./src/features/search/header-search.js"></script>
 </body>
 </html>
