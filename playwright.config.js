@@ -16,9 +16,9 @@ export default defineConfig({
     serviceWorkers: "block"
   },
   webServer: {
-    command: "npm run dev -- --local --ip 127.0.0.1 --port 8788",
+    command: "node tests/static-server.mjs --port=8788",
     url: "http://127.0.0.1:8788",
-    timeout: 120_000,
+    timeout: 30_000,
     reuseExistingServer: false
   },
   projects: [
