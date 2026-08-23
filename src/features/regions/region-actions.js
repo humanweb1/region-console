@@ -138,9 +138,15 @@ function clearEditMarkers() {
   editMidMarkers = [];
 }
 
+function getEditPoints() {
+  return editMarkers.map((marker) => marker.getLatLng());
+}
+
 function syncEditLayer() {
   if (!editLayer) return;
-  editLayer.setLatLngs(editMarkers.map((marker) => marker.getLatLng()));
+  const points = getEditPoints();
+  if (points.length < 3) return;
+  editLayer.setLatLngs(points);
 }
 
 function vertexIcon(index) {
@@ -161,51 +167,14 @@ function midpointIcon() {
   });
 }
 
-function renderEditHandles() {
-  clearEditMarkers();
+function rebuildMidMarkers() {
+  editMidMarkers.forEach((marker) => marker.remove());
+  editMidMarkers = [];
+
   const map = selected?.mapState?.map;
-  if (!map || editLayer == null) return;
+  const currentPoints = getEditPoints();
+  if (!map || currentPoints.length < 3) return;
 
-  const points = editLayer.getLatLngs()[0] || [];
-  if (points.length < 3) return;
-
-  points.forEach((point, index) => {
-    const marker = L.marker(point, {
-      draggable: true,
-      autoPan: true,
-      keyboard: false,
-      zIndexOffset: 1200,
-      icon: vertexIcon(index)
-    }).addTo(map);
-
-    marker._boundaryIndex = index;
-    marker.on("dragstart", () => {
-      editMidMarkers.forEach((midpoint) => midpoint.remove());
-      editMidMarkers = [];
-    });
-    marker.on("drag", () => {
-      syncEditLayer();
-    });
-    marker.on("dragend", () => {
-      syncEditLayer();
-      renderEditHandles();
-    });
-    marker.on("dblclick", (event) => {
-      L.DomEvent.stopPropagation(event);
-      const currentIndex = editMarkers.indexOf(marker);
-      if (currentIndex < 0) return;
-      if (editMarkers.length <= 3) {
-        toast(elements, "Sınır için en az 3 nokta gerekir.");
-        return;
-      }
-      editMarkers.splice(currentIndex, 1);
-      syncEditLayer();
-      renderEditHandles();
-    });
-    editMarkers.push(marker);
-  });
-
-  const currentPoints = editMarkers.map((marker) => marker.getLatLng());
   currentPoints.forEach((point, index) => {
     const next = currentPoints[(index + 1) % currentPoints.length];
     const midpoint = L.latLng((point.lat + next.lat) / 2, (point.lng + next.lng) / 2);
@@ -220,13 +189,63 @@ function renderEditHandles() {
       L.DomEvent.stopPropagation(event);
       const insertAt = index + 1;
       const newPoint = marker.getLatLng();
-      const nextPoints = currentPoints.slice();
-      nextPoints.splice(insertAt, 0, newPoint);
+      const nextPoints = getEditPoints();
+      nextPoints.splice(insertAt, 0, L.latLng(newPoint.lat, newPoint.lng));
       editLayer.setLatLngs(nextPoints);
-      renderEditHandles();
+      rebuildEditMarkers(nextPoints);
     });
     editMidMarkers.push(marker);
   });
+}
+
+function rebuildEditMarkers(points) {
+  clearEditMarkers();
+  const map = selected?.mapState?.map;
+  if (!map || points.length < 3) return;
+
+  points.forEach((point, index) => {
+    const marker = L.marker(point, {
+      draggable: true,
+      autoPan: true,
+      keyboard: false,
+      zIndexOffset: 1200,
+      icon: vertexIcon(index)
+    }).addTo(map);
+
+    marker.on("dragstart", () => {
+      editMidMarkers.forEach((midpoint) => midpoint.remove());
+      editMidMarkers = [];
+    });
+    marker.on("drag", () => {
+      syncEditLayer();
+    });
+    marker.on("dragend", () => {
+      syncEditLayer();
+      rebuildEditMarkers(getEditPoints());
+    });
+    marker.on("dblclick", (event) => {
+      L.DomEvent.stopPropagation(event);
+      const currentIndex = editMarkers.indexOf(marker);
+      if (currentIndex < 0) return;
+      const currentPoints = getEditPoints();
+      if (currentPoints.length <= 3) {
+        toast(elements, "Sınır için en az 3 nokta gerekir.");
+        return;
+      }
+      currentPoints.splice(currentIndex, 1);
+      editLayer.setLatLngs(currentPoints);
+      rebuildEditMarkers(currentPoints);
+    });
+
+    editMarkers.push(marker);
+  });
+
+  rebuildMidMarkers();
+}
+
+function renderEditHandles() {
+  if (!editLayer) return;
+  rebuildEditMarkers(editLayer.getLatLngs()[0] || []);
 }
 
 function stopBoundaryEdit() {
@@ -256,7 +275,7 @@ function savePanelChanges() {
   if (!region) return;
   const name = String(document.getElementById("regionNameInput")?.value || "").trim();
   if (!name) return toast(elements, "Bölge adı boş bırakılamaz.");
-  const geometry = editing ? latLngsToGeometry(editMarkers.map((marker) => marker.getLatLng())) : region.geometry;
+  const geometry = editing ? latLngsToGeometry(getEditPoints()) : region.geometry;
   if (editing && geometry.coordinates[0].length < 4) return toast(elements, "Geçerli bir sınır için en az 3 nokta gerekir.");
   const nameChanged = name !== region.name;
   const geometryChanged = editing;
@@ -318,14 +337,3 @@ function onRegionSelected(event) {
 }
 
 document.addEventListener("region-console:region-selected", onRegionSelected);
-
-store.subscribe(() => {
-  if (!selected) return;
-  const region = getRegion();
-  if (!region) {
-    selected = null;
-    document.getElementById("regionActionPanel")?.remove();
-    return;
-  }
-  if (!editing) renderPanel();
-});
