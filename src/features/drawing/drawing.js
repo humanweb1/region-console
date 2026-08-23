@@ -1,7 +1,10 @@
 export function createDrawingController(mapState, onChange) {
   let active = false;
   let draft = null;
+  let previewLine = null;
   let points = [];
+  let pointHistory = [[]];
+  let pointCursor = 0;
   let finishHandler = null;
   let clickTimer = null;
   const pointMarkers = L.layerGroup().addTo(mapState.map);
@@ -11,6 +14,8 @@ export function createDrawingController(mapState, onChange) {
       active,
       draft,
       points: points.slice(),
+      canUndo: pointCursor > 0,
+      canRedo: pointCursor < pointHistory.length - 1,
       area: draft ? L.GeometryUtil?.geodesicArea?.(draft.getLatLngs()[0]) || 0 : 0
     });
   }
@@ -41,12 +46,32 @@ export function createDrawingController(mapState, onChange) {
     });
   }
 
+  function clearPreviewLine() {
+    if (previewLine) mapState.polygons.removeLayer(previewLine);
+    previewLine = null;
+  }
+
+  function renderPreviewLine(cursorPoint = null) {
+    clearPreviewLine();
+    if (!active || !points.length || !cursorPoint) return;
+    previewLine = L.polyline([points.at(-1), cursorPoint], {
+      color: "#ffd400",
+      weight: 2,
+      dashArray: "4 5",
+      opacity: 0.8,
+      interactive: false
+    }).addTo(mapState.polygons);
+  }
+
   function clearDraft() {
     clearClickTimer();
     if (draft) mapState.polygons.removeLayer(draft);
+    clearPreviewLine();
     pointMarkers.clearLayers();
     draft = null;
     points = [];
+    pointHistory = [[]];
+    pointCursor = 0;
   }
 
   function renderDraft() {
@@ -57,18 +82,43 @@ export function createDrawingController(mapState, onChange) {
       emit();
       return;
     }
-    draft = L.polygon(points, {
+    draft = L.polyline(points, {
       color: "#ffd400",
       weight: 3,
-      dashArray: "6 6",
-      fillOpacity: points.length >= 3 ? 0.12 : 0
+      opacity: 1,
+      interactive: false
     }).addTo(mapState.polygons);
     renderPointMarkers();
     emit();
   }
 
+  function pushPointHistory() {
+    pointHistory = pointHistory.slice(0, pointCursor + 1);
+    pointHistory.push(points.slice());
+    pointCursor = pointHistory.length - 1;
+  }
+
+  function restorePointHistory(index) {
+    if (index < 0 || index >= pointHistory.length) return false;
+    pointCursor = index;
+    points = pointHistory[pointCursor].slice();
+    renderDraft();
+    return true;
+  }
+
+  function undo() {
+    if (!active || pointCursor <= 0) return false;
+    return restorePointHistory(pointCursor - 1);
+  }
+
+  function redo() {
+    if (!active || pointCursor >= pointHistory.length - 1) return false;
+    return restorePointHistory(pointCursor + 1);
+  }
+
   function finish() {
     clearClickTimer();
+    clearPreviewLine();
     if (points.length < 3) return false;
     if (draft) mapState.polygons.removeLayer(draft);
     draft = L.polygon(points, {
@@ -89,6 +139,7 @@ export function createDrawingController(mapState, onChange) {
   function addPoint(event) {
     if (!active) return;
     points.push(event.latlng);
+    pushPointHistory();
     renderDraft();
   }
 
@@ -103,6 +154,11 @@ export function createDrawingController(mapState, onChange) {
     }, 180);
   }
 
+  function handleMouseMove(event) {
+    if (!active) return;
+    renderPreviewLine(event.latlng);
+  }
+
   function handleDoubleClick() {
     clearClickTimer();
     finish();
@@ -113,6 +169,7 @@ export function createDrawingController(mapState, onChange) {
     active = true;
     mapState.map.doubleClickZoom.disable();
     mapState.map.on("click", handleClick);
+    mapState.map.on("mousemove", handleMouseMove);
     finishHandler = handleDoubleClick;
     mapState.map.on("dblclick", finishHandler);
     emit();
@@ -121,6 +178,7 @@ export function createDrawingController(mapState, onChange) {
   function cancel() {
     clearClickTimer();
     mapState.map.off("click", handleClick);
+    mapState.map.off("mousemove", handleMouseMove);
     if (finishHandler) mapState.map.off("dblclick", finishHandler);
     finishHandler = null;
     mapState.map.doubleClickZoom.enable();
@@ -172,9 +230,13 @@ export function createDrawingController(mapState, onChange) {
     cancel,
     clear,
     finish,
+    undo,
+    redo,
     consumeDraft,
     isActive: () => active,
     getDraft: () => draft,
-    getPoints: () => points.slice()
+    getPoints: () => points.slice(),
+    canUndo: () => active && pointCursor > 0,
+    canRedo: () => active && pointCursor < pointHistory.length - 1
   };
 }
