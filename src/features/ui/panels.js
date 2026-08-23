@@ -104,7 +104,13 @@ export function bindPanels(elements, mapState, drawing, handlers) {
   document.getElementById("logoutButton").addEventListener("click", handlers.onLogout);
   document.getElementById("dialogClose")?.addEventListener("click", () => elements.appDialog.close());
 
-  document.getElementById("undoButton")?.addEventListener("click", handlers.onUndo);
-  document.getElementById("redoButton")?.addEventListener("click", handlers.onRedo);
+  document.getElementById("undoButton")?.addEventListener("click", () => {
+    if (drawing?.isActive?.() && drawing.undo?.()) return;
+    handlers.onUndo?.();
+  });
+  document.getElementById("redoButton")?.addEventListener("click", () => {
+    if (drawing?.isActive?.() && drawing.redo?.()) return;
+    handlers.onRedo?.();
+  });
   document.getElementById("saveButton")?.addEventListener("click", handlers.onSave);
 }
