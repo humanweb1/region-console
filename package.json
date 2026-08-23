@@ -7,7 +7,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "check": "node tests/check-affected.mjs",
-    "check:all": "node --check src/core/app.js && node --check src/core/config.js && node --check src/core/runtime-config.js && node --check src/state/store.js && node --check src/services/auth.js && node --check src/services/cloud.js && node --check src/features/auth/login.js && node --check src/features/drawing/drawing.js && node --check src/features/map/map.js && node --check src/features/map/layers-ui.js && node --check src/features/regions/regions.js && node --check src/features/regions/importer.js && node --check src/features/ui/panels.js && node --check src/features/search/header-search.js",
+    "check:all": "node --check src/core/app.js && node --check src/core/config.js && node --check src/core/runtime-config.js && node --check src/state/store.js && node --check src/services/auth.js && node --check src/services/cloud.js && node --check src/features/auth/login.js && node --check src/features/drawing/drawing.js && node --check src/features/map/map.js && node --check src/features/map/layers-ui.js && node --check src/features/regions/regions.js && node --check src/features/regions/importer.js && node --check src/features/regions/region-actions.js && node --check src/features/ui/panels.js && node --check src/features/search/header-search.js",
     "test": "npm run check && node tests/affected-tests.mjs",
     "test:all": "npm run check:all && playwright test",
     "test:ui": "playwright test --ui",
