@@ -40,29 +40,49 @@ function buildDiff(beforeSnapshot, afterSnapshot) {
   }
   return changed;
 }
-function allGeometryLatLngs(regions) { return regions.flatMap(r=>geometryPoints(r?.geometry).map(([lng,lat])=>[lat,lng])); }
-
-function addNumberedPoint(map, layer, lat, lng, number) {
-  L.circleMarker([lat,lng], {radius:7,color:RED,weight:2,fillColor:RED,fillOpacity:1,interactive:false}).addTo(layer);
-  L.marker([lat,lng], {
-    interactive:false,
-    icon:L.divIcon({className:"history-pin-number",html:`<span>${number}</span>`,iconSize:[22,22],iconAnchor:[11,11]})
-  }).addTo(layer);
+function geometryRings(geometry) {
+  const rings=[];
+  const walk=(value,depth=0)=>{
+    if(!Array.isArray(value))return;
+    if(value.length>=4 && value.every(p=>Array.isArray(p)&&p.length>=2&&Number.isFinite(Number(p[0]))&&Number.isFinite(Number(p[1])))){rings.push(value.map(p=>[Number(p[0]),Number(p[1])]));return;}
+    value.forEach(v=>walk(v,depth+1));
+  };
+  walk(geometry?.coordinates);
+  return rings;
 }
-
+function allGeometryLatLngs(regions) { return regions.flatMap(r=>geometryPoints(r?.geometry).map(([lng,lat])=>[lat,lng])); }
+function addPin(layer, lat, lng, number, changed=false) {
+  L.circleMarker([lat,lng], {radius:changed?7:5,color:changed?RED:GREEN,weight:changed?2:1,fillColor:changed?RED:GREEN,fillOpacity:1,interactive:false}).addTo(layer);
+  L.marker([lat,lng], {interactive:false,icon:L.divIcon({className:"history-pin-number",html:`<span class="${changed?"changed":"normal"}">${number}</span>`,iconSize:[22,22],iconAnchor:[11,11]})}).addTo(layer);
+}
+function renderRing(layer, ring, changedSet) {
+  if(ring.length<2)return;
+  const latLngs=ring.map(([lng,lat])=>[lat,lng]);
+  L.polyline(latLngs,{color:GREEN,weight:2,opacity:.95,interactive:false}).addTo(layer);
+  for(let i=0;i<ring.length;i++) {
+    const point=ring[i], next=ring[(i+1)%ring.length];
+    const changed=changedSet.some(p=>samePoint(p,point)||samePoint(p,next));
+    if(changed) L.polyline([[point[1],point[0]],[next[1],next[0]]],{color:RED,weight:4,opacity:1,interactive:false}).addTo(layer);
+  }
+}
 function renderMap(container, regions, changedEntries, side) {
   const map=L.map(container,{zoomControl:true,attributionControl:true,doubleClickZoom:true});
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap contributors"}).addTo(map);
   const boundaryLayer=L.featureGroup().addTo(map), markerLayer=L.featureGroup().addTo(map);
   const changedByKey=new Map(changedEntries.map(e=>[e.key,e])), boundsPoints=[];
+  let globalPinNumber=1;
   for (const region of regions) {
-    const points=geometryPoints(region.geometry); if(points.length<3) continue;
-    const latLngs=points.map(([lng,lat])=>[lat,lng]);
-    L.polygon(latLngs,{color:GREEN,weight:2,opacity:.95,fill:false,interactive:false}).addTo(boundaryLayer);
-    boundsPoints.push(...latLngs);
+    const rings=geometryRings(region.geometry); if(!rings.length) continue;
     const diff=changedByKey.get(regionKey(region));
     const changedSide=diff?.points?.[side]||[];
-    changedSide.forEach(([lng,lat],index)=>addNumberedPoint(map,markerLayer,lat,lng,index+1));
+    for(const ring of rings){
+      renderRing(boundaryLayer,ring,changedSide);
+      const closed=samePoint(ring[0],ring[ring.length-1]) ? ring.slice(0,-1) : ring;
+      for(const [lng,lat] of closed){
+        addPin(markerLayer,lat,lng,globalPinNumber++,changedSide.some(p=>samePoint(p,[lng,lat])));
+        boundsPoints.push([lat,lng]);
+      }
+    }
   }
   if(boundsPoints.length) map.fitBounds(L.latLngBounds(boundsPoints),{padding:[24,24],maxZoom:12,animate:false}); else map.setView([39,35],5);
   requestAnimationFrame(()=>map.invalidateSize({pan:false}));
@@ -80,7 +100,7 @@ function renderSimulation(elements,entry) {
   const changedPointCount=changed.reduce((s,i)=>s+i.points.before.length+i.points.after.length,0);
   openDialog(elements,`Harita karşılaştırması · ${entry.label||"Güncelleme"}`,`
     <div class="history-sim">
-      <div class="history-sim-toolbar"><button id="historySimBack" class="button" type="button">← Geçmişe dön</button><div class="history-sim-summary"><strong>${escapeHtml(entry.label||"Güncelleme")}</strong><span>${new Date(entry.createdAt).toLocaleString("tr-TR")}</span></div><div class="history-sim-legend"><span><i class="history-sim-dot green"></i> Sınır</span><span><i class="history-sim-dot red"></i> Değişen pin</span></div></div>
+      <div class="history-sim-toolbar"><button id="historySimBack" class="button" type="button">← Geçmişe dön</button><div class="history-sim-summary"><strong>${escapeHtml(entry.label||"Güncelleme")}</strong><span>${new Date(entry.createdAt).toLocaleString("tr-TR")}</span></div><div class="history-sim-legend"><span><i class="history-sim-dot green"></i> Normal sınır/pin</span><span><i class="history-sim-dot red"></i> Değişen sınır/pin</span></div></div>
       <div class="history-sim-stats"><span>${changed.length} değişen alan</span><span>${changedGeometryCount} sınır güncellemesi</span><span>${changedPointCount} değişen pin</span></div>
       <div class="history-sim-grid"><section class="history-sim-panel"><header><strong>BEFORE</strong><span>Önce</span></header><div id="historySimBefore" class="history-sim-map"></div></section><section class="history-sim-panel"><header><strong>AFTER</strong><span>Sonra</span></header><div id="historySimAfter" class="history-sim-map"></div></section></div>
       ${changed.length?`<div class="history-sim-changes"><strong>Değişen alanlar</strong>${changed.map(i=>`<span>${escapeHtml(i.after?.name||i.before?.name||"Adsız alan")}</span>`).join("")}</div>`:`<p class="dialog-muted">Bu işlemde harita geometrisi değişmemiş.</p>`}
@@ -94,11 +114,10 @@ function renderSimulation(elements,entry) {
   if(combined.length){const b=L.latLngBounds(combined);beforeMap.fitBounds(b,{padding:[24,24],maxZoom:12,animate:false});afterMap.fitBounds(b,{padding:[24,24],maxZoom:12,animate:false});}
   let syncing=false;
   const sync=(source,target)=>{if(syncing)return;syncing=true;target.setView(source.getCenter(),source.getZoom(),{animate:false});syncing=false;};
-  beforeMap.on("moveend",()=>sync(beforeMap,afterMap));
-  afterMap.on("moveend",()=>sync(afterMap,beforeMap));
+  beforeMap.on("moveend",()=>sync(beforeMap,afterMap)); afterMap.on("moveend",()=>sync(afterMap,beforeMap));
   requestAnimationFrame(()=>{beforeMap.invalidateSize({pan:false});afterMap.invalidateSize({pan:false});sync(beforeMap,afterMap);});
 }
 function historyEntryFromItem(item){const list=item.closest(".history-list");if(!list)return null;const index=[...list.children].indexOf(item),entries=store.get().history.entries.slice().reverse();return entries[index]||null;}
 function injectHistorySimulationButtons(){document.querySelectorAll(".history-item").forEach(item=>{if(item.querySelector(".history-sim-open"))return;const b=document.createElement("button");b.type="button";b.className="history-sim-open button";b.textContent="Haritada simüle et";item.appendChild(b);});}
-function installStyles(){if(document.getElementById("historySimulationStyles"))return;const style=document.createElement("style");style.id="historySimulationStyles";style.textContent=`.app-dialog.history-sim-dialog{width:min(1180px,calc(100vw - 28px));max-width:min(1180px,calc(100vw - 28px))}.history-sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.history-sim-map{height:min(58vh,520px);min-height:320px}.history-pin-number{background:transparent;border:0}.history-pin-number span{display:flex;width:22px;height:22px;align-items:center;justify-content:center;border:2px solid #fff;border-radius:50%;background:${RED};color:#fff;font:700 10px/1 sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.35)}.history-sim-dot{width:8px;height:8px;display:inline-block;border-radius:50%}.history-sim-dot.green{background:${GREEN}}.history-sim-dot.red{background:${RED}}@media(max-width:720px){.history-sim-grid{grid-template-columns:1fr}.history-sim-map{height:330px;min-height:280px}}`;document.head.appendChild(style);}
+function installStyles(){if(document.getElementById("historySimulationStyles"))return;const style=document.createElement("style");style.id="historySimulationStyles";style.textContent=`.app-dialog.history-sim-dialog{width:min(1180px,calc(100vw - 28px));max-width:min(1180px,calc(100vw - 28px))}.history-sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.history-sim-map{height:min(58vh,520px);min-height:320px}.history-pin-number{background:transparent;border:0}.history-pin-number span{display:flex;width:22px;height:22px;align-items:center;justify-content:center;border:2px solid #fff;border-radius:50%;background:${GREEN};color:#fff;font:700 10px/1 sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.35)}.history-pin-number span.changed{background:${RED}}.history-sim-dot{width:8px;height:8px;display:inline-block;border-radius:50%}.history-sim-dot.green{background:${GREEN}}.history-sim-dot.red{background:${RED}}@media(max-width:720px){.history-sim-grid{grid-template-columns:1fr}.history-sim-map{height:330px;min-height:280px}}`;document.head.appendChild(style);}
 if(typeof document!=="undefined"){installStyles();const observer=new MutationObserver(injectHistorySimulationButtons);observer.observe(document.body,{childList:true,subtree:true});document.addEventListener("click",event=>{const button=event.target?.closest?.(".history-sim-open");if(!button)return;event.preventDefault();event.stopPropagation();const item=button.closest(".history-item"),entry=item?historyEntryFromItem(item):null;if(!entry)return;renderSimulation({appDialog:document.getElementById("appDialog"),dialogTitle:document.getElementById("dialogTitle"),dialogBody:document.getElementById("dialogBody")},entry);},true);document.getElementById("dialogClose")?.addEventListener("click",destroySimulationMaps);}
