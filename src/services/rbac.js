@@ -49,10 +49,13 @@ export async function loadMyAccess(accessToken, userId) {
 export async function adminRbac(accessToken, payload = {}) {
   assertConfig();
   if (!accessToken) throw new Error("Aktif oturum bulunamadı.");
-  const response = await fetch(`${config.supabaseUrl}/functions/v1/admin-rbac`, {
-    method: "POST",
-    headers: headers(accessToken),
-    body: JSON.stringify(payload)
-  });
+  const response = await fetch(`${config.supabaseUrl}/functions/v1/admin-rbac`, { method: "POST", headers: headers(accessToken), body: JSON.stringify(payload) });
+  return parse(response);
+}
+
+export async function createManagedUser(accessToken, { full_name, email, password, role_id }) {
+  assertConfig();
+  if (!accessToken) throw new Error("Aktif oturum bulunamadı.");
+  const response = await fetch(`${config.supabaseUrl}/functions/v1/admin-create-user`, { method: "POST", headers: headers(accessToken), body: JSON.stringify({ full_name, email, password, role_id }) });
   return parse(response);
 }
