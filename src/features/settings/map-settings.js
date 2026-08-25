@@ -7,6 +7,8 @@ const DEFAULTS = {
   boundaryWeight: 1.5,
   outsideColor: "#4b5563",
   outsideOpacity: 0.55,
+  closedColor: "#7c3aed",
+  closedOpacity: 0.55,
   campaignColor: "#ffd400",
   campaignOpacity: 0.55
 };
@@ -90,6 +92,11 @@ function renderSettings() {
         <label class="settings-range"><span>Opaklık <output id="settingOutsideOpacityValue">${percent(settings.outsideOpacity)}</output></span><input id="settingOutsideOpacity" type="range" min="0" max="1" step="0.05" value="${Number(settings.outsideOpacity)}"></label>
       </div>
       <div class="map-settings-group">
+        <strong>Hizmete kapalı alan</strong>
+        <label class="settings-row"><span>Alan rengi</span><input id="settingClosedColor" type="color" value="${escapeHtml(settings.closedColor)}"></label>
+        <label class="settings-range"><span>Opaklık <output id="settingClosedOpacityValue">${percent(settings.closedOpacity)}</output></span><input id="settingClosedOpacity" type="range" min="0" max="1" step="0.05" value="${Number(settings.closedOpacity)}"></label>
+      </div>
+      <div class="map-settings-group">
         <strong>Kampanyalı alan</strong>
         <label class="settings-row"><span>Alan rengi</span><input id="settingCampaignColor" type="color" value="${escapeHtml(settings.campaignColor)}"></label>
         <label class="settings-range"><span>Opaklık <output id="settingCampaignOpacityValue">${percent(settings.campaignOpacity)}</output></span><input id="settingCampaignOpacity" type="range" min="0" max="1" step="0.05" value="${Number(settings.campaignOpacity)}"></label>
@@ -101,6 +108,7 @@ function renderSettings() {
   const body = elements.dialogBody;
   const boundaryWeight = body.querySelector("#settingBoundaryWeight");
   const outsideOpacity = body.querySelector("#settingOutsideOpacity");
+  const closedOpacity = body.querySelector("#settingClosedOpacity");
   const campaignOpacity = body.querySelector("#settingCampaignOpacity");
 
   boundaryWeight.addEventListener("input", () => {
@@ -108,6 +116,9 @@ function renderSettings() {
   });
   outsideOpacity.addEventListener("input", () => {
     body.querySelector("#settingOutsideOpacityValue").textContent = percent(outsideOpacity.value);
+  });
+  closedOpacity.addEventListener("input", () => {
+    body.querySelector("#settingClosedOpacityValue").textContent = percent(closedOpacity.value);
   });
   campaignOpacity.addEventListener("input", () => {
     body.querySelector("#settingCampaignOpacityValue").textContent = percent(campaignOpacity.value);
@@ -118,10 +129,13 @@ function renderSettings() {
     body.querySelector("#settingBoundaryWeight").value = DEFAULTS.boundaryWeight;
     body.querySelector("#settingOutsideColor").value = DEFAULTS.outsideColor;
     body.querySelector("#settingOutsideOpacity").value = DEFAULTS.outsideOpacity;
+    body.querySelector("#settingClosedColor").value = DEFAULTS.closedColor;
+    body.querySelector("#settingClosedOpacity").value = DEFAULTS.closedOpacity;
     body.querySelector("#settingCampaignColor").value = DEFAULTS.campaignColor;
     body.querySelector("#settingCampaignOpacity").value = DEFAULTS.campaignOpacity;
     body.querySelector("#settingBoundaryWeightValue").textContent = `${DEFAULTS.boundaryWeight.toFixed(1)} px`;
     body.querySelector("#settingOutsideOpacityValue").textContent = percent(DEFAULTS.outsideOpacity);
+    body.querySelector("#settingClosedOpacityValue").textContent = percent(DEFAULTS.closedOpacity);
     body.querySelector("#settingCampaignOpacityValue").textContent = percent(DEFAULTS.campaignOpacity);
   });
 
@@ -132,6 +146,8 @@ function renderSettings() {
       boundaryWeight: Number(boundaryWeight.value),
       outsideColor: body.querySelector("#settingOutsideColor").value,
       outsideOpacity: Number(outsideOpacity.value),
+      closedColor: body.querySelector("#settingClosedColor").value,
+      closedOpacity: Number(closedOpacity.value),
       campaignColor: body.querySelector("#settingCampaignColor").value,
       campaignOpacity: Number(campaignOpacity.value)
     };
@@ -152,7 +168,7 @@ function installMenuItem() {
   button.id = "settingsButton";
   button.className = "header-menu-item";
   button.type = "button";
-  button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m19 13.5 1.2 1-.9 1.6-1.5-.5a7.4 7.4 0 0 1-1.7 1l-.2 1.6h-1.9l-.5-1.5a7.5 7.5 0 0 1-2 0l-.5 1.5H9.1l-.2-1.6a7.4 7.4 0 0 1-1.7-1l-1.5.5-.9-1.6 1.2-1a7.5 7.5 0 0 1 0-2.1l-1.2-1 .9-1.6 1.5.5a7.4 7.4 0 0 1 1.7-1l.2-1.6H11l.5 1.5a7.5 7.5 0 0 1 2 0l.5-1.5h1.9l.2 1.6a7.4 7.4 0 0 1 1.7 1l1.5-.5.9 1.6-1.2 1a7.5 7.5 0 0 1 0 2.1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg><span>Ayarlar</span>`;
+  button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m19 13.5 1.2 1-.9 1.6-1.5-.5a7.4 7.4 0 0 1-1.7 1l-.2 1.6h-1.9l-.5-1.5a7.5 7.5 0 0 1-2 0l-.5 1.5H9.1l-.2-1.6a7.4 7.4 0 0 1-1.7 1l-1.5.5-.9-1.6 1.2-1a7.5 7.5 0 0 1 0-2.1l-1.2-1 .9-1.6 1.5.5a7.4 7.4 0 0 1 1.7-1l.2-1.6H11l.5 1.5a7.5 7.5 0 0 1 2 0l.5-1.5h1.9l.2 1.6a7.4 7.4 0 0 1 1.7 1l1.5-.5.9 1.6-1.2 1a7.5 7.5 0 0 1 0 2.1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg><span>Ayarlar</span>`;
   button.addEventListener("click", () => {
     menu.hidden = true;
     document.getElementById("menuButton")?.setAttribute("aria-expanded", "false");
