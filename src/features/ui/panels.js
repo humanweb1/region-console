@@ -1,4 +1,27 @@
+import { exportToFolders } from "../../services/folder-export.js";
+
 export function bindPanels(elements, mapState, drawing, handlers) {
+  // Export is handled here in capture phase so the legacy toolbar handler
+  // cannot trigger the old single-file download at the same time.
+  document.addEventListener("click", async (event) => {
+    const exportButton = event.target?.closest?.('.tool[data-tool="export"]');
+    if (!exportButton) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    exportButton.classList.add("active");
+    try {
+      const count = await exportToFolders();
+      window.dispatchEvent(new CustomEvent("region-console:toast", { detail: { message: `${count} alan klasör yapısına kaydedildi.` } }));
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        console.error("[Region Console] Folder export failed:", error);
+        window.alert(`Klasör kaydı başarısız: ${error.message || "Bilinmeyen hata"}`);
+      }
+    } finally {
+      exportButton.classList.remove("active");
+    }
+  }, true);
+
   document.querySelectorAll(".tool:not(.tool-action)").forEach((button) => {
     button.addEventListener("click", () => {
       const tool = button.dataset.tool;
@@ -41,28 +64,19 @@ export function bindPanels(elements, mapState, drawing, handlers) {
     elements.regionsToggle.setAttribute("aria-expanded", String(!open));
   });
 
-  // The + button in the regions menu is a shortcut for the same drawing
-  // workflow as the toolbar's "Çizim" action. It must also close the menu so
-  // the map remains unobstructed while the user draws.
   elements.addRegionButton?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-
     elements.sidebar.hidden = true;
     elements.regionsToggle?.setAttribute("aria-expanded", "false");
-
     document.querySelectorAll(".tool:not(.tool-action)").forEach((button) => {
       button.classList.toggle("active", button.dataset.tool === "draw");
     });
-
     handlers.onTool?.("draw");
   });
 
   document.addEventListener("click", (event) => {
-    if (!elements.headerMenu.hidden && !elements.headerMenu.contains(event.target) && !elements.menuButton.contains(event.target)) {
-      closeHeaderMenu();
-    }
-
+    if (!elements.headerMenu.hidden && !elements.headerMenu.contains(event.target) && !elements.menuButton.contains(event.target)) closeHeaderMenu();
     if (elements.sidebar.hidden) return;
     if (elements.sidebar.contains(event.target) || elements.regionsToggle.contains(event.target)) return;
     elements.sidebar.hidden = true;
@@ -71,13 +85,11 @@ export function bindPanels(elements, mapState, drawing, handlers) {
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-
     if (!elements.headerMenu.hidden) {
       closeHeaderMenu();
       elements.menuButton.focus();
       return;
     }
-
     if (elements.sidebar.hidden) return;
     elements.sidebar.hidden = true;
     elements.regionsToggle.setAttribute("aria-expanded", "false");
@@ -103,7 +115,6 @@ export function bindPanels(elements, mapState, drawing, handlers) {
   document.getElementById("themeButton").addEventListener("click", handlers.onTheme);
   document.getElementById("logoutButton").addEventListener("click", handlers.onLogout);
   document.getElementById("dialogClose")?.addEventListener("click", () => elements.appDialog.close());
-
   document.getElementById("undoButton")?.addEventListener("click", handlers.onUndo);
   document.getElementById("redoButton")?.addEventListener("click", handlers.onRedo);
   document.getElementById("saveButton")?.addEventListener("click", handlers.onSave);
