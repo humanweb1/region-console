@@ -46,10 +46,7 @@ function escapeHtml(value) {
 
 function getStatusRegions(status) {
   const custom = store.get().regions?.custom || [];
-  return custom.filter((region) => {
-    const current = region?.status || "service";
-    return current === status;
-  });
+  return custom.filter((region) => (region?.status || "service") === status);
 }
 
 function renderFooterStatusList(status) {
@@ -59,6 +56,25 @@ function renderFooterStatusList(status) {
   popover.innerHTML = regions.length
     ? `<strong>${regions.length} alan</strong>${regions.map((region) => `<button class="footer-status-item" type="button" data-footer-region-id="${escapeHtml(region.id)}"><span>${escapeHtml(region.name || region.properties?.name || "Adsız alan")}</span>${region.closeReason ? `<small>${escapeHtml(region.closeReason)}</small>` : ""}</button>`).join("")}`
     : `<span class="footer-status-empty">Bu durumda alan yok.</span>`;
+}
+
+function positionFooterPopover(button, popover) {
+  const rect = button.getBoundingClientRect();
+  const gap = 8;
+  const width = Math.min(300, window.innerWidth * 0.7);
+  let left = rect.left + (rect.width / 2) - (width / 2);
+  left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+  popover.style.width = `${width}px`;
+  popover.style.left = `${left}px`;
+  popover.style.bottom = `${Math.max(8, window.innerHeight - rect.top + gap)}px`;
+}
+
+function repositionOpenFooterPopovers() {
+  document.querySelectorAll(".footer-status-popover:not([hidden])").forEach((popover) => {
+    const status = popover.dataset.statusPopover;
+    const button = document.querySelector(`.footer-status[data-status-filter="${status}"]`);
+    if (button) positionFooterPopover(button, popover);
+  });
 }
 
 function bindFooterStatusControls() {
@@ -73,7 +89,9 @@ function bindFooterStatusControls() {
       const popover = document.querySelector(`[data-status-popover="${status}"]`);
       if (!popover) return;
       renderFooterStatusList(status);
-      popover.hidden = !popover.hidden;
+      const shouldOpen = popover.hidden;
+      popover.hidden = !shouldOpen;
+      if (shouldOpen) positionFooterPopover(button, popover);
     });
   });
 }
@@ -101,7 +119,10 @@ if (typeof document !== "undefined") {
     renderFooterStatusCounts();
     store.subscribe(() => {
       renderFooterStatusCounts();
+      repositionOpenFooterPopovers();
     });
+    window.addEventListener("resize", repositionOpenFooterPopovers);
+    window.addEventListener("scroll", repositionOpenFooterPopovers, true);
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initFooter, { once: true });
   else initFooter();
