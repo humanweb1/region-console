@@ -3,6 +3,7 @@ import { upsertState } from "../../services/cloud.js";
 import { getElements, openDialog, toast } from "../../components/shell.js";
 
 const elements = getElements();
+const VIEW_MODE_KEY = "region-console.files-view-mode";
 
 const TYPE_LABELS = {
   country: "Ülke",
@@ -131,10 +132,7 @@ function buildRegionPath(region, known) {
   if (countryName) path.push(countryName);
   if (type === "country") return path.length ? path : [regionName(region)];
 
-  if (type === "province") {
-    // İl dosyaları ülke klasörünün altında görünür; tek tek ilin içine girmez.
-    return path.length ? path : [regionName(region)];
-  }
+  if (type === "province") return path.length ? path : [regionName(region)];
 
   if (province) path.push(regionName(province));
 
@@ -202,6 +200,22 @@ function formatSize(bytes) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getViewMode() {
+  try {
+    return localStorage.getItem(VIEW_MODE_KEY) === "icons" ? "icons" : "list";
+  } catch {
+    return "list";
+  }
+}
+
+function setViewMode(mode) {
+  try {
+    localStorage.setItem(VIEW_MODE_KEY, mode === "icons" ? "icons" : "list");
+  } catch {
+    // localStorage kullanılamıyorsa sadece mevcut oturum için devam et.
+  }
+}
+
 function createFolderTree(files) {
   const root = { folders: new Map(), files: new Map() };
   const known = allKnownRegions();
@@ -232,19 +246,23 @@ function createFolderTree(files) {
   return root;
 }
 
-function renderFileCard(file) {
+function renderFileCard(file, mode = "list") {
+  if (mode === "icons") {
+    return `<article class="file-card file-card-icon" data-file-search="${escapeHtml(`${file.name} ${file.regionCount}`)}"><div class="file-icon">📄</div><strong title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</strong><span>${file.regionCount} bölge</span><button class="button file-delete" type="button" data-file-name="${escapeHtml(file.name)}">Sil</button></article>`;
+  }
+
   return `<article class="file-card" data-file-search="${escapeHtml(`${file.name} ${file.regionCount}`)}"><div class="file-main"><strong>${escapeHtml(file.name)}</strong><span>${file.regionCount} bölge · ${formatSize(file.size)}</span><small>${file.importedAt ? new Date(file.importedAt).toLocaleString("tr-TR") : "Tarih bilinmiyor"}</small></div><button class="button file-delete" type="button" data-file-name="${escapeHtml(file.name)}">Sil</button></article>`;
 }
 
-function renderFolderTree(node, depth = 0) {
+function renderFolderTree(node, depth = 0, mode = "list") {
   const folders = [...node.folders.entries()].sort(([a], [b]) => a.localeCompare(b, "tr"));
   const files = [...node.files.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), "tr"));
   const folderMarkup = folders.map(([name, child]) => {
-    const childContent = renderFolderTree(child, depth + 1);
+    const childContent = renderFolderTree(child, depth + 1, mode);
     const total = countFiles(child);
     return `<details class="file-folder" data-folder-search="${escapeHtml(name)}"><summary><span class="file-folder-name">📁 ${escapeHtml(name)}</span><small>${total} dosya</small></summary><div class="file-folder-content">${childContent}</div></details>`;
   }).join("");
-  const fileMarkup = files.length ? `<div class="files-list file-folder-files">${files.map(renderFileCard).join("")}</div>` : "";
+  const fileMarkup = files.length ? `<div class="files-list file-folder-files ${mode === "icons" ? "files-icon-grid" : ""}">${files.map((file) => renderFileCard(file, mode)).join("")}</div>` : "";
   return `${folderMarkup}${fileMarkup}`;
 }
 
@@ -319,14 +337,26 @@ function removeFile(fileName) {
 function showFiles() {
   const files = getFiles();
   const tree = createFolderTree(files);
-  const body = files.length
-    ? `<div class="files-dialog-toolbar"><input id="filesSearch" class="files-search" type="search" placeholder="Dosya, ülke, il, ilçe ara..." autocomplete="off" /></div><div class="files-tree" id="filesTree">${renderFolderTree(tree)}</div>`
-    : `<div class="files-dialog-toolbar"><input id="filesSearch" class="files-search" type="search" placeholder="Dosya, ülke, il, ilçe ara..." autocomplete="off" /></div><p class="dialog-muted">Henüz içe aktarılan dosya yok.</p>`;
+  const mode = getViewMode();
+  const body = `<div class="files-dialog-toolbar"><div class="files-toolbar-row"><input id="filesSearch" class="files-search" type="search" placeholder="Dosya, ülke, il, ilçe ara..." autocomplete="off" /><div class="files-view-switch" role="group" aria-label="Dosya gösterim tipi"><button class="files-view-button ${mode === "list" ? "active" : ""}" type="button" data-view-mode="list" title="Liste görünümü" aria-label="Liste görünümü">☰</button><button class="files-view-button ${mode === "icons" ? "active" : ""}" type="button" data-view-mode="icons" title="Simge görünümü" aria-label="Simge görünümü">▦</button></div></div></div>${files.length ? `<div class="files-tree ${mode === "icons" ? "files-tree-icons" : ""}" id="filesTree">${renderFolderTree(tree, 0, mode)}</div>` : `<p class="dialog-muted">Henüz içe aktarılan dosya yok.</p>`}`;
 
   openDialog(elements, "Dosyalar", body);
 
   const search = elements.dialogBody.querySelector("#filesSearch");
   search?.addEventListener("input", () => filterFileTree(search.value));
+
+  elements.dialogBody.querySelectorAll("[data-view-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextMode = button.dataset.viewMode === "icons" ? "icons" : "list";
+      setViewMode(nextMode);
+      showFiles();
+      const nextSearch = elements.dialogBody.querySelector("#filesSearch");
+      if (nextSearch && search?.value) {
+        nextSearch.value = search.value;
+        filterFileTree(search.value);
+      }
+    });
+  });
 
   elements.dialogBody.querySelectorAll(".file-delete").forEach((button) => {
     button.addEventListener("click", () => {
