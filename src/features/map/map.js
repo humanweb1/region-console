@@ -43,7 +43,8 @@ export function createMap() {
     polygons: L.featureGroup().addTo(map),
     mask: L.featureGroup().addTo(map),
     regionLayers: [],
-    overlayVisibility: { ...DEFAULT_OVERLAY_VISIBILITY }
+    overlayVisibility: { ...DEFAULT_OVERLAY_VISIBILITY },
+    onRegionSelected: null
   };
 
   window.__regionConsoleMapState = mapState;
@@ -189,9 +190,15 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
         fillOpacity: Math.min(0.9, fillOpacity + 0.12)
       });
       store.update("regions", { selectedId: region.id });
-      document.dispatchEvent(new CustomEvent("region-console:region-selected", {
-        detail: { region, polygon, mapState }
-      }));
+
+      if (typeof mapState.onRegionSelected === "function") {
+        mapState.onRegionSelected(region, mapState, polygon);
+      } else {
+        document.dispatchEvent(new CustomEvent("region-console:region-selected", {
+          detail: { region, polygon, mapState }
+        }));
+      }
+
       mapState.map.fitBounds(polygon.getBounds(), { padding: [36, 36], maxZoom: 12, animate: true });
     });
     polygon.options._baseFillOpacity = fillOpacity;
