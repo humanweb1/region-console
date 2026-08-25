@@ -5,6 +5,8 @@ const DEFAULT_MAP_SETTINGS = {
   boundaryWeight: 1.5,
   outsideColor: "#4b5563",
   outsideOpacity: 0.55,
+  closedColor: "#7c3aed",
+  closedOpacity: 0.55,
   campaignColor: "#ffd400",
   campaignOpacity: 0.55
 };
@@ -66,6 +68,7 @@ function normalizeSettings(settings = {}) {
     ...settings,
     boundaryWeight: Math.max(0.5, Math.min(8, Number(settings.boundaryWeight ?? DEFAULT_MAP_SETTINGS.boundaryWeight))),
     outsideOpacity: Math.max(0, Math.min(1, Number(settings.outsideOpacity ?? DEFAULT_MAP_SETTINGS.outsideOpacity))),
+    closedOpacity: Math.max(0, Math.min(1, Number(settings.closedOpacity ?? DEFAULT_MAP_SETTINGS.closedOpacity))),
     campaignOpacity: Math.max(0, Math.min(1, Number(settings.campaignOpacity ?? DEFAULT_MAP_SETTINGS.campaignOpacity)))
   };
 }
@@ -158,9 +161,9 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
     const outside = region.status === "outside";
     const campaign = isCampaignRegion(region);
     const kind = outside ? "outside" : campaign ? "campaign" : "regions";
-    const fillColor = outside ? normalized.outsideColor : campaign ? normalized.campaignColor : "transparent";
+    const fillColor = outside ? normalized.closedColor : campaign ? normalized.campaignColor : "transparent";
     const fillOpacity = outside
-      ? Math.min(0.9, normalized.outsideOpacity + 0.08)
+      ? Math.min(0.9, normalized.closedOpacity)
       : campaign
         ? normalized.campaignOpacity
         : 0.04;
