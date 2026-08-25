@@ -113,6 +113,26 @@ function findByKeys(items, ...keys) {
   return (items || []).find((item) => wanted.includes(regionKey(item)) || wanted.includes(sourceKey(item))) || null;
 }
 
+function normalizeName(value) {
+  return String(value ?? "")
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ı/g, "i")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c");
+}
+
+function findByHierarchy(items, hierarchy) {
+  const byId = findByKeys(items, hierarchy?.parentId);
+  if (byId) return byId;
+  const parentName = normalizeName(hierarchy?.parentName);
+  if (!parentName) return null;
+  return (items || []).find((item) => normalizeName(item?.name) === parentName) || null;
+}
+
 function normalizeHierarchy(countries, custom) {
   const nextCountries = structuredClone(Array.isArray(countries) ? countries : []);
   const safeCustom = Array.isArray(custom) ? custom : [];
@@ -121,29 +141,49 @@ function normalizeHierarchy(countries, custom) {
     const hierarchy = region?.hierarchy || {};
     return nextCountries.find((country) =>
       String(country.id ?? "") === String(hierarchy.countryId ?? "")
-      || String(country.name ?? "").trim().toLocaleLowerCase("tr-TR") === String(hierarchy.countryName ?? "").trim().toLocaleLowerCase("tr-TR")
+      || normalizeName(country.name) === normalizeName(hierarchy.countryName)
     );
+  };
+
+  const ensureUniqueChild = (list, region) => {
+    const existing = findByKeys(list, region.id, region.importMeta?.sourceId);
+    if (existing) return list;
+    return [...list, structuredClone(region)];
   };
 
   safeCustom.filter((region) => (region?.hierarchy?.type || region?.type) === "province").forEach((region) => {
     const country = countryFor(region);
     if (!country) return;
     const list = Array.isArray(country.provinces) ? country.provinces : (Array.isArray(country.children) ? country.children : []);
-    if (!findByKeys(list, region.id, region.importMeta?.sourceId)) {
-      country.provinces = [...list, structuredClone(region)];
-    } else if (!Array.isArray(country.provinces)) {
-      country.provinces = list;
-    }
+    country.provinces = ensureUniqueChild(list, region);
     country.count = country.provinces.length;
   });
 
   const allProvinces = nextCountries.flatMap((country) => Array.isArray(country.provinces) ? country.provinces : []);
   safeCustom.filter((region) => (region?.hierarchy?.type || region?.type) === "district").forEach((region) => {
-    const hierarchy = region?.hierarchy || {};
-    const province = findByKeys(allProvinces, hierarchy.parentId, region.importMeta?.parentId);
+    const province = findByHierarchy(allProvinces, region?.hierarchy || {});
     if (!province) return;
     const list = Array.isArray(province.districts) ? province.districts : (Array.isArray(province.children) ? province.children : []);
-    if (!findByKeys(list, region.id, region.importMeta?.sourceId)) province.districts = [...list, structuredClone(region)];
+    province.districts = ensureUniqueChild(list, region);
+    province.count = Array.isArray(province.districts) ? province.districts.length : 0;
+  });
+
+  const allDistricts = allProvinces.flatMap((province) => Array.isArray(province.districts) ? province.districts : []);
+  safeCustom.filter((region) => (region?.hierarchy?.type || region?.type) === "neighborhood").forEach((region) => {
+    const district = findByHierarchy(allDistricts, region?.hierarchy || {});
+    if (!district) return;
+    const list = Array.isArray(district.neighborhoods) ? district.neighborhoods : (Array.isArray(district.children) ? district.children : []);
+    district.neighborhoods = ensureUniqueChild(list, region);
+    district.count = Array.isArray(district.neighborhoods) ? district.neighborhoods.length : 0;
+  });
+
+  const allNeighborhoods = allDistricts.flatMap((district) => Array.isArray(district.neighborhoods) ? district.neighborhoods : []);
+  safeCustom.filter((region) => (region?.hierarchy?.type || region?.type) === "cemetery").forEach((region) => {
+    const neighborhood = findByHierarchy(allNeighborhoods, region?.hierarchy || {});
+    if (!neighborhood) return;
+    const list = Array.isArray(neighborhood.cemeteries) ? neighborhood.cemeteries : (Array.isArray(neighborhood.children) ? neighborhood.children : []);
+    neighborhood.cemeteries = ensureUniqueChild(list, region);
+    neighborhood.count = Array.isArray(neighborhood.cemeteries) ? neighborhood.cemeteries.length : 0;
   });
 
   return nextCountries;
