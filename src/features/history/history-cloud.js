@@ -89,7 +89,7 @@ async function renderHistoryDialog() {
   });
 }
 
-document.addEventListener("click", (event) => {
+window.addEventListener("click", (event) => {
   const tool = event.target?.closest?.('.tool[data-tool="history"]');
   if (!tool || forwardingSimulation) return;
   event.preventDefault();
@@ -97,7 +97,7 @@ document.addEventListener("click", (event) => {
   renderHistoryDialog().catch((error) => console.error("[Region Console] History load failed:", error));
 }, true);
 
-document.addEventListener("click", (event) => {
+window.addEventListener("click", (event) => {
   const button = event.target?.closest?.(".history-sim-open");
   if (!button || forwardingSimulation) return;
   event.preventDefault();
