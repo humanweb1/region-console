@@ -130,6 +130,35 @@ function isCampaignRegion(region) {
   return region?.status === "campaign" || region?.campaign === true || Boolean(region?.campaignId);
 }
 
+function normalizeName(value) {
+  return String(value ?? "")
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ı/g, "i")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c");
+}
+
+function regionHasParent(region, regions) {
+  const hierarchy = region?.hierarchy || {};
+  const parentId = hierarchy.parentId == null ? "" : String(hierarchy.parentId);
+  const parentName = normalizeName(hierarchy.parentName);
+  const parentType = hierarchy.parentType || null;
+  if (!parentId && !parentName) return false;
+
+  return regions.some((candidate) => {
+    if (!candidate || candidate === region) return false;
+    const candidateType = candidate?.hierarchy?.type || candidate?.type || null;
+    if (parentType && candidateType && candidateType !== parentType) return false;
+    const candidateId = String(candidate.id ?? candidate.importMeta?.sourceId ?? "");
+    const candidateName = normalizeName(candidate.name);
+    return (parentId && candidateId === parentId) || (parentName && candidateName === parentName);
+  });
+}
+
 function renderOutsideMask(mapState, serviceRings, settings) {
   mapState.mask.clearLayers();
   const outer = [[89, -180], [89, 180], [-89, 180], [-89, -180], [89, -180]];
@@ -214,9 +243,6 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
           ? normalized.campaignOpacity
           : 0.04;
 
-    // Leaflet's Polygon expects one polygon as rings or a MultiPolygon as
-    // an array of polygons. Keeping the nesting from GeoJSON is critical:
-    // flattening MultiPolygon parts makes the second island/ring a hole.
     const polygon = L.polygon(latLngs, {
       color: normalized.boundaryColor,
       weight: normalized.boundaryWeight,
@@ -253,7 +279,12 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
       : latLngs.flat();
     allPoints.forEach((point) => bounds.push(point));
 
-    if (!outside) serviceRings.push(...geometryToOuterRings(geometry));
+    // Only top-level service regions punch holes in the world mask.
+    // Child geometries (districts inside provinces, neighborhoods inside districts,
+    // cemeteries inside neighborhoods) must not create nested holes and gray areas.
+    if (!outside && !regionHasParent(region, regions)) {
+      serviceRings.push(...geometryToOuterRings(geometry));
+    }
   }
 
   renderOutsideMask(mapState, serviceRings, normalized);
