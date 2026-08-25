@@ -8,7 +8,11 @@ export function getElements() {
     "statArea", "statService", "statCampaign", "statClosed", "stats", "toast", "appDialog",
     "dialogTitle", "dialogBody", "dialogClose", "campaignButton", "usersButton", "filesButton"
   ];
-  return Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
+  const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
+  // app.js still updates the legacy statOutside reference during render.
+  // Keep that reference harmless when the footer has been migrated to campaign.
+  elements.statOutside = document.getElementById("statOutside") || document.createElement("span");
+  return elements;
 }
 
 export function showLogin(elements) {
@@ -111,7 +115,7 @@ function renderFooterStatusCounts() {
   const campaign = custom.filter((region) => isCampaignRegion(region)).length;
   const closed = custom.filter((region) => region?.status === "closed").length;
   const serviceElement = document.getElementById("statService");
-  const campaignElement = document.getElementById("statCampaign");
+  const campaignElement = document.getElementById("statCampaign") || document.getElementById("statOutside");
   const closedElement = document.getElementById("statClosed");
   if (serviceElement) serviceElement.textContent = service;
   if (campaignElement) campaignElement.textContent = campaign;
