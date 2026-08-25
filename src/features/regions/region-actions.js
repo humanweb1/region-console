@@ -9,6 +9,7 @@ let editing = false;
 let editLayer = null;
 let editMarkers = [];
 let editMidMarkers = [];
+let editParts = [];
 let draftName = "";
 
 const SERVICE_CLOSE_REASONS = [
@@ -186,20 +187,51 @@ function geometryToLatLngs(geometry) {
   return ring;
 }
 
-function latLngsToGeometry(latLngs) {
-  const coordinates = latLngs.map((point) => [point.lng, point.lat]);
+function geometryToEditParts(geometry) {
+  if (!geometry) return [];
+  if (geometry.type === "Polygon") return [geometryToLatLngs(geometry)].filter((points) => points.length >= 3);
+  if (geometry.type === "MultiPolygon") {
+    return (geometry.coordinates || [])
+      .map((polygon) => geometryToLatLngs({ type: "Polygon", coordinates: polygon }))
+      .filter((points) => points.length >= 3);
+  }
+  return [];
+}
+
+function ringToCoordinates(points) {
+  const coordinates = points.map((point) => [point.lng, point.lat]);
   if (coordinates.length && (coordinates[0][0] !== coordinates.at(-1)[0] || coordinates[0][1] !== coordinates.at(-1)[1])) coordinates.push([...coordinates[0]]);
-  return { type: "Polygon", coordinates: [coordinates] };
+  return coordinates;
+}
+
+function latLngsToGeometry(latLngs) {
+  return { type: "Polygon", coordinates: [ringToCoordinates(latLngs)] };
+}
+
+function editPartsToGeometry(parts, originalGeometry) {
+  const polygons = parts.map((part) => [ringToCoordinates(part.markers.map((marker) => marker.getLatLng()))]);
+  if (originalGeometry?.type === "MultiPolygon") return { type: "MultiPolygon", coordinates: polygons };
+  return { type: "Polygon", coordinates: polygons[0] || [[]] };
 }
 
 function clearEditMarkers() {
   editMarkers.forEach((marker) => marker.remove());
   editMidMarkers.forEach((marker) => marker.remove());
+  editParts.forEach((part) => {
+    part.markers?.forEach((marker) => marker.remove());
+    part.midMarkers?.forEach((marker) => marker.remove());
+    part.layer?.remove();
+  });
   editMarkers = [];
   editMidMarkers = [];
+  editParts = [];
 }
 
 function syncEditLayer() {
+  if (editParts.length) {
+    editParts.forEach((part) => part.layer.setLatLngs(part.markers.map((marker) => marker.getLatLng())));
+    return;
+  }
   if (!editLayer) return;
   editLayer.setLatLngs(editMarkers.map((marker) => marker.getLatLng()));
 }
@@ -222,24 +254,83 @@ function midpointIcon() {
   });
 }
 
+function rebuildPartMidMarkers(part) {
+  part.midMarkers.forEach((marker) => marker.remove());
+  part.midMarkers = [];
+  const map = selected?.mapState?.map;
+  const points = part.markers.map((marker) => marker.getLatLng());
+  if (!map || points.length < 3) return;
+
+  points.forEach((point, index) => {
+    const next = points[(index + 1) % points.length];
+    const midpoint = L.latLng((point.lat + next.lat) / 2, (point.lng + next.lng) / 2);
+    const marker = L.marker(midpoint, { draggable: false, keyboard: false, zIndexOffset: 1100, icon: midpointIcon() }).addTo(map);
+    marker.on("click", (event) => {
+      L.DomEvent.stopPropagation(event);
+      const nextPoints = part.markers.map((item) => item.getLatLng());
+      nextPoints.splice(index + 1, 0, marker.getLatLng());
+      rebuildPartMarkers(part, nextPoints);
+    });
+    part.midMarkers.push(marker);
+  });
+}
+
+function rebuildPartMarkers(part, points) {
+  part.markers.forEach((marker) => marker.remove());
+  part.midMarkers.forEach((marker) => marker.remove());
+  part.markers = [];
+  part.midMarkers = [];
+  const map = selected?.mapState?.map;
+  if (!map || points.length < 3) return;
+
+  points.forEach((point, index) => {
+    const marker = L.marker(point, { draggable: true, autoPan: true, keyboard: false, zIndexOffset: 1200, icon: vertexIcon(index) }).addTo(map);
+    marker.on("dragstart", () => rebuildPartMidMarkers(part));
+    marker.on("drag", syncEditLayer);
+    marker.on("dragend", () => { syncEditLayer(); rebuildPartMidMarkers(part); });
+    marker.on("dblclick", (event) => {
+      L.DomEvent.stopPropagation(event);
+      const currentPoints = part.markers.map((item) => item.getLatLng());
+      if (currentPoints.length <= 3) return toast(elements, "Sınır için en az 3 nokta gerekir.");
+      currentPoints.splice(index, 1);
+      rebuildPartMarkers(part, currentPoints);
+      syncEditLayer();
+    });
+    part.markers.push(marker);
+  });
+  rebuildPartMidMarkers(part);
+}
+
+function rebuildMultiPartEditor(parts) {
+  clearEditMarkers();
+  const map = selected?.mapState?.map;
+  if (!map) return;
+  parts.forEach((points) => {
+    if (points.length < 3) return;
+    const part = {
+      layer: L.polygon(points, { color: "#ff7a00", weight: 3, dashArray: "5 5", fillOpacity: 0.08, interactive: false }).addTo(map),
+      markers: [],
+      midMarkers: []
+    };
+    editParts.push(part);
+    rebuildPartMarkers(part, points);
+  });
+}
+
 function rebuildMidMarkers() {
   editMidMarkers.forEach((marker) => marker.remove());
   editMidMarkers = [];
-
   const map = selected?.mapState?.map;
   const currentPoints = editMarkers.map((marker) => marker.getLatLng());
   if (!map || currentPoints.length < 3) return;
-
   currentPoints.forEach((point, index) => {
     const next = currentPoints[(index + 1) % currentPoints.length];
     const midpoint = L.latLng((point.lat + next.lat) / 2, (point.lng + next.lng) / 2);
     const marker = L.marker(midpoint, { draggable: false, keyboard: false, zIndexOffset: 1100, icon: midpointIcon() }).addTo(map);
-
     marker.on("click", (event) => {
       L.DomEvent.stopPropagation(event);
-      const insertAt = index + 1;
       const nextPoints = editMarkers.map((item) => item.getLatLng());
-      nextPoints.splice(insertAt, 0, marker.getLatLng());
+      nextPoints.splice(index + 1, 0, marker.getLatLng());
       editLayer.setLatLngs(nextPoints);
       rebuildEditMarkers(nextPoints);
     });
@@ -251,7 +342,6 @@ function rebuildEditMarkers(points) {
   clearEditMarkers();
   const map = selected?.mapState?.map;
   if (!map || points.length < 3) return;
-
   points.forEach((point, index) => {
     const marker = L.marker(point, { draggable: true, autoPan: true, keyboard: false, zIndexOffset: 1200, icon: vertexIcon(index) }).addTo(map);
     marker.on("dragstart", () => { editMidMarkers.forEach((midpoint) => midpoint.remove()); editMidMarkers = []; });
@@ -273,6 +363,13 @@ function rebuildEditMarkers(points) {
 }
 
 function renderEditHandles() {
+  const region = getRegion();
+  if (!region) return;
+  if (region.geometry?.type === "MultiPolygon") {
+    const parts = geometryToEditParts(region.geometry);
+    rebuildMultiPartEditor(parts);
+    return;
+  }
   if (!editLayer) return;
   rebuildEditMarkers(editLayer.getLatLngs()[0] || []);
 }
@@ -286,13 +383,19 @@ function stopBoundaryEdit() {
 
 function startBoundaryEdit() {
   const region = getRegion();
-  if (!region || region.geometry?.type !== "Polygon") return toast(elements, "Şu anda yalnızca Polygon sınırları düzenlenebilir.");
+  if (!region || !["Polygon", "MultiPolygon"].includes(region.geometry?.type)) return toast(elements, "Bu bölgenin düzenlenebilir bir Polygon veya MultiPolygon sınırı yok.");
   stopBoundaryEdit();
   editing = true;
-  const latLngs = geometryToLatLngs(region.geometry);
-  if (latLngs.length < 3) return toast(elements, "Bu bölgenin düzenlenebilir en az 3 sınır noktası yok.");
-  editLayer = L.polygon(latLngs, { color: "#ff7a00", weight: 3, dashArray: "5 5", fillOpacity: 0.08, interactive: false }).addTo(selected.mapState.polygons);
-  renderEditHandles();
+  const parts = geometryToEditParts(region.geometry);
+  if (!parts.length || parts.some((points) => points.length < 3)) return toast(elements, "Bu bölgenin düzenlenebilir en az 3 sınır noktası yok.");
+
+  if (region.geometry.type === "MultiPolygon") {
+    rebuildMultiPartEditor(parts);
+  } else {
+    const latLngs = parts[0];
+    editLayer = L.polygon(latLngs, { color: "#ff7a00", weight: 3, dashArray: "5 5", fillOpacity: 0.08, interactive: false }).addTo(selected.mapState.polygons);
+    renderEditHandles();
+  }
   renderPanel();
 }
 
@@ -301,8 +404,18 @@ function savePanelChanges() {
   if (!region) return;
   const name = String(document.getElementById("regionNameInput")?.value || "").trim();
   if (!name) return toast(elements, "Bölge adı boş bırakılamaz.");
-  const geometry = editing ? latLngsToGeometry(editMarkers.map((marker) => marker.getLatLng())) : region.geometry;
-  if (editing && geometry.coordinates[0].length < 4) return toast(elements, "Geçerli bir sınır için en az 3 nokta gerekir.");
+
+  let geometry = region.geometry;
+  if (editing) {
+    if (region.geometry.type === "MultiPolygon") {
+      if (!editParts.length || editParts.some((part) => part.markers.length < 3)) return toast(elements, "Her sınır parçası için en az 3 nokta gerekir.");
+      geometry = editPartsToGeometry(editParts, region.geometry);
+    } else {
+      geometry = latLngsToGeometry(editMarkers.map((marker) => marker.getLatLng()));
+      if (geometry.coordinates[0].length < 4) return toast(elements, "Geçerli bir sınır için en az 3 nokta gerekir.");
+    }
+  }
+
   const nameChanged = name !== region.name;
   const geometryChanged = editing;
   if (!nameChanged && !geometryChanged) return toast(elements, "Kaydedilecek bir değişiklik yok.");
