@@ -159,6 +159,66 @@ function regionHasParent(region, regions) {
   });
 }
 
+function hierarchyCandidates(regions) {
+  const stateRegions = store.get().regions || {};
+  const countries = Array.isArray(stateRegions.countries) ? stateRegions.countries : [];
+  const nested = [];
+  const walk = (items, country = null, parent = null) => {
+    for (const item of items || []) {
+      if (!item) continue;
+      nested.push(item);
+      const children = [
+        ...(Array.isArray(item.provinces) ? item.provinces : []),
+        ...(Array.isArray(item.districts) ? item.districts : []),
+        ...(Array.isArray(item.neighborhoods) ? item.neighborhoods : []),
+        ...(Array.isArray(item.children) ? item.children : [])
+      ];
+      if (children.length) walk(children, country || item, item);
+    }
+  };
+  walk(countries);
+  return [...regions, ...nested];
+}
+
+function findHierarchyParent(region, candidates) {
+  const hierarchy = region?.hierarchy || {};
+  const parentId = hierarchy.parentId == null ? "" : String(hierarchy.parentId);
+  const parentName = normalizeName(hierarchy.parentName);
+  const parentType = hierarchy.parentType || null;
+  if (!parentId && !parentName) return null;
+
+  return candidates.find((candidate) => {
+    if (!candidate || candidate === region) return false;
+    const candidateType = candidate?.hierarchy?.type || candidate?.type || null;
+    if (parentType && candidateType && candidateType !== parentType) return false;
+    const candidateId = String(candidate.id ?? candidate.importMeta?.sourceId ?? "");
+    const candidateName = normalizeName(candidate.name);
+    return (parentId && candidateId === parentId) || (parentName && candidateName === parentName);
+  }) || null;
+}
+
+function hierarchyTooltipText(region, regions) {
+  const candidates = hierarchyCandidates(regions);
+  const chain = [];
+  const visited = new Set();
+  let current = region;
+
+  while (current && !visited.has(current)) {
+    visited.add(current);
+    const name = String(current.name || current.properties?.name || "Alan").trim();
+    if (name) chain.unshift(name);
+    current = findHierarchyParent(current, candidates);
+  }
+
+  const hierarchy = region?.hierarchy || {};
+  if (chain.length === 1 && hierarchy.countryName) chain.unshift(String(hierarchy.countryName).trim());
+  else if (chain.length > 1 && hierarchy.countryName && !chain.some((name) => normalizeName(name) === normalizeName(hierarchy.countryName))) {
+    chain.unshift(String(hierarchy.countryName).trim());
+  }
+
+  return chain.filter(Boolean).join("-");
+}
+
 function renderOutsideMask(mapState, serviceRings, settings) {
   mapState.mask.clearLayers();
   const outer = [[89, -180], [89, 180], [-89, 180], [-89, -180], [89, -180]];
@@ -250,7 +310,12 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
       fillOpacity
     });
 
-    polygon.bindTooltip(region.name || region.properties?.name || "Alan");
+    polygon.bindTooltip(hierarchyTooltipText(region, regions) || region.name || "Alan", {
+      sticky: true,
+      direction: "top",
+      opacity: 0.96,
+      className: "region-hierarchy-tooltip"
+    });
     polygon.on("click", (event) => {
       L.DomEvent.stopPropagation(event);
       for (const layer of mapState.regionLayers) {
