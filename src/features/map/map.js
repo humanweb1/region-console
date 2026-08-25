@@ -85,20 +85,44 @@ function normalizeSettings(settings = {}) {
   };
 }
 
+function toLatLngRing(ring) {
+  return (ring || [])
+    .filter((point) => Array.isArray(point) && point.length >= 2)
+    .map(([lng, lat]) => [Number(lat), Number(lng)]);
+}
+
 function geometryToLatLngs(geometry) {
   if (!geometry) return [];
+
   if (geometry.type === "Polygon") {
-    return (geometry.coordinates || []).map((ring) =>
-      (ring || []).map(([lng, lat]) => [Number(lat), Number(lng)])
-    );
+    return (geometry.coordinates || [])
+      .map(toLatLngRing)
+      .filter((ring) => ring.length >= 3);
   }
+
   if (geometry.type === "MultiPolygon") {
-    return (geometry.coordinates || []).flatMap((polygon) =>
-      (polygon || []).map((ring) =>
-        (ring || []).map(([lng, lat]) => [Number(lat), Number(lng)])
-      )
-    );
+    return (geometry.coordinates || [])
+      .map((polygon) => (polygon || []).map(toLatLngRing).filter((ring) => ring.length >= 3))
+      .filter((polygon) => polygon.length > 0);
   }
+
+  return [];
+}
+
+function geometryToOuterRings(geometry) {
+  if (!geometry) return [];
+
+  if (geometry.type === "Polygon") {
+    const outer = toLatLngRing((geometry.coordinates || [])[0]);
+    return outer.length >= 3 ? [outer] : [];
+  }
+
+  if (geometry.type === "MultiPolygon") {
+    return (geometry.coordinates || [])
+      .map((polygon) => toLatLngRing((polygon || [])[0]))
+      .filter((ring) => ring.length >= 3);
+  }
+
   return [];
 }
 
@@ -109,7 +133,9 @@ function isCampaignRegion(region) {
 function renderOutsideMask(mapState, serviceRings, settings) {
   mapState.mask.clearLayers();
   const outer = [[89, -180], [89, 180], [-89, 180], [-89, -180], [89, -180]];
-  const holes = serviceRings.filter((ring) => ring.length >= 3).map((ring) => ring.slice().reverse());
+  const holes = serviceRings
+    .filter((ring) => ring.length >= 3)
+    .map((ring) => ring.slice().reverse());
 
   L.polygon([outer, ...holes], {
     stroke: false,
@@ -165,10 +191,9 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
   const serviceRings = [];
 
   for (const region of regions) {
-    const rings = geometryToLatLngs(region?.geometry);
-    if (!rings.length) continue;
-    const validRings = rings.filter((ring) => ring.length >= 3);
-    if (!validRings.length) continue;
+    const geometry = region?.geometry;
+    const latLngs = geometryToLatLngs(geometry);
+    if (!latLngs.length) continue;
 
     const outside = region.status === "outside";
     const closed = region.status === "closed";
@@ -189,12 +214,16 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
           ? normalized.campaignOpacity
           : 0.04;
 
-    const polygon = L.polygon(validRings, {
+    // Leaflet's Polygon expects one polygon as rings or a MultiPolygon as
+    // an array of polygons. Keeping the nesting from GeoJSON is critical:
+    // flattening MultiPolygon parts makes the second island/ring a hole.
+    const polygon = L.polygon(latLngs, {
       color: normalized.boundaryColor,
       weight: normalized.boundaryWeight,
       fillColor,
       fillOpacity
     });
+
     polygon.bindTooltip(region.name || region.properties?.name || "Alan");
     polygon.on("click", (event) => {
       L.DomEvent.stopPropagation(event);
@@ -213,13 +242,18 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
       openRegionActions(region, mapState);
       mapState.map.fitBounds(polygon.getBounds(), { padding: [36, 36], maxZoom: 12, animate: true });
     });
+
     polygon.options._baseFillOpacity = fillOpacity;
     polygon._regionLayerKind = kind;
     mapState.regionLayers.push(polygon);
     if (mapState.overlayVisibility[kind]) polygon.addTo(mapState.polygons);
-    validRings.flat().forEach((point) => bounds.push(point));
 
-    if (!outside) serviceRings.push(validRings[0]);
+    const allPoints = Array.isArray(latLngs[0]?.[0])
+      ? latLngs.flat(2)
+      : latLngs.flat();
+    allPoints.forEach((point) => bounds.push(point));
+
+    if (!outside) serviceRings.push(...geometryToOuterRings(geometry));
   }
 
   renderOutsideMask(mapState, serviceRings, normalized);
