@@ -1,4 +1,5 @@
 import { store } from "../../state/store.js";
+import { openRegionActions } from "../regions/region-actions.js";
 
 const DEFAULT_MAP_SETTINGS = {
   boundaryColor: "#ffffff",
@@ -43,8 +44,7 @@ export function createMap() {
     polygons: L.featureGroup().addTo(map),
     mask: L.featureGroup().addTo(map),
     regionLayers: [],
-    overlayVisibility: { ...DEFAULT_OVERLAY_VISIBILITY },
-    onRegionSelected: null
+    overlayVisibility: { ...DEFAULT_OVERLAY_VISIBILITY }
   };
 
   window.__regionConsoleMapState = mapState;
@@ -190,15 +190,7 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
         fillOpacity: Math.min(0.9, fillOpacity + 0.12)
       });
       store.update("regions", { selectedId: region.id });
-
-      if (typeof mapState.onRegionSelected === "function") {
-        mapState.onRegionSelected(region, mapState, polygon);
-      } else {
-        document.dispatchEvent(new CustomEvent("region-console:region-selected", {
-          detail: { region, polygon, mapState }
-        }));
-      }
-
+      openRegionActions(region, mapState);
       mapState.map.fitBounds(polygon.getBounds(), { padding: [36, 36], maxZoom: 12, animate: true });
     });
     polygon.options._baseFillOpacity = fillOpacity;
