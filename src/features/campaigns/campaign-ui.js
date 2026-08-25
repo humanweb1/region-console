@@ -1,4 +1,5 @@
 import { store } from "../../state/store.js";
+import { saveState } from "../../services/cloud.js";
 import { getElements, openDialog, toast } from "../../components/shell.js";
 
 const elements = getElements();
@@ -40,6 +41,24 @@ function discountSummary(campaign) {
     return `%${campaign.discountValue || 0}${max}`;
   }
   return `${money(campaign.discountValue, campaign.currency)} indirim`;
+}
+
+async function persistCampaigns() {
+  const session = store.get().auth?.session;
+  if (!session?.access_token) return;
+  try {
+    const snapshot = store.dataSnapshot();
+    await saveState(session.access_token, {
+      ...snapshot.regions,
+      campaigns: snapshot.campaigns,
+      history: store.get().history.entries,
+      importedFiles: snapshot.importedFiles,
+      mapSettings: snapshot.mapSettings
+    });
+  } catch (error) {
+    console.error("[Region Console] Campaign save failed:", error);
+    toast(elements, `Kampanya buluta kaydedilemedi: ${error.message}`);
+  }
 }
 
 function renderCampaigns() {
@@ -86,7 +105,7 @@ function openCampaignForm() {
         <div class="campaign-form-grid">
           <label>İndirim şekli<select name="discountType" id="campaignDiscountType"><option value="percentage">Yüzde (%)</option><option value="fixed">Sabit tutar</option></select></label>
           <label>İndirim miktarı<input name="discountValue" type="number" min="0" step="0.01" required placeholder="Örn. 20"></label>
-          <label id="campaignCurrencyWrap">Para birimi<select name="currency"><option value="TRY">TRY ₺</option><option value="USD">USD $</option><option value="EUR">EUR €</option></select></label>
+          <label>Para birimi<select name="currency"><option value="TRY">TRY ₺</option><option value="USD">USD $</option><option value="EUR">EUR €</option></select></label>
           <label>Minimum sepet tutarı <small>(opsiyonel)</small><input name="minimumCartAmount" type="number" min="0" step="0.01" placeholder="Örn. 500"></label>
           <label id="campaignMaxDiscountWrap">Maksimum indirim tutarı <small>(opsiyonel)</small><input name="maxDiscountAmount" type="number" min="0" step="0.01" placeholder="Örn. 250"></label>
         </div>
@@ -110,7 +129,6 @@ function openCampaignForm() {
   const discountType = form.querySelector("#campaignDiscountType");
   const maxDiscountWrap = form.querySelector("#campaignMaxDiscountWrap");
   const startDate = form.querySelector('[name="startDate"]');
-  const endDate = form.querySelector('[name="endDate"]');
   const syncDiscount = () => {
     maxDiscountWrap.hidden = discountType.value !== "percentage";
   };
@@ -122,7 +140,7 @@ function openCampaignForm() {
   startDate.value = now.toISOString().slice(0, 16);
 
   form.querySelector("#cancelCampaign").addEventListener("click", renderCampaigns);
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = new FormData(form);
     const name = String(data.get("name") || "").trim();
@@ -149,6 +167,7 @@ function openCampaignForm() {
     if (maxDiscountAmount !== null && (!Number.isFinite(maxDiscountAmount) || maxDiscountAmount < 0)) return (error.textContent = "Maksimum indirim tutarı geçersiz.");
     if (usageLimit !== null && (!Number.isInteger(usageLimit) || usageLimit < 1)) return (error.textContent = "Kullanım limiti en az 1 olmalıdır.");
 
+    const nowIso = new Date().toISOString();
     const campaign = {
       id: crypto.randomUUID(),
       name,
@@ -164,14 +183,15 @@ function openCampaignForm() {
       usageLimit,
       usedCount: 0,
       status: "aktif",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: nowIso,
+      updatedAt: nowIso
     };
 
     const before = store.dataSnapshot();
     store.set({ campaigns: [...store.get().campaigns, campaign] });
     store.recordHistory("Kampanya oluşturuldu", before, store.dataSnapshot());
     window.dispatchEvent(new CustomEvent("region-console:campaigns-changed"));
+    await persistCampaigns();
     toast(elements, `“${name}” kampanyası oluşturuldu.`);
     renderCampaigns();
   });
@@ -191,7 +211,7 @@ function install() {
 
 const style = document.createElement("style");
 style.textContent = `
-.campaign-toolbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:14px}.campaign-toolbar-copy{display:grid;gap:3px}.campaign-toolbar-copy span{font-size:12px;opacity:.65}.campaign-card{padding:14px;border:1px solid rgba(148,163,184,.18);border-radius:12px;background:rgba(15,23,42,.35);margin-bottom:9px}.campaign-card-title{display:flex;align-items:center;justify-content:space-between;gap:10px}.campaign-status{font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(52,211,153,.12);color:#34d399}.campaign-card-main small{display:block;margin-top:5px;opacity:.68}.campaign-meta{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font-size:11px;opacity:.72}.campaign-meta b{opacity:1;color:inherit}.campaign-form{display:grid;gap:16px}.campaign-form-section{display:grid;gap:10px}.campaign-form-section-title{font-weight:700;font-size:13px}.campaign-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.campaign-form label{display:grid;gap:6px;font-size:12px}.campaign-form label small{opacity:.55;font-weight:400}.campaign-form input,.campaign-form textarea,.campaign-form select{width:100%;box-sizing:border-box}.campaign-form textarea{resize:vertical;min-height:76px}.campaign-form .dialog-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}.campaign-form-error{min-height:18px}.campaign-form [hidden]{display:none!important}@media(max-width:650px){.campaign-toolbar{align-items:stretch;flex-direction:column}.campaign-form-grid{grid-template-columns:1fr}}
+.campaign-toolbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:14px}.campaign-toolbar-copy{display:grid;gap:3px}.campaign-toolbar-copy span{font-size:12px;opacity:.65}.campaign-card{padding:14px;border:1px solid rgba(148,163,184,.18);border-radius:12px;background:rgba(15,23,42,.35);margin-bottom:9px}.campaign-card-title{display:flex;align-items:center;justify-content:space-between;gap:10px}.campaign-status{font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(52,211,153,.12);color:#34d399}.campaign-card-main small{display:block;margin-top:5px;opacity:.68}.campaign-meta{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font-size:11px;opacity:.72}.campaign-meta b{opacity:1;color:inherit}.campaign-form{display:grid;gap:16px}.campaign-form-section{display:grid;gap:10px}.campaign-form-section-title{font-weight:700;font-size:13px}.campaign-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.campaign-form label{display:grid;gap:6px;font-size:12px}.campaign-form label small{opacity:.55;font-weight:400}.campaign-form input,.campaign-form textarea,.campaign-form select{width:100%;box-sizing:border-box}.campaign-form textarea{resize:vertical;min-height:76px}.campaign-form .dialog-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}.campaign-form [hidden]{display:none!important}@media(max-width:650px){.campaign-toolbar{align-items:stretch;flex-direction:column}.campaign-form-grid{grid-template-columns:1fr}}
 `;
 document.head.appendChild(style);
 
