@@ -1,4 +1,5 @@
 import { config, assertConfig } from "../core/config.js";
+import { loadMyAccess } from "./rbac.js";
 
 function headers(accessToken) {
   return {
@@ -11,9 +12,16 @@ function headers(accessToken) {
 async function parseResponse(response) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data?.msg || data?.message || data?.error_description || "Supabase isteği başarısız.");
+    throw new Error(data?.msg || data?.message || data?.error_description || data?.error || "Supabase isteği başarısız.");
   }
   return data;
+}
+
+async function enrichSession(session) {
+  const access = await loadMyAccess(session.access_token, session.user.id);
+  const enriched = { ...session, user: session.user, access };
+  sessionStorage.setItem("region-console-session", JSON.stringify(enriched));
+  return enriched;
 }
 
 export async function signIn(email, password) {
@@ -24,8 +32,12 @@ export async function signIn(email, password) {
     body: JSON.stringify({ email, password })
   });
   const data = await parseResponse(response);
-  sessionStorage.setItem("region-console-session", JSON.stringify(data));
-  return data;
+  try {
+    return await enrichSession(data);
+  } catch (error) {
+    await fetch(`${config.supabaseUrl}/auth/v1/logout`, { method: "POST", headers: headers(data.access_token) }).catch(() => {});
+    throw error;
+  }
 }
 
 export async function restoreSession() {
@@ -40,7 +52,8 @@ export async function restoreSession() {
       sessionStorage.removeItem("region-console-session");
       return null;
     }
-    return { ...session, user: await response.json() };
+    const user = await response.json();
+    return await enrichSession({ ...session, user });
   } catch {
     sessionStorage.removeItem("region-console-session");
     return null;

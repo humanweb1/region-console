@@ -2,7 +2,10 @@ const initialState = {
   auth: {
     status: "unknown",
     session: null,
-    user: null
+    user: null,
+    profile: null,
+    role: null,
+    permissions: []
   },
   cloud: {
     status: "idle",
