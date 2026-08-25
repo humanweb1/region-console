@@ -177,6 +177,10 @@ export function importRegionData(input, fileName = "", regionType = null) {
     throw new Error("Dosyada FeatureCollection, Feature, Polygon veya MultiPolygon bulunamadı.");
   }
 
+  if (selectedType === "country" && features.length > 1) {
+    throw new Error(`Bu dosyada ${features.length} ayrı geometri var. Her geometri Türkiye'nin bir ili ise bölge tipini “İl” seçin. “Ülke” yalnızca ülke geometrisinin içe aktarılması içindir.`);
+  }
+
   const imported = [];
   let skippedCount = 0;
 
