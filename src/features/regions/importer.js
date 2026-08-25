@@ -23,8 +23,6 @@ function isFiniteCoordinatePair(value) {
     && Number.isFinite(Number(value[1]));
 }
 
-// Internal geometry format is always standard GeoJSON: [longitude, latitude].
-// Leaflet conversion happens only at the map rendering boundary.
 function normalizeRing(ring) {
   if (!Array.isArray(ring)) return null;
   const points = ring
