@@ -1,6 +1,7 @@
 import { store } from "../../state/store.js";
 import { saveState } from "../../services/cloud.js";
 import { openDialog, closeDialog, getElements, toast } from "../../components/shell.js";
+import { renderRegionsOnMap } from "../map/map.js";
 
 const elements = getElements();
 let selected = null;
@@ -32,7 +33,10 @@ function activeCampaigns() {
   });
 }
 
-function isService(region) { return region?.status !== "outside"; }
+function isService(region) {
+  return region?.status !== "outside" && region?.status !== "closed";
+}
+
 function isCampaign(region) { return region?.status === "campaign" || region?.campaign === true || Boolean(region?.campaignId); }
 
 function getRegion() {
@@ -59,11 +63,17 @@ async function saveCloud() {
   }
 }
 
+function refreshMap() {
+  if (!selected?.mapState) return;
+  renderRegionsOnMap(selected.mapState, store.get().regions.custom);
+}
+
 function commitRegion(label, updater) {
   const before = store.dataSnapshot();
   updater();
   const after = store.dataSnapshot();
   store.recordHistory(label, before, after);
+  refreshMap();
   renderPanel();
   saveCloud();
 }
