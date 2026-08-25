@@ -69,10 +69,10 @@
 
 .stats { position: absolute; z-index: 650; left: 0; right: 0; bottom: 0; min-height: var(--stats-height); display: flex; align-items: center; gap: 18px; overflow-x: auto; white-space: nowrap; padding: 0 12px; border-top: 1px solid var(--border); background: var(--overlay-bg); color: var(--muted); font-size: 10px; }
 .stats b { color: var(--text); }
-.footer-status-group { position: relative; display: inline-flex; align-items: center; flex: 0 0 auto; }
+.footer-status-group { position: static; display: inline-flex; align-items: center; flex: 0 0 auto; }
 .footer-status { border: 0; padding: 4px 0; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
 .footer-status:hover, .footer-status:focus-visible { color: var(--text); outline: 0; }
-.footer-status-popover { position: absolute; z-index: 1000; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); width: min(300px, 70vw); max-height: min(320px, 45vh); overflow: auto; display: grid; gap: 2px; padding: 7px; border: 1px solid var(--border); border-radius: 8px; background: var(--overlay-bg); color: var(--overlay-text); box-shadow: var(--overlay-shadow); }
+.footer-status-popover { position: fixed; z-index: 2000; width: min(300px, 70vw); max-height: min(320px, 45vh); overflow: auto; display: grid; gap: 2px; padding: 7px; border: 1px solid var(--border); border-radius: 8px; background: var(--overlay-bg); color: var(--overlay-text); box-shadow: var(--overlay-shadow); }
 .footer-status-popover[hidden] { display: none; }
 .footer-status-popover strong { padding: 3px 5px 6px; font-size: 10px; }
 .footer-status-item { width: 100%; display: grid; gap: 2px; padding: 7px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--overlay-text); text-align: left; cursor: pointer; }
@@ -90,5 +90,5 @@
   .region-action-panel { right: 7px; bottom: calc(var(--stats-height) + 46px); width: min(310px, calc(100% - 14px)); }
   .region-action-buttons { grid-template-columns: 1fr 1fr; }
   .region-action-buttons .button:last-child { grid-column: 1 / -1; }
-  .footer-status-popover { width: min(270px, 82vw); left: auto; right: 0; transform: none; }
+  .footer-status-popover { width: min(270px, 82vw); }
 }
