@@ -1,12 +1,12 @@
 import { config } from "./config.js";
 import { store } from "../state/store.js";
-import { restoreSession, restoreRecoverySession, getRecoverySession, updatePassword, signOut, inviteSubUser } from "../services/auth.js";
+import { restoreSession, restoreRecoverySession, updatePassword, signOut, inviteSubUser } from "../services/auth.js";
 import { loadState, upsertState } from "../services/cloud.js";
 import { getElements, showLogin, showConsole, setCloudStatus, toast, openDialog } from "../components/shell.js";
 import { renderLogin } from "../features/auth/login.js";
 import { createMap, setLayer, resetView, invalidateMap, renderRegionsOnMap, fitToCoordinates } from "../features/map/map.js";
 import { renderRegions } from "../features/regions/regions.js";
-import { importRegionData } from "../features/regions/importer.js";
+import { importRegionData, getRegionTypeOptions } from "../features/regions/importer.js";
 import { createDrawingController } from "../features/drawing/drawing.js";
 import { bindPanels } from "../features/ui/panels.js";
 import { openRegionActions } from "../features/regions/region-actions.js";
@@ -16,9 +16,7 @@ let mapState = null;
 let drawing = null;
 let saveTimer = null;
 
-function allCustomRegions() {
-  return store.get().regions.custom || [];
-}
+function allCustomRegions() { return store.get().regions.custom || []; }
 
 document.addEventListener("region-console:region-selected", (event) => {
   const { region, mapState: selectedMapState } = event.detail || {};
@@ -157,13 +155,13 @@ function handleDelete() {
   toast(elements, "Özel alanlar temizlendi. Geri al ile kurtarabilirsiniz.");
 }
 
+function escapeHtml(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+}
+
 function showHistory() {
   const entries = store.get().history.entries.slice().reverse();
   openDialog(elements, "Değişiklik geçmişi", entries.length ? `<div class="history-list">${entries.map((entry, index) => `<div class="history-item"><strong>${escapeHtml(entry.label)}</strong><span>${new Date(entry.createdAt).toLocaleString("tr-TR")}</span><small>#${entries.length - index}</small></div>`).join("")}</div>` : `<p class="dialog-muted">Henüz kaydedilmiş bir değişiklik yok.</p>`);
-}
-
-function escapeHtml(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
 function showCampaigns() {
@@ -227,6 +225,97 @@ function restoreRegionsSidebar(wasOpen) {
   elements.regionsToggle?.setAttribute("aria-expanded", "true");
 }
 
+function showImportDialog() {
+  const options = getRegionTypeOptions();
+  const countries = Array.isArray(store.get().regions?.countries) ? store.get().regions.countries : [];
+  return new Promise((resolve) => {
+    const countryOptions = countries.map((country) => `<option value="${escapeHtml(country.id || "")}">${escapeHtml(country.name || "İsimsiz ülke")}</option>`).join("");
+    openDialog(elements, "İçe aktarma ayarları", `<form id="importSettingsForm" class="dialog-form import-settings-form"><p class="dialog-muted">İçe aktarılacak geometrinin bölge tipini ve gerekiyorsa bağlı olduğu ülkeyi seçin.</p><label>Bölge tipi<select name="regionType" id="importRegionType" required>${options.map(({ value, label }) => `<option value="${value}">${label}</option>`).join("")}</select></label><div id="importCountryFields" hidden><label>Ülke<select name="countryId" id="importCountryId"><option value="__new__">+ Yeni ülke ekle</option>${countryOptions}</select></label><label id="newCountryNameWrap">Yeni ülke adı<input name="countryName" id="importCountryName" placeholder="Örn. Türkiye"></label></div><div id="importCountryOnly" hidden><label>Ülke adı<input name="rootCountryName" id="importRootCountryName" placeholder="Örn. Türkiye"></label></div><div class="dialog-actions"><button type="button" class="button" id="cancelImportSettings">İptal</button><button type="submit" class="button button-primary">Devam et</button></div></form>`);
+
+    const form = elements.dialogBody.querySelector("#importSettingsForm");
+    const typeSelect = form.querySelector("#importRegionType");
+    const countryFields = form.querySelector("#importCountryFields");
+    const countrySelect = form.querySelector("#importCountryId");
+    const newCountryWrap = form.querySelector("#newCountryNameWrap");
+    const countryName = form.querySelector("#importCountryName");
+    const countryOnly = form.querySelector("#importCountryOnly");
+    const rootCountryName = form.querySelector("#importRootCountryName");
+
+    const sync = () => {
+      const isCountry = typeSelect.value === "country";
+      const needsParentCountry = !isCountry && typeSelect.value !== "independent";
+      countryOnly.hidden = !isCountry;
+      countryFields.hidden = !needsParentCountry;
+      if (needsParentCountry) {
+        const isNew = countrySelect.value === "__new__";
+        newCountryWrap.hidden = !isNew;
+        countryName.required = isNew;
+      } else {
+        countryName.required = false;
+      }
+      rootCountryName.required = isCountry;
+    };
+
+    typeSelect.addEventListener("change", sync);
+    countrySelect.addEventListener("change", sync);
+    sync();
+
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      if (elements.appDialog.open) elements.appDialog.close();
+      resolve(value);
+    };
+
+    form.querySelector("#cancelImportSettings").addEventListener("click", () => finish(null));
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const regionType = typeSelect.value;
+      if (regionType === "country") {
+        const name = rootCountryName.value.trim();
+        if (!name) return rootCountryName.focus();
+        return finish({ regionType, countryId: null, countryName: name, createCountry: true });
+      }
+      if (regionType === "independent") return finish({ regionType, countryId: null, countryName: null, createCountry: false });
+      if (countrySelect.value === "__new__") {
+        const name = countryName.value.trim();
+        if (!name) return countryName.focus();
+        return finish({ regionType, countryId: null, countryName: name, createCountry: true });
+      }
+      const country = countries.find((item) => String(item.id) === String(countrySelect.value));
+      if (!country) return countrySelect.focus();
+      finish({ regionType, countryId: country.id, countryName: country.name, createCountry: false });
+    });
+    elements.appDialog.addEventListener("cancel", () => finish(null), { once: true });
+  });
+}
+
+function attachImportContext(regions, selection) {
+  const context = selection || {};
+  const currentCountries = Array.isArray(store.get().regions?.countries) ? store.get().regions.countries : [];
+  let countryId = context.countryId || null;
+  let countryName = context.countryName || null;
+  let nextCountries = currentCountries;
+
+  if (context.createCountry && countryName) {
+    const existing = currentCountries.find((country) => String(country.name || "").trim().toLocaleLowerCase("tr-TR") === countryName.trim().toLocaleLowerCase("tr-TR"));
+    if (existing) {
+      countryId = existing.id;
+      countryName = existing.name;
+    } else {
+      countryId = `country-${crypto.randomUUID()}`;
+      nextCountries = [...currentCountries, { id: countryId, name: countryName, count: 0, provinces: [], children: [] }];
+    }
+  }
+
+  regions.forEach((region) => {
+    region.hierarchy = { ...(region.hierarchy || {}), countryId, countryName, rootType: context.regionType === "country" ? "country" : (region.hierarchy?.rootType || "country") };
+  });
+
+  return { regions, countries: nextCountries };
+}
+
 function importData() {
   const sidebarWasOpen = elements.sidebar ? !elements.sidebar.hidden : false;
   const input = document.createElement("input");
@@ -242,7 +331,9 @@ function importData() {
       if (!text.trim()) throw new Error("Dosya boş.");
       let imported;
       try { imported = JSON.parse(text); } catch { throw new Error("Dosya geçerli JSON değil."); }
-      const result = importRegionData(imported, file.name);
+      const selection = await showImportDialog();
+      if (!selection) return restoreRegionsSidebar(sidebarWasOpen);
+      const result = importRegionData(imported, file.name, selection.regionType);
       const before = store.dataSnapshot();
       if (result.mode === "region-console") {
         store.replaceData({ regions: result.regions, campaigns: result.campaigns }, { recordHistory: false });
@@ -255,18 +346,19 @@ function importData() {
         const duplicates = result.importedCount - freshRegions.length;
         const importedAt = new Date().toISOString();
         const registry = Array.isArray(current.importedFiles) ? current.importedFiles : [];
-        const nextRegistry = [...registry.filter((item) => String(item?.name) !== String(file.name)), { id: crypto.randomUUID(), name: file.name, size: file.size, type: file.type || "application/geo+json", importedAt, regionCount: freshRegions.length }];
-        freshRegions.forEach((region) => { region.importMeta = { ...(region.importMeta || {}), sourceFile: file.name, importedAt }; });
-        store.replaceData({ regions: { ...current.regions, custom: [...currentCustom, ...freshRegions], selectedId: null }, campaigns: current.campaigns, importedFiles: nextRegistry }, { recordHistory: false });
+        const contextResult = attachImportContext(freshRegions, selection);
+        const nextRegistry = [...registry.filter((item) => String(item?.name) !== String(file.name)), { id: crypto.randomUUID(), name: file.name, size: file.size, type: file.type || "application/geo+json", importedAt, regionCount: contextResult.regions.length }];
+        contextResult.regions.forEach((region) => { region.importMeta = { ...(region.importMeta || {}), sourceFile: file.name, importedAt }; });
+        store.replaceData({ regions: { ...current.regions, countries: contextResult.countries, custom: [...currentCustom, ...contextResult.regions], selectedId: null }, campaigns: current.campaigns, importedFiles: nextRegistry }, { recordHistory: false });
         store.recordHistory("GeoJSON içe aktarıldı", before, store.dataSnapshot());
         render();
-        const coordinates = importedMapCoordinates(freshRegions);
+        const coordinates = importedMapCoordinates(contextResult.regions);
         if (coordinates.length) fitToCoordinates(mapState, coordinates);
         const duplicateMessage = duplicates ? ` ${duplicates} tekrar kayıt atlandı.` : "";
         const skippedMessage = result.skippedCount ? ` ${result.skippedCount} geçersiz geometri atlandı.` : "";
         scheduleSave();
         restoreRegionsSidebar(sidebarWasOpen);
-        toast(elements, `${freshRegions.length} bölge içe aktarıldı.${duplicateMessage}${skippedMessage}`);
+        toast(elements, `${contextResult.regions.length} bölge içe aktarıldı.${duplicateMessage}${skippedMessage}`);
         return;
       }
       render();
