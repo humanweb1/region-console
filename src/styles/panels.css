@@ -66,6 +66,18 @@
 .file-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .file-main span, .file-main small { color: var(--muted); font-size: 10px; }
 .file-delete { flex: 0 0 auto; min-height: 28px; padding: 0 8px; }
+.files-tree { display: grid; gap: 6px; max-height: min(62vh, 560px); overflow: auto; padding-right: 2px; }
+.file-folder { border: 1px solid var(--border); border-radius: 7px; background: color-mix(in srgb, var(--panel-2) 72%, transparent); overflow: hidden; }
+.file-folder > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; padding: 0 9px; cursor: pointer; list-style: none; user-select: none; }
+.file-folder > summary::-webkit-details-marker { display: none; }
+.file-folder > summary::before { content: "▸"; color: var(--muted); font-size: 10px; transition: transform .12s ease; }
+.file-folder[open] > summary::before { transform: rotate(90deg); }
+.file-folder > summary:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.file-folder-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 11px; font-weight: 700; }
+.file-folder > summary small { flex: 0 0 auto; color: var(--muted); font-size: 9px; }
+.file-folder-content { display: grid; gap: 6px; padding: 0 6px 6px 16px; }
+.file-folder-content > .file-folder { background: transparent; }
+.file-folder-files { padding-top: 1px; }
 
 .stats { position: absolute; z-index: 650; left: 0; right: 0; bottom: 0; min-height: var(--stats-height); display: flex; align-items: center; gap: 18px; overflow-x: auto; white-space: nowrap; padding: 0 12px; border-top: 1px solid var(--border); background: var(--overlay-bg); color: var(--muted); font-size: 10px; }
 .stats b { color: var(--text); }
@@ -91,4 +103,6 @@
   .region-action-buttons { grid-template-columns: 1fr 1fr; }
   .region-action-buttons .button:last-child { grid-column: 1 / -1; }
   .footer-status-popover { width: min(270px, 82vw); }
+  .files-tree { max-height: 58vh; }
+  .file-folder-content { padding-left: 11px; }
 }
