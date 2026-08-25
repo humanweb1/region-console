@@ -102,10 +102,7 @@ function findParent(region, known) {
   }) || null;
 }
 
-function buildRegionPath(region, known) {
-  const type = regionType(region);
-  if (type === "independent") return ["Özel Alanlar"];
-
+function buildRegionChain(region, known) {
   const chain = [];
   const visited = new Set();
   let current = region;
@@ -116,56 +113,44 @@ function buildRegionPath(region, known) {
     current = findParent(current, known);
   }
 
+  return chain;
+}
+
+function buildRegionPath(region, known) {
+  const type = regionType(region);
+  if (type === "independent") return ["Özel Alanlar"];
+
+  const chain = buildRegionChain(region, known);
   const hierarchy = region?.hierarchy || {};
-  let countryName = hierarchy.countryName || region?._countryName || null;
-  const provinceNames = [];
-  const districtNames = [];
-  const neighborhoodNames = [];
-
-  for (const item of chain) {
-    const itemType = regionType(item);
-    const name = regionName(item);
-    if (itemType === "country" && !countryName) countryName = name;
-    if (itemType === "province") provinceNames.push(name);
-    if (itemType === "district") districtNames.push(name);
-    if (itemType === "neighborhood") neighborhoodNames.push(name);
-  }
-
-  if (!countryName && chain.length) {
-    countryName = chain[0]?.hierarchy?.countryName || chain[0]?._countryName || null;
-  }
-
+  const countryName = hierarchy.countryName || region?._countryName || chain.find((item) => regionType(item) === "country")?.name || null;
+  const province = chain.find((item) => regionType(item) === "province") || (type === "province" ? region : null);
+  const district = chain.find((item) => regionType(item) === "district") || (type === "district" ? region : null);
+  const neighborhood = chain.find((item) => regionType(item) === "neighborhood") || (type === "neighborhood" ? region : null);
   const path = [];
+
   if (countryName) path.push(countryName);
-
-  if (type === "country") {
-    if (!path.length) path.push(regionName(region));
-    return path;
-  }
-
-  const provinceName = provinceNames[provinceNames.length - 1] || (type === "province" ? regionName(region) : hierarchy.parentName);
-  if (provinceName && !path.some((item) => normalizeName(item) === normalizeName(provinceName))) path.push(provinceName);
+  if (type === "country") return path.length ? path : [regionName(region)];
 
   if (type === "province") {
-    path.push(TYPE_FOLDERS.province);
-    return path;
+    // İl dosyaları ülke klasörünün altında görünür; tek tek ilin içine girmez.
+    return path.length ? path : [regionName(region)];
   }
 
-  const districtName = districtNames[districtNames.length - 1] || (type === "district" ? regionName(region) : null);
-  if (districtName && !path.some((item) => normalizeName(item) === normalizeName(districtName))) path.push(districtName);
+  if (province) path.push(regionName(province));
 
   if (type === "district") {
     path.push(TYPE_FOLDERS.district);
     return path;
   }
 
-  const neighborhoodName = neighborhoodNames[neighborhoodNames.length - 1] || (type === "neighborhood" ? regionName(region) : null);
-  if (neighborhoodName && !path.some((item) => normalizeName(item) === normalizeName(neighborhoodName))) path.push(neighborhoodName);
+  if (district) path.push(regionName(district));
 
   if (type === "neighborhood") {
     path.push(TYPE_FOLDERS.neighborhood);
     return path;
   }
+
+  if (neighborhood) path.push(regionName(neighborhood));
 
   if (type === "cemetery") {
     path.push(TYPE_FOLDERS.cemetery);
@@ -248,7 +233,7 @@ function createFolderTree(files) {
 }
 
 function renderFileCard(file) {
-  return `<article class="file-card"><div class="file-main"><strong>${escapeHtml(file.name)}</strong><span>${file.regionCount} bölge · ${formatSize(file.size)}</span><small>${file.importedAt ? new Date(file.importedAt).toLocaleString("tr-TR") : "Tarih bilinmiyor"}</small></div><button class="button file-delete" type="button" data-file-name="${escapeHtml(file.name)}">Sil</button></article>`;
+  return `<article class="file-card" data-file-search="${escapeHtml(`${file.name} ${file.regionCount}`)}"><div class="file-main"><strong>${escapeHtml(file.name)}</strong><span>${file.regionCount} bölge · ${formatSize(file.size)}</span><small>${file.importedAt ? new Date(file.importedAt).toLocaleString("tr-TR") : "Tarih bilinmiyor"}</small></div><button class="button file-delete" type="button" data-file-name="${escapeHtml(file.name)}">Sil</button></article>`;
 }
 
 function renderFolderTree(node, depth = 0) {
@@ -256,10 +241,8 @@ function renderFolderTree(node, depth = 0) {
   const files = [...node.files.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), "tr"));
   const folderMarkup = folders.map(([name, child]) => {
     const childContent = renderFolderTree(child, depth + 1);
-    const fileCount = child.files.size;
-    const nestedCount = countFiles(child) - fileCount;
-    const total = fileCount + nestedCount;
-    return `<details class="file-folder" ${depth === 0 ? "open" : ""}><summary><span class="file-folder-name">📁 ${escapeHtml(name)}</span><small>${total} dosya</small></summary><div class="file-folder-content">${childContent}</div></details>`;
+    const total = countFiles(child);
+    return `<details class="file-folder" data-folder-search="${escapeHtml(name)}"><summary><span class="file-folder-name">📁 ${escapeHtml(name)}</span><small>${total} dosya</small></summary><div class="file-folder-content">${childContent}</div></details>`;
   }).join("");
   const fileMarkup = files.length ? `<div class="files-list file-folder-files">${files.map(renderFileCard).join("")}</div>` : "";
   return `${folderMarkup}${fileMarkup}`;
@@ -269,6 +252,34 @@ function countFiles(node) {
   let total = node.files.size;
   for (const child of node.folders.values()) total += countFiles(child);
   return total;
+}
+
+function filterFileTree(query) {
+  const normalizedQuery = normalizeName(query);
+  const folders = [...elements.dialogBody.querySelectorAll("details.file-folder")];
+  const cards = [...elements.dialogBody.querySelectorAll(".file-card")];
+
+  if (!normalizedQuery) {
+    folders.forEach((folder) => {
+      folder.hidden = false;
+      folder.open = false;
+    });
+    cards.forEach((card) => { card.hidden = false; });
+    return;
+  }
+
+  cards.forEach((card) => {
+    const match = normalizeName(card.dataset.fileSearch || "").includes(normalizedQuery);
+    card.hidden = !match;
+  });
+
+  folders.forEach((folder) => {
+    const ownMatch = normalizeName(folder.dataset.folderSearch || "").includes(normalizedQuery);
+    const matchingDescendant = folder.querySelector(".file-card:not([hidden]), details.file-folder:not([hidden])");
+    const visible = ownMatch || Boolean(matchingDescendant);
+    folder.hidden = !visible;
+    folder.open = visible;
+  });
 }
 
 async function persist() {
@@ -309,10 +320,13 @@ function showFiles() {
   const files = getFiles();
   const tree = createFolderTree(files);
   const body = files.length
-    ? `<div class="files-tree">${renderFolderTree(tree)}</div>`
-    : `<p class="dialog-muted">Henüz içe aktarılan dosya yok.</p>`;
+    ? `<div class="files-dialog-toolbar"><input id="filesSearch" class="files-search" type="search" placeholder="Dosya, ülke, il, ilçe ara..." autocomplete="off" /></div><div class="files-tree" id="filesTree">${renderFolderTree(tree)}</div>`
+    : `<div class="files-dialog-toolbar"><input id="filesSearch" class="files-search" type="search" placeholder="Dosya, ülke, il, ilçe ara..." autocomplete="off" /></div><p class="dialog-muted">Henüz içe aktarılan dosya yok.</p>`;
 
   openDialog(elements, "Dosyalar", body);
+
+  const search = elements.dialogBody.querySelector("#filesSearch");
+  search?.addEventListener("input", () => filterFileTree(search.value));
 
   elements.dialogBody.querySelectorAll(".file-delete").forEach((button) => {
     button.addEventListener("click", () => {
