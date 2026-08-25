@@ -202,7 +202,7 @@ export function createDrawingController(mapState, onChange) {
     };
   }
 
-  return {
+  const controller = {
     begin,
     cancel,
     clear,
@@ -212,4 +212,8 @@ export function createDrawingController(mapState, onChange) {
     getDraft: () => draft,
     getPoints: () => points.slice()
   };
+
+  window.__regionConsoleDrawing = controller;
+  window.__regionConsoleMapState = mapState;
+  return controller;
 }
