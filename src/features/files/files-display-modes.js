@@ -1,5 +1,6 @@
 import { store } from "../../state/store.js";
-import { getElements } from "../../components/shell.js";
+import { getElements, toast } from "../../components/shell.js";
+import { upsertState } from "../../services/cloud.js";
 
 const elements = getElements();
 const MODE_KEY = "region-console.files-display-mode";
@@ -176,12 +177,48 @@ function renderCustomMode(nextMode, query = "") {
   bindCustomDeletes();
 }
 
+async function removeFile(fileName) {
+  const current = store.get();
+  const regions = (current.regions?.custom || []).filter(
+    (region) => String(region?.importMeta?.sourceFile || "") !== String(fileName)
+  );
+  const removed = (current.regions?.custom || []).length - regions.length;
+  if (!removed) {
+    toast(elements, "Bu dosyaya bağlı bölge bulunamadı.");
+    return;
+  }
+
+  store.replaceData({
+    regions: { ...current.regions, custom: regions, selectedId: null },
+    campaigns: current.campaigns,
+    importedFiles: (current.importedFiles || []).filter((file) => String(file.name) !== String(fileName))
+  }, { recordHistory: false });
+
+  const session = store.get().auth.session;
+  if (session?.access_token) {
+    try {
+      await upsertState(session.access_token, {
+        ...store.dataSnapshot().regions,
+        campaigns: store.get().campaigns,
+        history: store.get().history.entries,
+        importedFiles: store.get().importedFiles
+      });
+    } catch (error) {
+      toast(elements, `Bulut kaydı başarısız: ${error.message}`);
+    }
+  }
+
+  toast(elements, `${removed} bölge dosyayla birlikte silindi.`);
+  document.querySelector("#filesButton")?.click();
+}
+
 function bindCustomDeletes() {
   elements.dialogBody?.querySelectorAll(".files-mode-delete").forEach((button) => {
-    button.addEventListener("click", () => {
-      const original = [...elements.dialogBody.querySelectorAll(".file-delete:not(.files-mode-delete)")]
-        .find((item) => item.dataset.fileName === button.dataset.fileName);
-      if (original) original.click();
+    button.addEventListener("click", async () => {
+      const fileName = button.dataset.fileName;
+      if (!fileName) return;
+      if (!window.confirm(`“${fileName}” dosyası ve bu dosyadan içe aktarılan bölgeler silinsin mi?`)) return;
+      await removeFile(fileName);
     });
   });
 }
