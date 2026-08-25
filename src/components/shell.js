@@ -5,7 +5,7 @@ export function getElements() {
     "loginView", "consoleView", "cloudStatus", "versionLabel",
     "logoutButton", "themeButton", "menuButton", "headerMenu", "regionTree", "sidebar", "regionsToggle", "addRegionButton", "editBar",
     "selectedArea", "statCountries", "statProvinces", "statDistricts",
-    "statArea", "statService", "statOutside", "statClosed", "stats", "toast", "appDialog",
+    "statArea", "statService", "statCampaign", "statClosed", "stats", "toast", "appDialog",
     "dialogTitle", "dialogBody", "dialogClose", "campaignButton", "usersButton", "filesButton"
   ];
   return Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
@@ -44,9 +44,18 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function isCampaignRegion(region) {
+  return region?.status === "campaign" || region?.campaign === true || Boolean(region?.campaignId);
+}
+
+function matchesStatus(region, status) {
+  if (status === "campaign") return isCampaignRegion(region);
+  return (region?.status || "service") === status;
+}
+
 function getStatusRegions(status) {
   const custom = store.get().regions?.custom || [];
-  return custom.filter((region) => (region?.status || "service") === status);
+  return custom.filter((region) => matchesStatus(region, status));
 }
 
 function renderFooterStatusList(status) {
@@ -98,16 +107,16 @@ function bindFooterStatusControls() {
 
 function renderFooterStatusCounts() {
   const custom = store.get().regions?.custom || [];
-  const service = custom.filter((region) => !["outside", "closed"].includes(region?.status)).length;
-  const outside = custom.filter((region) => region?.status === "outside").length;
+  const service = custom.filter((region) => !["outside", "closed", "campaign"].includes(region?.status) && !isCampaignRegion(region)).length;
+  const campaign = custom.filter((region) => isCampaignRegion(region)).length;
   const closed = custom.filter((region) => region?.status === "closed").length;
   const serviceElement = document.getElementById("statService");
-  const outsideElement = document.getElementById("statOutside");
+  const campaignElement = document.getElementById("statCampaign");
   const closedElement = document.getElementById("statClosed");
   if (serviceElement) serviceElement.textContent = service;
-  if (outsideElement) outsideElement.textContent = outside;
+  if (campaignElement) campaignElement.textContent = campaign;
   if (closedElement) closedElement.textContent = closed;
-  ["service", "outside", "closed"].forEach((status) => {
+  ["service", "campaign", "closed"].forEach((status) => {
     const popover = document.querySelector(`[data-status-popover="${status}"]`);
     if (popover && !popover.hidden) renderFooterStatusList(status);
   });
