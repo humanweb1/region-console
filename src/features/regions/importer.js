@@ -140,6 +140,30 @@ function hierarchyMeta(regionType, properties = {}) {
     ?? properties.parentID
     ?? properties.parentCode
     ?? properties.parent_code
+    ?? properties.provinceId
+    ?? properties.province_id
+    ?? properties.districtId
+    ?? properties.district_id
+    ?? properties.neighborhoodId
+    ?? properties.neighborhood_id
+    ?? properties.parent_id_1
+    ?? null;
+  const parentName = properties.parentName
+    ?? properties.parent_name
+    ?? properties.parentTitle
+    ?? properties.parent_title
+    ?? properties.provinceName
+    ?? properties.province_name
+    ?? properties.province
+    ?? properties.il
+    ?? properties.districtName
+    ?? properties.district_name
+    ?? properties.district
+    ?? properties.ilce
+    ?? properties.neighborhoodName
+    ?? properties.neighborhood_name
+    ?? properties.neighborhood
+    ?? properties.mahalle
     ?? null;
 
   return {
@@ -148,6 +172,7 @@ function hierarchyMeta(regionType, properties = {}) {
     level: definition.level,
     parentType: definition.parentType,
     parentId: parentId == null || parentId === "" ? null : String(parentId),
+    parentName: parentName == null || parentName === "" ? null : String(parentName).trim(),
     rootType: definition.level === 0 ? regionType : "country"
   };
 }
