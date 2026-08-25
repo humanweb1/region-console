@@ -66,15 +66,11 @@ function bindRegionFocus() {
       const region = allCustomRegions().find((item) => String(item.id) === String(button.dataset.regionId));
       if (!region) return;
       const coordinates = regionCoordinates(region);
-      if (coordinates.length) {
-        fitToCoordinates(mapState, coordinates, [45, 45]);
-      }
+      if (coordinates.length) fitToCoordinates(mapState, coordinates, [45, 45]);
       store.update("regions", { selectedId: region.id });
       elements.regionTree.querySelectorAll(".region-row").forEach((row) => row.classList.remove("selected"));
       button.classList.add("selected");
-      document.dispatchEvent(new CustomEvent("region-console:region-selected", {
-        detail: { region, mapState }
-      }));
+      document.dispatchEvent(new CustomEvent("region-console:region-selected", { detail: { region, mapState } }));
     });
   });
 }
@@ -114,12 +110,7 @@ async function persistState() {
       importedFiles: store.get().importedFiles,
       mapSettings: store.get().mapSettings
     });
-    store.update("cloud", {
-      status: "ready",
-      version: saved?.version || Date.now(),
-      updatedAt: saved?.updated_at || new Date().toISOString(),
-      error: null
-    });
+    store.update("cloud", { status: "ready", version: saved?.version || Date.now(), updatedAt: saved?.updated_at || new Date().toISOString(), error: null });
   } catch (error) {
     console.error("[Region Console] Cloud save failed:", error);
     store.update("cloud", { status: "error", error: error.message });
@@ -143,10 +134,7 @@ function commitData(label, updater) {
 }
 
 function addCustomRegion(region) {
-  commitData("Alan eklendi", () => {
-    const custom = [...store.get().regions.custom, region];
-    store.update("regions", { custom });
-  });
+  commitData("Alan eklendi", () => store.update("regions", { custom: [...store.get().regions.custom, region] }));
 }
 
 function handleSave() {
@@ -163,22 +151,15 @@ function handleSave() {
 }
 
 function handleDelete() {
-  if (!allCustomRegions().length) {
-    toast(elements, "Silinecek özel alan yok.");
-    return;
-  }
+  if (!allCustomRegions().length) return toast(elements, "Silinecek özel alan yok.");
   if (!window.confirm("Tüm özel çizim alanları silinsin mi? Bu işlem geri alınabilir.")) return;
-  commitData("Özel alanlar temizlendi", () => {
-    store.update("regions", { custom: [] });
-  });
+  commitData("Özel alanlar temizlendi", () => store.update("regions", { custom: [] }));
   toast(elements, "Özel alanlar temizlendi. Geri al ile kurtarabilirsiniz.");
 }
 
 function showHistory() {
   const entries = store.get().history.entries.slice().reverse();
-  openDialog(elements, "Değişiklik geçmişi", entries.length
-    ? `<div class="history-list">${entries.map((entry, index) => `<div class="history-item"><strong>${escapeHtml(entry.label)}</strong><span>${new Date(entry.createdAt).toLocaleString("tr-TR")}</span><small>#${entries.length - index}</small></div>`).join("")}</div>`
-    : `<p class="dialog-muted">Henüz kaydedilmiş bir değişiklik yok.</p>`);
+  openDialog(elements, "Değişiklik geçmişi", entries.length ? `<div class="history-list">${entries.map((entry, index) => `<div class="history-item"><strong>${escapeHtml(entry.label)}</strong><span>${new Date(entry.createdAt).toLocaleString("tr-TR")}</span><small>#${entries.length - index}</small></div>`).join("")}</div>` : `<p class="dialog-muted">Henüz kaydedilmiş bir değişiklik yok.</p>`);
 }
 
 function escapeHtml(value) {
@@ -192,9 +173,7 @@ function showCampaigns() {
     const name = window.prompt("Kampanya adı:");
     if (!name?.trim()) return;
     const description = window.prompt("Kampanya açıklaması:") || "";
-    commitData("Kampanya oluşturuldu", () => {
-      store.set({ campaigns: [...store.get().campaigns, { id: crypto.randomUUID(), name: name.trim(), description, status: "aktif", createdAt: new Date().toISOString() }] });
-    });
+    commitData("Kampanya oluşturuldu", () => store.set({ campaigns: [...store.get().campaigns, { id: crypto.randomUUID(), name: name.trim(), description, status: "aktif", createdAt: new Date().toISOString() }] }));
     showCampaigns();
   });
 }
@@ -211,11 +190,7 @@ function showUsers() {
     const button = form.querySelector("button");
     button.disabled = true;
     try {
-      await inviteSubUser(session?.access_token, {
-        name: String(formData.get("name") || "").trim(),
-        email: String(formData.get("email") || "").trim(),
-        role: String(formData.get("role") || "sub_user")
-      });
+      await inviteSubUser(session?.access_token, { name: String(formData.get("name") || "").trim(), email: String(formData.get("email") || "").trim(), role: String(formData.get("role") || "sub_user") });
       elements.appDialog.close();
       toast(elements, "Alt kullanıcı daveti gönderildi.");
     } catch (err) {
@@ -261,19 +236,12 @@ function importData() {
   input.oncancel = () => restoreRegionsSidebar(sidebarWasOpen);
   input.onchange = async () => {
     const file = input.files?.[0];
-    if (!file) {
-      restoreRegionsSidebar(sidebarWasOpen);
-      return;
-    }
+    if (!file) return restoreRegionsSidebar(sidebarWasOpen);
     try {
       const text = await file.text();
       if (!text.trim()) throw new Error("Dosya boş.");
       let imported;
-      try {
-        imported = JSON.parse(text);
-      } catch {
-        throw new Error("Dosya geçerli JSON değil.");
-      }
+      try { imported = JSON.parse(text); } catch { throw new Error("Dosya geçerli JSON değil."); }
       const result = importRegionData(imported, file.name);
       const before = store.dataSnapshot();
       if (result.mode === "region-console") {
@@ -390,4 +358,39 @@ function toggleTheme() {
   const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
   document.documentElement.dataset.theme = next;
   localStorage.setItem("region-console-theme", next);
+}
+
+async function bootstrap() {
+  try {
+    const recovery = await restoreRecoverySession();
+    if (recovery) {
+      const password = window.prompt("Yeni şifrenizi girin:");
+      if (password) {
+        await updatePassword(password);
+        sessionStorage.removeItem("region-console-recovery");
+        toast(elements, "Şifreniz güncellendi. Giriş yapabilirsiniz.");
+      }
+    }
+  } catch (error) {
+    console.error("[Region Console] Recovery bootstrap failed:", error);
+  }
+
+  try {
+    const session = await restoreSession();
+    if (session) {
+      await startApplication(session);
+      return;
+    }
+  } catch (error) {
+    console.error("[Region Console] Session restore failed:", error);
+  }
+
+  showLogin(elements);
+  renderLogin(elements.loginView, startApplication);
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bootstrap, { once: true });
+} else {
+  bootstrap();
 }
