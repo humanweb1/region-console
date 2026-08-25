@@ -25,7 +25,7 @@
   z-index: 600;
   top: 8px;
   right: 8px;
-  width: var(--tool-width);
+  width: 42px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -35,32 +35,39 @@
 }
 
 .tool {
-  width: 100%;
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  width: 42px;
+  height: 40px;
+  min-height: 40px;
+  display: grid;
+  place-items: center;
   border: 0;
   border-bottom: 1px solid var(--border);
   background: transparent;
   color: var(--overlay-text);
-  text-align: left;
-  padding: 0 9px;
+  padding: 0;
   font-size: 11px;
   font-weight: 650;
   line-height: 1;
 }
 
 .tool svg {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 14px;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
 }
 
-.tool span { min-width: 0; }
+.tool span {
+  display: none;
+}
+
 .tool:last-child { border-bottom: 0; }
 .tool:hover { background: var(--panel-2); }
 .tool.active { background: var(--accent); color: #111; }
+
+.tool[data-tool="edit"],
+.tool[data-tool="delete"] {
+  display: none;
+}
 
 .draw-point-marker-wrap {
   background: transparent;
@@ -218,9 +225,9 @@
 .layer-toggle small { color: var(--muted); font-size: 9px; line-height: 1.25; }
 
 @media (max-width: 720px) {
-  .tool-panel { width: 122px; right: 7px; top: 7px; }
-  .tool { min-height: 34px; padding: 0 8px; font-size: 10px; }
-  .tool svg { width: 13px; height: 13px; flex-basis: 13px; }
+  .tool-panel { width: 40px; right: 7px; top: 7px; }
+  .tool { width: 40px; min-height: 38px; height: 38px; }
+  .tool svg { width: 16px; height: 16px; flex-basis: 16px; }
   .map-controls { right: 7px; bottom: calc(var(--stats-height) + 7px); }
   .layers-popover { width: 200px; }
 }
