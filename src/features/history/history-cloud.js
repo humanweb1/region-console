@@ -41,19 +41,12 @@ store.recordHistory = function persistedHistoryRecord(label, before, after) {
   originalRecordHistory(label, before, after);
   const accessToken = store.get().auth.session?.access_token;
   if (accessToken) {
-    saveHistoryEntry(accessToken, compact).catch((error) => {
-      console.error("[Region Console] History cloud save failed:", error);
-    });
+    saveHistoryEntry(accessToken, compact).catch((error) => console.error("[Region Console] History cloud save failed:", error));
   }
 };
 
 function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
 let forwardingSimulation = false;
@@ -107,14 +100,8 @@ window.addEventListener("click", (event) => {
   const entry = window.__regionConsoleHistory?.entries?.[index];
   if (!entry) return;
 
-  const historyEntries = window.__regionConsoleHistory.entries.map((item) => item.entry || item);
-  store.set({
-    history: {
-      ...store.get().history,
-      entries: historyEntries,
-      cursor: historyEntries.length - 1
-    }
-  });
+  const historyEntries = window.__regionConsoleHistory.entries.map((item) => item.entry || item).reverse();
+  store.set({ history: { ...store.get().history, entries: historyEntries, cursor: historyEntries.length - 1 } });
 
   forwardingSimulation = true;
   button.click();
