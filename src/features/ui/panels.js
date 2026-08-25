@@ -22,7 +22,19 @@ export function bindPanels(elements, mapState, drawing, handlers) {
     }
   }, true);
 
+  const toolLabels = {
+    draw: "Çizim",
+    import: "İçe aktar",
+    export: "Dışa aktar",
+    history: "Geçmiş"
+  };
+
   document.querySelectorAll(".tool:not(.tool-action)").forEach((button) => {
+    const label = toolLabels[button.dataset.tool];
+    if (label) {
+      button.setAttribute("aria-label", label);
+      button.setAttribute("title", label);
+    }
     button.addEventListener("click", () => {
       const tool = button.dataset.tool;
       document.querySelectorAll(".tool:not(.tool-action)").forEach((b) => b.classList.remove("active"));
