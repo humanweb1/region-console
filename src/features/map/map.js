@@ -47,6 +47,17 @@ export function createMap() {
     overlayVisibility: { ...DEFAULT_OVERLAY_VISIBILITY }
   };
 
+  let previousRegions = store.get().regions.custom;
+  let previousMapSettings = store.get().mapSettings;
+  store.subscribe((state) => {
+    const regionsChanged = state.regions.custom !== previousRegions;
+    const settingsChanged = state.mapSettings !== previousMapSettings;
+    if (!regionsChanged && !settingsChanged) return;
+    previousRegions = state.regions.custom;
+    previousMapSettings = state.mapSettings;
+    renderRegionsOnMap(mapState, state.regions.custom, state.mapSettings);
+  });
+
   window.__regionConsoleMapState = mapState;
   return mapState;
 }
@@ -160,14 +171,23 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
     if (!validRings.length) continue;
 
     const outside = region.status === "outside";
+    const closed = region.status === "closed";
     const campaign = isCampaignRegion(region);
     const kind = outside ? "outside" : campaign ? "campaign" : "regions";
-    const fillColor = outside ? normalized.closedColor : campaign ? normalized.campaignColor : "transparent";
+    const fillColor = outside
+      ? normalized.outsideColor
+      : closed
+        ? normalized.closedColor
+        : campaign
+          ? normalized.campaignColor
+          : "transparent";
     const fillOpacity = outside
-      ? Math.min(0.9, normalized.closedOpacity)
-      : campaign
-        ? normalized.campaignOpacity
-        : 0.04;
+      ? normalized.outsideOpacity
+      : closed
+        ? normalized.closedOpacity
+        : campaign
+          ? normalized.campaignOpacity
+          : 0.04;
 
     const polygon = L.polygon(validRings, {
       color: normalized.boundaryColor,
