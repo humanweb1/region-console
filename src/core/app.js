@@ -95,7 +95,7 @@ function render() {
   elements.statService.textContent = current.service;
   elements.statOutside.textContent = current.outside;
 
-  if (mapState) renderRegionsOnMap(mapState, allCustomRegions());
+  if (mapState) renderRegionsOnMap(mapState, allCustomRegions(), state.mapSettings);
 }
 
 async function persistState() {
@@ -107,7 +107,8 @@ async function persistState() {
       ...store.dataSnapshot().regions,
       campaigns: store.get().campaigns,
       history: store.get().history.entries,
-      importedFiles: store.get().importedFiles
+      importedFiles: store.get().importedFiles,
+      mapSettings: store.get().mapSettings
     });
     store.update("cloud", {
       status: "ready",
@@ -399,7 +400,7 @@ async function startApplication(session) {
     if (remote?.state) {
       store.loadPersisted(remote.state);
       store.update("cloud", { status: "ready", version: remote.version || null, updatedAt: remote.updated_at || null, error: null });
-      renderRegionsOnMap(mapState, allCustomRegions());
+      renderRegionsOnMap(mapState, allCustomRegions(), store.get().mapSettings);
       const coordinates = importedMapCoordinates(allCustomRegions());
       if (coordinates.length) fitToCoordinates(mapState, coordinates);
     } else {
@@ -468,21 +469,18 @@ function showPasswordReset(elements, recoverySession) {
 
 async function bootstrap() {
   document.documentElement.dataset.theme = localStorage.getItem("region-console-theme") || "dark";
-  store.subscribe(render);
-  renderLogin(elements.loginView, startApplication);
-  try {
-    const recovery = await restoreRecoverySession();
-    if (recovery) {
-      showPasswordReset(elements, recovery);
-      return;
-    }
-    const session = await restoreSession();
-    if (session) await startApplication(session);
-    else { showLogin(elements); store.update("auth", { status: "anonymous" }); }
-  } catch (error) {
-    console.error("[Region Console] Bootstrap failed:", error);
-    showLogin(elements);
+  const recoverySession = getRecoverySession();
+  const restored = await restoreSession();
+  if (restored) {
+    startApplication(restored);
+    return;
   }
+  if (recoverySession) {
+    showPasswordReset(elements, recoverySession);
+    return;
+  }
+  showLogin(elements);
+  renderLogin(elements.loginView, startApplication);
 }
 
 bootstrap();

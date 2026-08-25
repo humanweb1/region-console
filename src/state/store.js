@@ -24,6 +24,8 @@ const initialState = {
     boundaryWeight: 1.5,
     outsideColor: "#4b5563",
     outsideOpacity: 0.55,
+    closedColor: "#7c3aed",
+    closedOpacity: 0.55,
     campaignColor: "#ffd400",
     campaignOpacity: 0.55
   },
@@ -87,9 +89,6 @@ function migrateCustomRegions(custom) {
     const meta = region?.importMeta;
     if (!meta?.format || meta.format !== "GeoJSON" || meta.coordinateOrder) return region;
 
-    // Versions before the coordinate-order fix persisted [latitude, longitude].
-    // New imports explicitly carry coordinateOrder="lonlat", so this migration
-    // only touches legacy imported GeoJSON regions.
     return {
       ...region,
       geometry: swapGeometryCoordinates(region.geometry),
