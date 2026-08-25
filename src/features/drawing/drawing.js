@@ -1,3 +1,5 @@
+import { enableHierarchyLayering } from "../map/hierarchy-layering-fix.js";
+
 export function createDrawingController(mapState, onChange) {
   let active = false;
   let draft = null;
@@ -7,6 +9,20 @@ export function createDrawingController(mapState, onChange) {
   let finishHandler = null;
   let clickTimer = null;
   const pointMarkers = L.layerGroup().addTo(mapState.map);
+  const regionInteractionState = new WeakMap();
+
+  function setRegionInteractivity(enabled) {
+    for (const layer of mapState.regionLayers || []) {
+      if (!layer?.options) continue;
+      if (!enabled) {
+        if (!regionInteractionState.has(layer)) regionInteractionState.set(layer, layer.options.interactive !== false);
+        layer.options.interactive = false;
+      } else if (regionInteractionState.has(layer)) {
+        layer.options.interactive = regionInteractionState.get(layer);
+        regionInteractionState.delete(layer);
+      }
+    }
+  }
 
   function emit() {
     onChange({
@@ -73,7 +89,9 @@ export function createDrawingController(mapState, onChange) {
       color: "#ffd400",
       weight: 3,
       dashArray: "6 6",
-      fillOpacity: points.length >= 3 ? 0.12 : 0
+      fillOpacity: points.length >= 3 ? 0.12 : 0,
+      interactive: false,
+      pane: "region-special"
     }).addTo(mapState.polygons);
     renderPointMarkers();
     emit();
@@ -87,7 +105,8 @@ export function createDrawingController(mapState, onChange) {
       weight: 2,
       dashArray: "4 5",
       opacity: 0.9,
-      interactive: false
+      interactive: false,
+      pane: "region-special"
     }).addTo(mapState.polygons);
   }
 
@@ -106,7 +125,9 @@ export function createDrawingController(mapState, onChange) {
     draft = L.polygon(points, {
       color: "#ffd400",
       weight: 3,
-      fillOpacity: 0.28
+      fillOpacity: 0.28,
+      interactive: false,
+      pane: "region-special"
     }).addTo(mapState.polygons);
     points = draft.getLatLngs()[0].slice();
     active = false;
@@ -115,6 +136,7 @@ export function createDrawingController(mapState, onChange) {
     mapState.map.off("mousemove", handleMouseMove);
     if (finishHandler) mapState.map.off("dblclick", finishHandler);
     finishHandler = null;
+    setRegionInteractivity(true);
     renderPointMarkers();
     emit();
     return true;
@@ -144,6 +166,8 @@ export function createDrawingController(mapState, onChange) {
 
   function begin() {
     clearDraft();
+    enableHierarchyLayering(mapState);
+    setRegionInteractivity(false);
     active = true;
     mapState.map.doubleClickZoom.disable();
     mapState.map.on("click", handleClick);
@@ -160,6 +184,7 @@ export function createDrawingController(mapState, onChange) {
     if (finishHandler) mapState.map.off("dblclick", finishHandler);
     finishHandler = null;
     mapState.map.doubleClickZoom.enable();
+    setRegionInteractivity(true);
     clearDraft();
     active = false;
     emit();
