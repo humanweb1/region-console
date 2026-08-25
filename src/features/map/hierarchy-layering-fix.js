@@ -1,3 +1,5 @@
+import { store } from "../../state/store.js";
+
 const PANE_CONFIG = {
   province: { name: "region-province", zIndex: 410 },
   district: { name: "region-district", zIndex: 420 },
@@ -42,15 +44,12 @@ export function enableHierarchyLayering(mapState) {
     previousRegions = null;
     ensurePanes(mapState.map);
 
-    const stateStore = window.__regionConsoleStore;
-    if (stateStore?.subscribe) {
-      stateStore.subscribe((state) => {
-        const currentRegions = state?.regions?.custom;
-        if (currentRegions === previousRegions) return;
-        previousRegions = currentRegions;
-        requestAnimationFrame(() => applyLayerPanes(mapState));
-      });
-    }
+    store.subscribe((state) => {
+      const currentRegions = state?.regions?.custom;
+      if (currentRegions === previousRegions) return;
+      previousRegions = currentRegions;
+      requestAnimationFrame(() => applyLayerPanes(mapState));
+    });
   }
 
   requestAnimationFrame(() => applyLayerPanes(mapState));
