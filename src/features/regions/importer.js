@@ -48,9 +48,7 @@ function isFiniteCoordinatePair(value) {
 
 function normalizeRing(ring) {
   if (!Array.isArray(ring)) return null;
-  const points = ring
-    .filter(isFiniteCoordinatePair)
-    .map(([lng, lat]) => [Number(lng), Number(lat)]);
+  const points = ring.filter(isFiniteCoordinatePair).map(([lng, lat]) => [Number(lng), Number(lat)]);
   if (points.length < 3) return null;
   const first = points[0];
   const last = points[points.length - 1];
@@ -85,18 +83,13 @@ function buildBounds(geometry) {
   if (!points.length) return null;
   const lngs = points.map(([lng]) => lng);
   const lats = points.map(([, lat]) => lat);
-  return [
-    [Math.min(...lats), Math.min(...lngs)],
-    [Math.max(...lats), Math.max(...lngs)]
-  ];
+  return [[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]];
 }
 
 function featureList(input) {
   if (input?.type === "FeatureCollection" && Array.isArray(input.features)) return input.features;
   if (input?.type === "Feature") return [input];
-  if (input?.type === "Polygon" || input?.type === "MultiPolygon") {
-    return [{ type: "Feature", geometry: input, properties: {} }];
-  }
+  if (input?.type === "Polygon" || input?.type === "MultiPolygon") return [{ type: "Feature", geometry: input, properties: {} }];
   if (Array.isArray(input)) return input;
   return [];
 }
@@ -107,14 +100,7 @@ function isRegionConsoleExport(input) {
 
 function stableSourceId(feature, index) {
   const properties = feature?.properties || {};
-  return String(
-    properties.id
-      ?? properties.ID
-      ?? properties.code
-      ?? properties.Code
-      ?? feature?.id
-      ?? index
-  );
+  return String(properties.id ?? properties.ID ?? properties.code ?? properties.Code ?? feature?.id ?? index);
 }
 
 function normalizeRegionType(value) {
@@ -166,7 +152,6 @@ function hierarchyMeta(regionType, properties = {}) {
   ]);
   const countryId = propertyValue(properties, ["countryId", "country_id", "countryCode", "country_code"]);
   const countryName = propertyValue(properties, ["countryName", "country_name", "country"]);
-
   return {
     type: regionType,
     label: definition.label,
@@ -184,12 +169,21 @@ function countryList() {
   return Array.isArray(store.get().regions?.countries) ? store.get().regions.countries : [];
 }
 
-function provinceList() {
-  return countryList().flatMap((country) => (Array.isArray(country.provinces) ? country.provinces : Array.isArray(country.children) ? country.children : []).map((province) => ({ ...province, _countryId: country.id, _countryName: country.name })));
-}
-
 function customList(type) {
   return (store.get().regions?.custom || []).filter((region) => (region?.hierarchy?.type || region?.type) === type);
+}
+
+function provinceList() {
+  const nested = countryList().flatMap((country) => {
+    const provinces = Array.isArray(country.provinces) ? country.provinces : Array.isArray(country.children) ? country.children : [];
+    return provinces.map((province) => ({ ...province, _countryId: country.id, _countryName: country.name }));
+  });
+  const imported = customList("province").map((province) => ({
+    ...province,
+    _countryId: province?.hierarchy?.countryId || province?.importMeta?.countryId || null,
+    _countryName: province?.hierarchy?.countryName || province?.importMeta?.countryName || null
+  }));
+  return uniqueById([...nested, ...imported]);
 }
 
 function uniqueById(items) {
@@ -214,14 +208,15 @@ function regionMatchesParent(region, parent) {
   const parentId = String(parent?.id ?? "");
   const parentName = normalizeName(parent?.name);
   const hierarchy = region?.hierarchy || {};
-  return (hierarchy.parentId && String(hierarchy.parentId) === parentId)
-    || (hierarchy.parentName && normalizeName(hierarchy.parentName) === parentName);
+  return (hierarchy.parentId && String(hierarchy.parentId) === parentId) || (hierarchy.parentName && normalizeName(hierarchy.parentName) === parentName);
 }
 
 function getParentOptions(regionType, selectedCountryId, selectedProvinceId, selectedDistrictId) {
   if (regionType === "province") return countryList();
   if (regionType === "district") {
-    return provinceList().filter((province) => String(countryIdForProvince(province)) === String(selectedCountryId));
+    const provinces = provinceList();
+    if (!selectedCountryId || selectedCountryId === "__new__") return provinces;
+    return provinces.filter((province) => String(countryIdForProvince(province)) === String(selectedCountryId));
   }
   if (regionType === "neighborhood") {
     return customList("district").filter((district) => {
@@ -291,7 +286,6 @@ function installImportDialogEnhancer() {
 
     const sync = () => {
       const type = typeSelect.value;
-      const countries = countryList();
       const isCountry = type === "country";
       const isIndependent = type === "independent";
       countryOnly.hidden = !isCountry;
@@ -310,22 +304,20 @@ function installImportDialogEnhancer() {
       }
 
       if (type === "district") {
-        const selectedCountryId = countrySelect.value;
-        fill(provinceSelect, getParentOptions("district", selectedCountryId, "", ""), "İl seçin");
+        fill(provinceSelect, getParentOptions("district", countrySelect.value, "", ""), "İl seçin", provinceSelect.value);
       }
 
       if (type === "neighborhood") {
+        fill(provinceSelect, provinceList(), "İl seçin", provinceSelect.value);
         const selectedProvinceId = provinceSelect.value;
-        const districts = getParentOptions("neighborhood", countrySelect.value, selectedProvinceId, "");
-        fill(districtSelect, districts, "İlçe seçin");
+        fill(districtSelect, getParentOptions("neighborhood", countrySelect.value, selectedProvinceId, ""), "İlçe seçin", districtSelect.value);
       }
 
       if (type === "cemetery") {
+        fill(provinceSelect, provinceList(), "İl seçin", provinceSelect.value);
         const selectedProvinceId = provinceSelect.value;
-        const districts = getParentOptions("neighborhood", countrySelect.value, selectedProvinceId, "");
-        fill(districtSelect, districts, "İlçe seçin", districtSelect.value);
-        const neighborhoods = getParentOptions("cemetery", countrySelect.value, selectedProvinceId, districtSelect.value);
-        fill(neighborhoodSelect, neighborhoods, "Mahalle seçin", neighborhoodSelect.value);
+        fill(districtSelect, getParentOptions("neighborhood", countrySelect.value, selectedProvinceId, ""), "İlçe seçin", districtSelect.value);
+        fill(neighborhoodSelect, getParentOptions("cemetery", countrySelect.value, selectedProvinceId, districtSelect.value), "Mahalle seçin", neighborhoodSelect.value);
       }
 
       if (type === "neighborhood" || type === "cemetery") {
@@ -386,7 +378,7 @@ function installImportDialogEnhancer() {
       } else if (type === "neighborhood") {
         const district = customList("district").find((item) => String(item.id) === String(districtSelect.value));
         if (!district) return;
-        const provinceId = district.hierarchy?.parentId;
+        const provinceId = district.hierarchy?.parentId || provinceSelect.value;
         const province = provinceList().find((item) => String(item.id) === String(provinceId));
         context.parentId = district.id;
         context.parentName = district.name;
@@ -467,11 +459,9 @@ export function importRegionData(input, fileName = "", regionType = null) {
 
     const properties = feature?.properties && typeof feature.properties === "object" ? feature.properties : {};
     const sourceId = stableSourceId(feature, index);
-    const name = String(
-      properties.name ?? properties.NAME ?? properties.title ?? properties.label ?? `İçe Aktarılan Alan ${index + 1}`
-    ).trim() || `İçe Aktarılan Alan ${index + 1}`;
-
+    const name = String(properties.name ?? properties.NAME ?? properties.title ?? properties.label ?? `İçe Aktarılan Alan ${index + 1}`).trim() || `İçe Aktarılan Alan ${index + 1}`;
     const hierarchy = hierarchyMeta(selectedType, properties);
+
     if (context?.regionType === selectedType) {
       hierarchy.countryId = context.countryId || hierarchy.countryId || null;
       hierarchy.countryName = context.countryName || hierarchy.countryName || null;
