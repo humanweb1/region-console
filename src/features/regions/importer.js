@@ -136,6 +136,20 @@ function propertyValue(properties, keys) {
   return null;
 }
 
+function regionName(regionType, properties, index) {
+  const common = ["name", "NAME", "title", "TITLE", "label", "LABEL", "adi", "ADI", "ad", "AD"];
+  const byType = {
+    country: ["countryName", "country_name", "ulke", "ULKE"],
+    province: ["provinceName", "province_name", "province", "il", "IL", "il_adi", "IL_ADI", "name_1", "NAME_1"],
+    district: ["districtName", "district_name", "district", "ilce", "ILCE", "ilce_adi", "ILCE_ADI", "ilceadi", "ILCEADI", "name_2", "NAME_2", "name2", "NAME2"],
+    neighborhood: ["neighborhoodName", "neighborhood_name", "neighborhood", "mahalle", "MAHALLE", "mahalle_adi", "MAHALLE_ADI", "name_3", "NAME_3", "name3", "NAME3"],
+    cemetery: ["cemeteryName", "cemetery_name", "cemetery", "mezarlik", "MEZARLIK", "mezarlik_adi", "MEZARLIK_ADI"],
+    independent: []
+  };
+  const value = propertyValue(properties, [...(byType[regionType] || []), ...common]);
+  return String(value ?? `İçe Aktarılan Alan ${index + 1}`).trim() || `İçe Aktarılan Alan ${index + 1}`;
+}
+
 function hierarchyMeta(regionType, properties = {}) {
   const definition = REGION_TYPES[regionType] || REGION_TYPES.independent;
   const directId = propertyValue(properties, [
@@ -459,7 +473,7 @@ export function importRegionData(input, fileName = "", regionType = null) {
 
     const properties = feature?.properties && typeof feature.properties === "object" ? feature.properties : {};
     const sourceId = stableSourceId(feature, index);
-    const name = String(properties.name ?? properties.NAME ?? properties.title ?? properties.label ?? `İçe Aktarılan Alan ${index + 1}`).trim() || `İçe Aktarılan Alan ${index + 1}`;
+    const name = regionName(selectedType, properties, index);
     const hierarchy = hierarchyMeta(selectedType, properties);
 
     if (context?.regionType === selectedType) {
