@@ -1,4 +1,40 @@
 import { exportToFolders } from "../../services/folder-export.js";
+import { store } from "../../state/store.js";
+import { openDialog } from "../../components/shell.js";
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderHistoryDialog(elements, visibleCount) {
+  const entries = store.get().history.entries.slice().reverse();
+  const visible = entries.slice(0, visibleCount);
+  const hasMore = visible.length < entries.length;
+
+  const list = visible.length
+    ? `<div class="history-list">${visible.map((entry, index) => `<div class="history-item"><strong>${escapeHtml(entry.label)}</strong><span>${new Date(entry.createdAt).toLocaleString("tr-TR")}</span><small>#${entries.length - index}</small></div>`).join("")}</div>`
+    : `<p class="dialog-muted">Henüz kaydedilmiş bir değişiklik yok.</p>`;
+
+  const moreButton = hasMore
+    ? `<div class="history-more"><button id="historyShowMore" class="button" type="button">Daha eskiyi göster <span>(${Math.min(visibleCount + 5, entries.length)})</span></button><small>${visible.length} / ${entries.length} işlem gösteriliyor</small></div>`
+    : (entries.length > 5 ? `<div class="history-more"><small>Tüm ${entries.length} işlem gösteriliyor.</small></div>` : "");
+
+  elements.dialogBody.innerHTML = `${list}${moreButton}`;
+  elements.dialogBody.querySelector("#historyShowMore")?.addEventListener("click", () => {
+    renderHistoryDialog(elements, Math.min(visibleCount + 5, entries.length));
+  });
+}
+
+function showHistory(elements) {
+  const entries = store.get().history.entries || [];
+  openDialog(elements, "Değişiklik geçmişi", "");
+  renderHistoryDialog(elements, Math.min(5, entries.length));
+}
 
 export function bindPanels(elements, mapState, drawing, handlers) {
   // Export is handled here in capture phase so the legacy toolbar handler
@@ -20,6 +56,18 @@ export function bindPanels(elements, mapState, drawing, handlers) {
     } finally {
       exportButton.classList.remove("active");
     }
+  }, true);
+
+  // History is handled in capture phase so the legacy app-level handler
+  // cannot replace this paginated history dialog.
+  document.addEventListener("click", (event) => {
+    const historyButton = event.target?.closest?.('.tool[data-tool="history"]');
+    if (!historyButton) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    document.querySelectorAll(".tool:not(.tool-action)").forEach((button) => button.classList.remove("active"));
+    historyButton.classList.add("active");
+    showHistory(elements);
   }, true);
 
   const toolLabels = {
