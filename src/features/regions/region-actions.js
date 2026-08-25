@@ -10,6 +10,17 @@ let editMarkers = [];
 let editMidMarkers = [];
 let draftName = "";
 
+const SERVICE_CLOSE_REASONS = [
+  "Teknik arıza",
+  "Altyapı / bakım çalışması",
+  "Personel yetersizliği",
+  "Güvenlik nedeniyle",
+  "Hava koşulları",
+  "Yoğunluk / kapasite doluluğu",
+  "Geçici operasyonel neden",
+  "Diğer"
+];
+
 function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
@@ -82,15 +93,55 @@ function deleteSelectedRegion() {
 function showServiceDialog() {
   const region = getRegion();
   if (!region) return;
-  openDialog(elements, "Hizmete kapat", `<div class="region-dialog"><p><strong>${escapeHtml(region.name || "Bölge")}</strong> hizmet dışına alınacak.</p><label>Hizmete kapatma sebebi<textarea id="serviceCloseReason" rows="4" placeholder="Sebebi girin..." required></textarea></label><div class="dialog-actions"><button id="serviceCloseCancel" class="button" type="button">Vazgeç</button><button id="serviceCloseConfirm" class="button button-primary" type="button">Hizmete kapat</button></div></div>`);
+
+  const currentReason = String(region.serviceCloseReason || "");
+  const options = SERVICE_CLOSE_REASONS.map((reason) => `<option value="${escapeHtml(reason)}" ${reason === currentReason ? "selected" : ""}>${escapeHtml(reason)}</option>`).join("");
+  const customReason = currentReason && !SERVICE_CLOSE_REASONS.includes(currentReason) ? currentReason : "";
+
+  openDialog(elements, "Hizmete kapat", `<div class="region-dialog">
+    <p><strong>${escapeHtml(region.name || "Bölge")}</strong> hizmete kapatılacak.</p>
+    <label>Hizmete kapatma sebebi
+      <select id="serviceCloseReason" required>
+        <option value="">Sebep seçin...</option>
+        ${options}
+      </select>
+    </label>
+    <label id="serviceCloseCustomWrap" style="display:${customReason || currentReason === "Diğer" ? "grid" : "none"}">Açıklama
+      <textarea id="serviceCloseCustomReason" rows="3" placeholder="Sebebi açıklayın...">${escapeHtml(customReason)}</textarea>
+    </label>
+    <div class="dialog-actions"><button id="serviceCloseCancel" class="button" type="button">Vazgeç</button><button id="serviceCloseConfirm" class="button button-primary" type="button">Hizmete kapat</button></div>
+  </div>`);
+
+  const reasonSelect = elements.dialogBody.querySelector("#serviceCloseReason");
+  const customWrap = elements.dialogBody.querySelector("#serviceCloseCustomWrap");
+  const customInput = elements.dialogBody.querySelector("#serviceCloseCustomReason");
+
+  reasonSelect.addEventListener("change", () => {
+    const isOther = reasonSelect.value === "Diğer";
+    customWrap.style.display = isOther ? "grid" : "none";
+    if (!isOther) customInput.value = "";
+  });
+
   elements.dialogBody.querySelector("#serviceCloseCancel").addEventListener("click", () => closeDialog(elements));
   elements.dialogBody.querySelector("#serviceCloseConfirm").addEventListener("click", () => {
-    const reason = elements.dialogBody.querySelector("#serviceCloseReason").value.trim();
-    if (!reason) return toast(elements, "Lütfen hizmete kapatma sebebini girin.");
+    const selectedReason = reasonSelect.value.trim();
+    if (!selectedReason) return toast(elements, "Lütfen hizmete kapatma sebebi seçin.");
+
+    const custom = customInput.value.trim();
+    if (selectedReason === "Diğer" && !custom) return toast(elements, "Lütfen diğer sebebi açıklayın.");
+
+    const reason = selectedReason === "Diğer" ? `Diğer: ${custom}` : selectedReason;
+
     commitRegion("Bölge hizmete kapatıldı", () => {
       const current = getRegion();
       if (!current) return;
-      const next = { ...current, status: "outside", serviceCloseReason: reason, serviceClosedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const next = {
+        ...current,
+        status: "closed",
+        serviceCloseReason: reason,
+        serviceClosedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
       store.update("regions", { custom: store.get().regions.custom.map((item) => item.id === current.id ? next : item) });
     });
     closeDialog(elements);
@@ -161,72 +212,59 @@ function midpointIcon() {
   });
 }
 
-function renderEditHandles() {
-  clearEditMarkers();
+function rebuildMidMarkers() {
+  editMidMarkers.forEach((marker) => marker.remove());
+  editMidMarkers = [];
+
   const map = selected?.mapState?.map;
-  if (!map || editLayer == null) return;
-
-  const points = editLayer.getLatLngs()[0] || [];
-  if (points.length < 3) return;
-
-  points.forEach((point, index) => {
-    const marker = L.marker(point, {
-      draggable: true,
-      autoPan: true,
-      keyboard: false,
-      zIndexOffset: 1200,
-      icon: vertexIcon(index)
-    }).addTo(map);
-
-    marker._boundaryIndex = index;
-    marker.on("dragstart", () => {
-      editMidMarkers.forEach((midpoint) => midpoint.remove());
-      editMidMarkers = [];
-    });
-    marker.on("drag", () => {
-      syncEditLayer();
-    });
-    marker.on("dragend", () => {
-      syncEditLayer();
-      renderEditHandles();
-    });
-    marker.on("dblclick", (event) => {
-      L.DomEvent.stopPropagation(event);
-      const currentIndex = editMarkers.indexOf(marker);
-      if (currentIndex < 0) return;
-      if (editMarkers.length <= 3) {
-        toast(elements, "Sınır için en az 3 nokta gerekir.");
-        return;
-      }
-      editMarkers.splice(currentIndex, 1);
-      syncEditLayer();
-      renderEditHandles();
-    });
-    editMarkers.push(marker);
-  });
-
   const currentPoints = editMarkers.map((marker) => marker.getLatLng());
+  if (!map || currentPoints.length < 3) return;
+
   currentPoints.forEach((point, index) => {
     const next = currentPoints[(index + 1) % currentPoints.length];
     const midpoint = L.latLng((point.lat + next.lat) / 2, (point.lng + next.lng) / 2);
-    const marker = L.marker(midpoint, {
-      draggable: false,
-      keyboard: false,
-      zIndexOffset: 1100,
-      icon: midpointIcon()
-    }).addTo(map);
+    const marker = L.marker(midpoint, { draggable: false, keyboard: false, zIndexOffset: 1100, icon: midpointIcon() }).addTo(map);
 
     marker.on("click", (event) => {
       L.DomEvent.stopPropagation(event);
       const insertAt = index + 1;
-      const newPoint = marker.getLatLng();
-      const nextPoints = currentPoints.slice();
-      nextPoints.splice(insertAt, 0, newPoint);
+      const nextPoints = editMarkers.map((item) => item.getLatLng());
+      nextPoints.splice(insertAt, 0, marker.getLatLng());
       editLayer.setLatLngs(nextPoints);
-      renderEditHandles();
+      rebuildEditMarkers(nextPoints);
     });
     editMidMarkers.push(marker);
   });
+}
+
+function rebuildEditMarkers(points) {
+  clearEditMarkers();
+  const map = selected?.mapState?.map;
+  if (!map || points.length < 3) return;
+
+  points.forEach((point, index) => {
+    const marker = L.marker(point, { draggable: true, autoPan: true, keyboard: false, zIndexOffset: 1200, icon: vertexIcon(index) }).addTo(map);
+    marker.on("dragstart", () => { editMidMarkers.forEach((midpoint) => midpoint.remove()); editMidMarkers = []; });
+    marker.on("drag", syncEditLayer);
+    marker.on("dragend", () => { syncEditLayer(); rebuildEditMarkers(editMarkers.map((item) => item.getLatLng())); });
+    marker.on("dblclick", (event) => {
+      L.DomEvent.stopPropagation(event);
+      const currentIndex = editMarkers.indexOf(marker);
+      if (currentIndex < 0) return;
+      const currentPoints = editMarkers.map((item) => item.getLatLng());
+      if (currentPoints.length <= 3) return toast(elements, "Sınır için en az 3 nokta gerekir.");
+      currentPoints.splice(currentIndex, 1);
+      editLayer.setLatLngs(currentPoints);
+      rebuildEditMarkers(currentPoints);
+    });
+    editMarkers.push(marker);
+  });
+  rebuildMidMarkers();
+}
+
+function renderEditHandles() {
+  if (!editLayer) return;
+  rebuildEditMarkers(editLayer.getLatLngs()[0] || []);
 }
 
 function stopBoundaryEdit() {
@@ -242,10 +280,7 @@ function startBoundaryEdit() {
   stopBoundaryEdit();
   editing = true;
   const latLngs = geometryToLatLngs(region.geometry);
-  if (latLngs.length < 3) {
-    editing = false;
-    return toast(elements, "Bu bölgenin düzenlenebilir en az 3 sınır noktası yok.");
-  }
+  if (latLngs.length < 3) return toast(elements, "Bu bölgenin düzenlenebilir en az 3 sınır noktası yok.");
   editLayer = L.polygon(latLngs, { color: "#ff7a00", weight: 3, dashArray: "5 5", fillOpacity: 0.08, interactive: false }).addTo(selected.mapState.polygons);
   renderEditHandles();
   renderPanel();
@@ -290,42 +325,38 @@ function renderPanel() {
   }
   const campaigns = activeCampaigns();
   const campaign = campaigns.find((item) => String(item.id) === String(region.campaignId));
-  panel.innerHTML = `<div class="region-action-head"><input id="regionNameInput" class="region-name-input" value="${escapeHtml(draftName || region.name || "Bölge")}" aria-label="Bölge adı"><button id="regionPanelClose" class="icon-button region-panel-close" type="button" aria-label="Kapat">×</button></div>${campaign ? `<div class="region-campaign-badge">${escapeHtml(campaign.name)}</div>` : ""}<div class="region-action-buttons">${isService(region) ? `<button id="regionServiceButton" class="button region-action-danger" type="button">Hizmete kapat</button>` : `<button id="regionServiceButton" class="button button-primary" type="button">Hizmete aç</button>`}<button id="regionCampaignButton" class="button" type="button">Kampanya</button><button id="regionBoundaryButton" class="button" type="button">${editing ? "Sınır düzenleniyor" : "Sınırları düzenle"}</button></div><div class="region-panel-footer"><button id="regionDeleteButton" class="button region-action-danger" type="button">Alanı sil</button><button id="regionCancelButton" class="button" type="button">Vazgeç</button><button id="regionSaveButton" class="button button-primary" type="button">Kaydet</button></div>`;
-  panel.querySelector("#regionNameInput").addEventListener("input", (event) => { draftName = event.target.value; });
-  panel.querySelector("#regionPanelClose").addEventListener("click", () => { cancelPanelChanges(); selected = null; panel.remove(); store.update("regions", { selectedId: null }); });
+  panel.innerHTML = `<div class="region-action-head"><input id="regionNameInput" class="region-name-input" value="${escapeHtml(draftName || region.name || "Bölge")}" aria-label="Bölge adı"><button id="regionPanelClose" class="icon-button region-panel-close" type="button" aria-label="Kapat">×</button></div>${campaign ? `<div class="region-campaign-badge">${escapeHtml(campaign.name)}</div>` : ""}<div class="region-action-buttons">${isService(region) ? `<button id="regionServiceButton" class="button region-action-danger" type="button">Hizmete kapat</button>` : `<button id="regionServiceButton" class="button button-primary" type="button">Hizmete aç</button>`}<button id="regionCampaignButton" class="button" type="button">Kampanya</button><button id="regionBoundaryButton" class="button" type="button">${editing ? "Sınır düzenleniyor" : "Sınırları düzenle"}</button></div><div class="region-panel-footer"><button id="regionDeleteButton" class="button region-action-danger" type="button">Alanı sil</button><button id="regionCancelButton" class="button" type="button">İptal</button><button id="regionSaveButton" class="button button-primary" type="button">Kaydet</button></div>`;
+
+  panel.querySelector("#regionPanelClose").addEventListener("click", () => { stopBoundaryEdit(); selected = null; panel.remove(); });
   panel.querySelector("#regionServiceButton").addEventListener("click", () => {
-    if (isService(getRegion())) return showServiceDialog();
-    commitRegion("Bölge hizmete açıldı", () => {
-      const current = getRegion();
-      if (!current) return;
-      const next = { ...current, status: current.campaignId ? "campaign" : "service", serviceCloseReason: null, updatedAt: new Date().toISOString() };
-      store.update("regions", { custom: store.get().regions.custom.map((item) => item.id === current.id ? next : item) });
-    });
-    toast(elements, "Bölge yeniden hizmete açıldı.");
+    if (region.status === "outside" || region.status === "closed") {
+      commitRegion("Bölge hizmete açıldı", () => {
+        const current = getRegion();
+        if (!current) return;
+        const next = { ...current, status: "service", serviceCloseReason: null, serviceClosedAt: null, updatedAt: new Date().toISOString() };
+        store.update("regions", { custom: store.get().regions.custom.map((item) => item.id === current.id ? next : item) });
+      });
+      toast(elements, "Bölge yeniden hizmete açıldı.");
+    } else {
+      showServiceDialog();
+    }
   });
   panel.querySelector("#regionCampaignButton").addEventListener("click", showCampaignDialog);
-  panel.querySelector("#regionBoundaryButton").addEventListener("click", () => { if (!editing) startBoundaryEdit(); });
+  panel.querySelector("#regionBoundaryButton").addEventListener("click", () => editing ? stopBoundaryEdit() || renderPanel() : startBoundaryEdit());
   panel.querySelector("#regionDeleteButton").addEventListener("click", deleteSelectedRegion);
   panel.querySelector("#regionCancelButton").addEventListener("click", cancelPanelChanges);
   panel.querySelector("#regionSaveButton").addEventListener("click", savePanelChanges);
 }
 
-function onRegionSelected(event) {
-  if (editing) stopBoundaryEdit();
-  selected = event.detail;
-  draftName = selected.region.name || "";
+export function openRegionActions(region, mapState) {
+  selected = { region, mapState };
+  draftName = region?.name || "";
+  stopBoundaryEdit();
   renderPanel();
 }
 
-document.addEventListener("region-console:region-selected", onRegionSelected);
-
-store.subscribe(() => {
-  if (!selected) return;
-  const region = getRegion();
-  if (!region) {
-    selected = null;
-    document.getElementById("regionActionPanel")?.remove();
-    return;
-  }
-  if (!editing) renderPanel();
-});
+export function closeRegionActions() {
+  stopBoundaryEdit();
+  selected = null;
+  document.getElementById("regionActionPanel")?.remove();
+}
