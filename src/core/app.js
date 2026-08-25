@@ -9,6 +9,7 @@ import { renderRegions } from "../features/regions/regions.js";
 import { importRegionData } from "../features/regions/importer.js";
 import { createDrawingController } from "../features/drawing/drawing.js";
 import { bindPanels } from "../features/ui/panels.js";
+import { openRegionActions } from "../features/regions/region-actions.js";
 
 const elements = getElements();
 let mapState = null;
@@ -18,6 +19,12 @@ let saveTimer = null;
 function allCustomRegions() {
   return store.get().regions.custom || [];
 }
+
+document.addEventListener("region-console:region-selected", (event) => {
+  const { region, mapState: selectedMapState } = event.detail || {};
+  if (!region || !selectedMapState) return;
+  openRegionActions(region, selectedMapState);
+});
 
 function countHierarchy(items, key) {
   return (items || []).reduce((sum, item) => {
@@ -40,8 +47,8 @@ function stats() {
     provinces,
     districts,
     area: custom.length,
-    service: custom.filter((item) => item.status !== "outside").length,
-    outside: custom.filter((item) => item.status === "outside").length
+    service: custom.filter((item) => item.status !== "outside" && item.status !== "closed").length,
+    outside: custom.filter((item) => item.status === "outside" || item.status === "closed").length
   };
 }
 
@@ -75,7 +82,6 @@ function bindRegionFocus() {
 function render() {
   const state = store.get();
   elements.versionLabel.textContent = `v${config.version}`;
-
   const statusMap = {
     ready: ["● Bulut bağlı · kaydedildi", "ready"],
     empty: ["● Bulut bağlı · veri yok", "empty"],
@@ -84,7 +90,6 @@ function render() {
   };
   const status = statusMap[state.cloud.status];
   if (status) setCloudStatus(elements, status[0], status[1]);
-
   renderRegions(elements.regionTree, state.regions.countries, "", allCustomRegions());
   bindRegionFocus();
   const current = stats();
@@ -94,7 +99,6 @@ function render() {
   elements.statArea.textContent = current.area;
   elements.statService.textContent = current.service;
   elements.statOutside.textContent = current.outside;
-
   if (mapState) renderRegionsOnMap(mapState, allCustomRegions());
 }
 
@@ -107,7 +111,8 @@ async function persistState() {
       ...store.dataSnapshot().regions,
       campaigns: store.get().campaigns,
       history: store.get().history.entries,
-      importedFiles: store.get().importedFiles
+      importedFiles: store.get().importedFiles,
+      mapSettings: store.get().mapSettings
     });
     store.update("cloud", {
       status: "ready",
@@ -174,6 +179,10 @@ function showHistory() {
   openDialog(elements, "Değişiklik geçmişi", entries.length
     ? `<div class="history-list">${entries.map((entry, index) => `<div class="history-item"><strong>${escapeHtml(entry.label)}</strong><span>${new Date(entry.createdAt).toLocaleString("tr-TR")}</span><small>#${entries.length - index}</small></div>`).join("")}</div>`
     : `<p class="dialog-muted">Henüz kaydedilmiş bir değişiklik yok.</p>`);
+}
+
+function escapeHtml(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
 function showCampaigns() {
@@ -265,67 +274,26 @@ function importData() {
       } catch {
         throw new Error("Dosya geçerli JSON değil.");
       }
-
       const result = importRegionData(imported, file.name);
       const before = store.dataSnapshot();
-
       if (result.mode === "region-console") {
-        store.replaceData(
-          { regions: result.regions, campaigns: result.campaigns },
-          { recordHistory: false }
-        );
+        store.replaceData({ regions: result.regions, campaigns: result.campaigns }, { recordHistory: false });
         store.recordHistory("Region Console JSON içe aktarıldı", before, store.dataSnapshot());
       } else {
         const current = store.get();
         const currentCustom = Array.isArray(current.regions.custom) ? current.regions.custom : [];
-        const existingKeys = new Set(
-          currentCustom
-            .map((region) => region?.importMeta?.sourceId)
-            .filter((value) => value !== undefined && value !== null)
-            .map(String)
-        );
-
-        const freshRegions = result.regions.custom.filter(
-          (region) => !existingKeys.has(String(region.importMeta?.sourceId))
-        );
+        const existingKeys = new Set(currentCustom.map((region) => region?.importMeta?.sourceId).filter((value) => value !== undefined && value !== null).map(String));
+        const freshRegions = result.regions.custom.filter((region) => !existingKeys.has(String(region.importMeta?.sourceId)));
         const duplicates = result.importedCount - freshRegions.length;
         const importedAt = new Date().toISOString();
         const registry = Array.isArray(current.importedFiles) ? current.importedFiles : [];
-        const nextRegistry = [
-          ...registry.filter((item) => String(item?.name) !== String(file.name)),
-          {
-            id: crypto.randomUUID(),
-            name: file.name,
-            size: file.size,
-            type: file.type || "application/geo+json",
-            importedAt,
-            regionCount: freshRegions.length
-          }
-        ];
-
-        freshRegions.forEach((region) => {
-          region.importMeta = {
-            ...(region.importMeta || {}),
-            sourceFile: file.name,
-            importedAt
-          };
-        });
-
-        store.replaceData({
-          regions: {
-            ...current.regions,
-            custom: [...currentCustom, ...freshRegions],
-            selectedId: null
-          },
-          campaigns: current.campaigns,
-          importedFiles: nextRegistry
-        }, { recordHistory: false });
+        const nextRegistry = [...registry.filter((item) => String(item?.name) !== String(file.name)), { id: crypto.randomUUID(), name: file.name, size: file.size, type: file.type || "application/geo+json", importedAt, regionCount: freshRegions.length }];
+        freshRegions.forEach((region) => { region.importMeta = { ...(region.importMeta || {}), sourceFile: file.name, importedAt }; });
+        store.replaceData({ regions: { ...current.regions, custom: [...currentCustom, ...freshRegions], selectedId: null }, campaigns: current.campaigns, importedFiles: nextRegistry }, { recordHistory: false });
         store.recordHistory("GeoJSON içe aktarıldı", before, store.dataSnapshot());
-
         render();
         const coordinates = importedMapCoordinates(freshRegions);
         if (coordinates.length) fitToCoordinates(mapState, coordinates);
-
         const duplicateMessage = duplicates ? ` ${duplicates} tekrar kayıt atlandı.` : "";
         const skippedMessage = result.skippedCount ? ` ${result.skippedCount} geçersiz geometri atlandı.` : "";
         scheduleSave();
@@ -333,7 +301,6 @@ function importData() {
         toast(elements, `${freshRegions.length} bölge içe aktarıldı.${duplicateMessage}${skippedMessage}`);
         return;
       }
-
       render();
       const coordinates = importedMapCoordinates(store.get().regions.custom);
       if (coordinates.length) fitToCoordinates(mapState, coordinates);
@@ -352,7 +319,6 @@ function importData() {
 async function startApplication(session) {
   store.update("auth", { status: "authenticated", session, user: session.user || null });
   showConsole(elements);
-
   if (!mapState) {
     mapState = createMap();
     drawing = createDrawingController(mapState, ({ active, points = [] }) => {
@@ -390,10 +356,8 @@ async function startApplication(session) {
     });
     window.addEventListener("resize", () => invalidateMap(mapState), { passive: true });
   }
-
   store.update("cloud", { status: "loading", error: null });
   render();
-
   try {
     const remote = await loadState(session.access_token);
     if (remote?.state) {
@@ -427,62 +391,3 @@ function toggleTheme() {
   document.documentElement.dataset.theme = next;
   localStorage.setItem("region-console-theme", next);
 }
-
-function escapeHtml(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
-}
-
-function showPasswordReset(elements, recoverySession) {
-  const view = elements.loginView;
-  view.hidden = false;
-  view.innerHTML = `<div class="login-card password-reset-card"><div class="login-brand">Region Console</div><p>Hesabınız için yeni bir şifre belirleyin.</p><form id="passwordResetForm"><label>Yeni şifre<input id="newPassword" type="password" minlength="8" autocomplete="new-password" required></label><label>Yeni şifre tekrar<input id="newPasswordConfirm" type="password" minlength="8" autocomplete="new-password" required></label><p id="passwordResetError" class="form-error" hidden></p><button id="passwordResetButton" class="button button-primary" type="submit">Şifreyi güncelle</button></form></div>`;
-  const form = view.querySelector("#passwordResetForm");
-  const password = view.querySelector("#newPassword");
-  const confirm = view.querySelector("#newPasswordConfirm");
-  const error = view.querySelector("#passwordResetError");
-  const button = view.querySelector("#passwordResetButton");
-  if (!recoverySession?.user) { error.textContent = "Şifre sıfırlama oturumu geçersiz."; error.hidden = false; button.disabled = true; return; }
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    error.hidden = true;
-    if (password.value.length < 8) { error.textContent = "Şifre en az 8 karakter olmalıdır."; error.hidden = false; return; }
-    if (password.value !== confirm.value) { error.textContent = "Şifreler aynı değil."; error.hidden = false; return; }
-    button.disabled = true;
-    button.textContent = "Güncelleniyor…";
-    try {
-      await updatePassword(password.value);
-      sessionStorage.removeItem("region-console-recovery");
-      window.history.replaceState({}, document.title, window.location.pathname);
-      showLogin(elements);
-      renderLogin(elements.loginView, startApplication);
-      toast(elements, "Şifreniz başarıyla güncellendi. Yeni şifrenizle giriş yapabilirsiniz.");
-    } catch (err) {
-      error.textContent = err.message || "Şifre güncellenemedi.";
-      error.hidden = false;
-    } finally {
-      button.disabled = false;
-      button.textContent = "Şifreyi güncelle";
-    }
-  });
-}
-
-async function bootstrap() {
-  document.documentElement.dataset.theme = localStorage.getItem("region-console-theme") || "dark";
-  store.subscribe(render);
-  renderLogin(elements.loginView, startApplication);
-  try {
-    const recovery = await restoreRecoverySession();
-    if (recovery) {
-      showPasswordReset(elements, recovery);
-      return;
-    }
-    const session = await restoreSession();
-    if (session) await startApplication(session);
-    else { showLogin(elements); store.update("auth", { status: "anonymous" }); }
-  } catch (error) {
-    console.error("[Region Console] Bootstrap failed:", error);
-    showLogin(elements);
-  }
-}
-
-bootstrap();
