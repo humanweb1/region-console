@@ -40,10 +40,10 @@ function changedPoints(beforeGeometry, afterGeometry) {
   const before = geometryPoints(beforeGeometry);
   const after = geometryPoints(afterGeometry);
   if (JSON.stringify(beforeGeometry) === JSON.stringify(afterGeometry)) return { before: [], after: [] };
-
-  const beforeChanged = before.filter((point) => !after.some((candidate) => samePoint(point, candidate)));
-  const afterChanged = after.filter((point) => !before.some((candidate) => samePoint(point, candidate)));
-  return { before: beforeChanged, after: afterChanged };
+  return {
+    before: before.filter((point) => !after.some((candidate) => samePoint(point, candidate))),
+    after: after.filter((point) => !before.some((candidate) => samePoint(point, candidate)))
+  };
 }
 
 function getRegions(snapshot) {
@@ -56,8 +56,8 @@ function buildDiff(beforeSnapshot, afterSnapshot) {
   const beforeByKey = new Map(beforeRegions.map((region) => [regionKey(region), region]));
   const afterByKey = new Map(afterRegions.map((region) => [regionKey(region), region]));
   const keys = [...new Set([...beforeByKey.keys(), ...afterByKey.keys()])];
-
   const changed = [];
+
   for (const key of keys) {
     const before = beforeByKey.get(key) || null;
     const after = afterByKey.get(key) || null;
@@ -65,8 +65,7 @@ function buildDiff(beforeSnapshot, afterSnapshot) {
     const statusChanged = String(before?.status || "service") !== String(after?.status || "service");
     const nameChanged = String(before?.name || "") !== String(after?.name || "");
     if (!geometryChanged && !statusChanged && !nameChanged) continue;
-    const points = changedPoints(before?.geometry, after?.geometry);
-    changed.push({ key, before, after, geometryChanged, statusChanged, nameChanged, points });
+    changed.push({ key, before, after, geometryChanged, statusChanged, nameChanged, points: changedPoints(before?.geometry, after?.geometry) });
   }
   return changed;
 }
@@ -91,18 +90,11 @@ function renderMap(container, regions, changedEntries, side) {
     const points = geometryPoints(region.geometry);
     if (points.length < 3) continue;
     const latLngs = points.map(([lng, lat]) => [lat, lng]);
-    L.polygon(latLngs, {
-      color: GREEN,
-      weight: 2,
-      opacity: 0.95,
-      fill: false,
-      interactive: false
-    }).addTo(boundaryLayer);
+    L.polygon(latLngs, { color: GREEN, weight: 2, opacity: 0.95, fill: false, interactive: false }).addTo(boundaryLayer);
     boundsPoints.push(...latLngs);
 
     const diff = changedByKey.get(regionKey(region));
-    const changedPointsForSide = diff?.points?.[side] || [];
-    for (const [lng, lat] of changedPointsForSide) {
+    for (const [lng, lat] of (diff?.points?.[side] || [])) {
       L.circleMarker([lat, lng], {
         radius: 6,
         color: RED,
@@ -114,12 +106,8 @@ function renderMap(container, regions, changedEntries, side) {
     }
   }
 
-  if (boundsPoints.length) {
-    map.fitBounds(L.latLngBounds(boundsPoints), { padding: [24, 24], maxZoom: 12, animate: false });
-  } else {
-    map.setView([39, 35], 5);
-  }
-
+  if (boundsPoints.length) map.fitBounds(L.latLngBounds(boundsPoints), { padding: [24, 24], maxZoom: 12, animate: false });
+  else map.setView([39, 35], 5);
   requestAnimationFrame(() => map.invalidateSize({ pan: false }));
   return map;
 }
@@ -131,6 +119,7 @@ function destroySimulationMaps() {
     delete container._historyMap;
     container.removeAttribute("data-leaflet-initialized");
   });
+  document.getElementById("appDialog")?.classList.remove("history-sim-dialog");
 }
 
 function renderSimulation(elements, entry) {
@@ -158,8 +147,10 @@ function renderSimulation(elements, entry) {
       ${changed.length ? `<div class="history-sim-changes"><strong>Değişen alanlar</strong>${changed.map((item) => `<span>${escapeHtml(item.after?.name || item.before?.name || "Adsız alan")}</span>`).join("")}</div>` : `<p class="dialog-muted">Bu işlemde harita geometrisi değişmemiş.</p>`}
     </div>
   `);
+  elements.appDialog.classList.add("history-sim-dialog");
 
   document.getElementById("historySimBack")?.addEventListener("click", () => {
+    destroySimulationMaps();
     document.querySelector('.tool[data-tool="history"]')?.click();
   });
 
@@ -174,7 +165,6 @@ function renderSimulation(elements, entry) {
   beforeMapElement.dataset.leafletInitialized = "true";
   afterMapElement.dataset.leafletInitialized = "true";
 
-  // Both panes use the exact same viewport so the boundary movement is visually comparable.
   const combined = [...allGeometryLatLngs(changedBefore), ...allGeometryLatLngs(changedAfter)];
   if (combined.length) {
     const combinedBounds = L.latLngBounds(combined);
@@ -211,6 +201,7 @@ function installStyles() {
   const style = document.createElement("style");
   style.id = "historySimulationStyles";
   style.textContent = `
+    .app-dialog.history-sim-dialog { width:min(1180px, calc(100vw - 28px)); max-width:min(1180px, calc(100vw - 28px)); }
     .history-list { display:grid; gap:7px; }
     .history-item { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:3px 10px; padding:9px; border:1px solid var(--border); border-radius:7px; background:var(--panel-2); }
     .history-item > strong { grid-column:1; font-size:11px; }
@@ -239,7 +230,7 @@ function installStyles() {
     .history-sim-changes { display:flex; align-items:center; gap:5px; flex-wrap:wrap; color:var(--muted); font-size:9px; }
     .history-sim-changes strong { color:var(--text); margin-right:3px; }
     .history-sim-changes span { padding:4px 6px; border:1px solid color-mix(in srgb, ${RED} 35%, var(--border)); border-radius:5px; color:var(--text); background:color-mix(in srgb, ${RED} 8%, var(--panel-2)); }
-    @media (max-width:720px) { .history-sim-grid { grid-template-columns:1fr; } .history-sim-map { height:330px; min-height:280px; } }
+    @media (max-width:720px) { .app-dialog.history-sim-dialog { width:calc(100vw - 16px); max-width:calc(100vw - 16px); } .history-sim-grid { grid-template-columns:1fr; } .history-sim-map { height:330px; min-height:280px; } }
   `;
   document.head.appendChild(style);
 }
