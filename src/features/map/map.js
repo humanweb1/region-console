@@ -1,16 +1,7 @@
 import { store } from "../../state/store.js";
 import { openRegionActions } from "../regions/region-actions.js";
 
-const DEFAULT_MAP_SETTINGS = {
-  boundaryColor: "#ffffff",
-  boundaryWeight: 1.5,
-  outsideColor: "#4b5563",
-  outsideOpacity: 0.55,
-  closedColor: "#7c3aed",
-  closedOpacity: 0.55,
-  campaignColor: "#ffd400",
-  campaignOpacity: 0.55
-};
+const DEFAULT_MAP_SETTINGS = { boundaryColor: "#ffffff", boundaryWeight: 1.5, outsideColor: "#4b5563", outsideOpacity: 0.55, closedColor: "#7c3aed", closedOpacity: 0.55, campaignColor: "#ffd400", campaignOpacity: 0.55 };
 const DEFAULT_OVERLAY_VISIBILITY = { regions: true, outside: true, campaign: true, mask: true, province: true, district: true, neighborhood: true, cemetery: true, special: true };
 export function createMap() {
   const map = L.map("map", { center: [39.0, 35.0], zoom: 5, zoomControl: false, attributionControl: true, doubleClickZoom: true });
@@ -38,15 +29,19 @@ function renderOutsideMask(mapState, serviceRings, settings) { mapState.mask.cle
 function syncRegionLayerVisibility(mapState) { for (const layer of mapState.regionLayers) { const kind = layer._regionLayerKind; if (!kind) continue; const categoryVisible = mapState.overlayVisibility[kind] !== false; const isShown = mapState.polygons.hasLayer(layer); if (categoryVisible && !isShown) mapState.polygons.addLayer(layer); if (!categoryVisible && isShown) mapState.polygons.removeLayer(layer); } }
 export function setOverlayVisibility(mapState, name, visible) { if (!(name in DEFAULT_OVERLAY_VISIBILITY)) return false; mapState.overlayVisibility[name] = Boolean(visible); if (name === "mask") { if (mapState.overlayVisibility.mask) mapState.mask.addTo(mapState.map); else mapState.map.removeLayer(mapState.mask); return true; } if (["province", "district", "neighborhood", "cemetery", "special"].includes(name)) { syncRegionLayerVisibility(mapState); return true; } for (const layer of mapState.regionLayers) { const kind = layer._regionLayerKind; if (name === "regions" && kind !== "special") { if (visible) mapState.polygons.addLayer(layer); else mapState.polygons.removeLayer(layer); } } return true; }
 export function getOverlayVisibility(mapState) { return { ...mapState.overlayVisibility }; }
-
+function pointInRing(point, ring) { const [x, y] = point; let inside = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i]; const [xj, yj] = ring[j]; const intersects = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi); if (intersects) inside = !inside; } return inside; }
+function ringBounds(ring) { let minLat = Infinity, minLng = Infinity, maxLat = -Infinity, maxLng = -Infinity; for (const [lat, lng] of ring) { minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat); minLng = Math.min(minLng, lng); maxLng = Math.max(maxLng, lng); } return { minLat, minLng, maxLat, maxLng }; }
+function ringContainsRing(parentRing, childRing) { if (!parentRing?.length || !childRing?.length) return false; const p = childRing[Math.floor(childRing.length / 2)]; const pb = ringBounds(parentRing); const cb = ringBounds(childRing); if (cb.minLat < pb.minLat || cb.maxLat > pb.maxLat || cb.minLng < pb.minLng || cb.maxLng > pb.maxLng) return false; return pointInRing(p, parentRing); }
+function serviceChildRings(region, regions) { return regions.filter((candidate) => { if (!candidate || candidate === region) return false; if (candidate.status === "outside" || candidate.status === "closed" || isCampaignRegion(candidate)) return false; return regionHasParent(candidate, [region, ...regions]); }).flatMap((child) => geometryToOuterRings(child.geometry)); }
+function addServiceHoles(latLngs, holes) { if (!holes.length) return latLngs; if (!Array.isArray(latLngs[0])) return latLngs; if (Array.isArray(latLngs[0][0]) && Array.isArray(latLngs[0][0][0])) return latLngs.map((polygon) => { if (!polygon?.length) return polygon; const outer = polygon[0]; const matching = holes.filter((ring) => ringContainsRing(outer, ring)); return [outer, ...polygon.slice(1), ...matching]; }); const outer = latLngs[0]; const matching = holes.filter((ring) => ringContainsRing(outer, ring)); return [outer, ...latLngs.slice(1), ...matching]; }
 export function renderRegionsOnMap(mapState, regions = [], settings = null) {
   const normalized = normalizeSettings(settings || store.get().mapSettings); mapState.polygons.clearLayers(); mapState.regionLayers = []; const bounds = []; const serviceRings = [];
   for (const region of regions) {
-    const geometry = region?.geometry; const latLngs = geometryToLatLngs(geometry); if (!latLngs.length) continue;
+    const geometry = region?.geometry; const rawLatLngs = geometryToLatLngs(geometry); if (!rawLatLngs.length) continue;
     const outside = region.status === "outside"; const closed = region.status === "closed"; const campaign = isCampaignRegion(region); const category = regionCategory(region);
-    // Hizmet verilen alanlarda dolgu yoktur: alttaki harita tamamen görünür kalır.
     const fillColor = outside ? normalized.outsideColor : closed ? normalized.closedColor : campaign ? normalized.campaignColor : "transparent";
     const fillOpacity = outside ? normalized.outsideOpacity : closed ? normalized.closedOpacity : campaign ? normalized.campaignOpacity : 0;
+    const latLngs = closed ? addServiceHoles(rawLatLngs, serviceChildRings(region, regions)) : rawLatLngs;
     const polygon = L.polygon(latLngs, { color: normalized.boundaryColor, weight: normalized.boundaryWeight, fillColor, fillOpacity });
     polygon.bindTooltip(hierarchyTooltipText(region, regions) || region.name || "Alan", { sticky: true, direction: "top", opacity: 0.96, className: "region-hierarchy-tooltip" });
     polygon.on("click", (event) => { L.DomEvent.stopPropagation(event); for (const layer of mapState.regionLayers) { if (!layer.options) continue; layer.setStyle({ weight: normalized.boundaryWeight, fillOpacity: layer.options._baseFillOpacity ?? layer.options.fillOpacity }); } polygon.setStyle({ weight: Math.min(8, normalized.boundaryWeight + 1.5), fillOpacity: Math.min(0.9, fillOpacity + 0.12) }); store.update("regions", { selectedId: region.id }); openRegionActions(region, mapState); mapState.map.fitBounds(polygon.getBounds(), { padding: [36, 36], maxZoom: 12, animate: true }); });
