@@ -87,9 +87,6 @@ function migrateCustomRegions(custom) {
     const meta = region?.importMeta;
     if (!meta?.format || meta.format !== "GeoJSON" || meta.coordinateOrder) return region;
 
-    // Versions before the coordinate-order fix persisted [latitude, longitude].
-    // New imports explicitly carry coordinateOrder="lonlat", so this migration
-    // only touches legacy imported GeoJSON regions.
     return {
       ...region,
       geometry: swapGeometryCoordinates(region.geometry),
@@ -100,6 +97,56 @@ function migrateCustomRegions(custom) {
       }
     };
   });
+}
+
+function regionKey(region) {
+  return String(region?.id ?? region?.importMeta?.sourceId ?? "");
+}
+
+function sourceKey(region) {
+  return String(region?.importMeta?.sourceId ?? region?.id ?? "");
+}
+
+function findByKeys(items, ...keys) {
+  const wanted = keys.filter((value) => value !== null && value !== undefined && String(value) !== "").map(String);
+  if (!wanted.length) return null;
+  return (items || []).find((item) => wanted.includes(regionKey(item)) || wanted.includes(sourceKey(item))) || null;
+}
+
+function normalizeHierarchy(countries, custom) {
+  const nextCountries = structuredClone(Array.isArray(countries) ? countries : []);
+  const safeCustom = Array.isArray(custom) ? custom : [];
+
+  const countryFor = (region) => {
+    const hierarchy = region?.hierarchy || {};
+    return nextCountries.find((country) =>
+      String(country.id ?? "") === String(hierarchy.countryId ?? "")
+      || String(country.name ?? "").trim().toLocaleLowerCase("tr-TR") === String(hierarchy.countryName ?? "").trim().toLocaleLowerCase("tr-TR")
+    );
+  };
+
+  safeCustom.filter((region) => (region?.hierarchy?.type || region?.type) === "province").forEach((region) => {
+    const country = countryFor(region);
+    if (!country) return;
+    const list = Array.isArray(country.provinces) ? country.provinces : (Array.isArray(country.children) ? country.children : []);
+    if (!findByKeys(list, region.id, region.importMeta?.sourceId)) {
+      country.provinces = [...list, structuredClone(region)];
+    } else if (!Array.isArray(country.provinces)) {
+      country.provinces = list;
+    }
+    country.count = country.provinces.length;
+  });
+
+  const allProvinces = nextCountries.flatMap((country) => Array.isArray(country.provinces) ? country.provinces : []);
+  safeCustom.filter((region) => (region?.hierarchy?.type || region?.type) === "district").forEach((region) => {
+    const hierarchy = region?.hierarchy || {};
+    const province = findByKeys(allProvinces, hierarchy.parentId, region.importMeta?.parentId);
+    if (!province) return;
+    const list = Array.isArray(province.districts) ? province.districts : (Array.isArray(province.children) ? province.children : []);
+    if (!findByKeys(list, region.id, region.importMeta?.sourceId)) province.districts = [...list, structuredClone(region)];
+  });
+
+  return nextCountries;
 }
 
 export const store = {
@@ -125,9 +172,11 @@ export const store = {
 
   replaceData(data, { recordHistory = false, label = "Güncelleme" } = {}) {
     const before = snapshotData();
+    const regions = structuredClone(data.regions || state.regions);
+    regions.countries = normalizeHierarchy(regions.countries, regions.custom);
     state = {
       ...state,
-      regions: structuredClone(data.regions || state.regions),
+      regions,
       campaigns: structuredClone(data.campaigns || state.campaigns),
       importedFiles: structuredClone(data.importedFiles || state.importedFiles),
       mapSettings: structuredClone({ ...state.mapSettings, ...(data.mapSettings || data.regions?.mapSettings || {}) })
@@ -218,10 +267,11 @@ export const store = {
       importedFiles = [...legacyGroups.values()];
     }
 
+    const countries = normalizeHierarchy(Array.isArray(data.countries) ? data.countries : [], custom);
     state = {
       ...state,
       regions: {
-        countries: Array.isArray(data.countries) ? data.countries : [],
+        countries,
         custom,
         selectedId: null
       },
