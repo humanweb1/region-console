@@ -18,23 +18,13 @@ async function mockAuthenticatedBackend(page) {
 
   await page.route("**/rest/v1/region_console_state*", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: "[]"
-      });
+      await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
       return;
     }
-
     await route.fulfill({
       status: 201,
       contentType: "application/json",
-      body: JSON.stringify([{
-        id: "main",
-        version: 1,
-        updated_at: new Date().toISOString(),
-        state: {}
-      }])
+      body: JSON.stringify([{ id: "main", version: 1, updated_at: new Date().toISOString(), state: {} }])
     });
   });
 
@@ -46,6 +36,24 @@ async function mockAuthenticatedBackend(page) {
       token_type: "bearer"
     }));
   });
+}
+
+async function importFixture(page) {
+  const chooserPromise = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "İçe aktar" }).click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles(fixturePath);
+
+  const dialog = page.locator("#appDialog");
+  await expect(dialog).toBeVisible();
+  await expect(page.locator("#importSettingsForm")).toBeVisible();
+  await page.locator("#importRegionType").selectOption("independent");
+  await page.locator("#importSettingsForm button[type='submit']").click();
+
+  await expect(page.locator("#toast")).toContainText("1 bölge içe aktarıldı", { timeout: 10_000 });
+  await expect(page.locator("#sidebar")).toBeVisible();
+  await expect(page.locator("#statArea")).toHaveText("1");
+  await expect(page.locator(".region-row[data-region-id]")).toContainText("Test Bölgesi");
 }
 
 test.describe("Region Console smoke tests", () => {
@@ -67,7 +75,6 @@ test.describe("Region Console smoke tests", () => {
   }, async ({ page }) => {
     const map = page.locator("#map");
     const box = await map.boundingBox();
-
     expect(box).not.toBeNull();
     expect(box.width).toBeGreaterThan(500);
     expect(box.height).toBeGreaterThan(250);
@@ -80,7 +87,8 @@ test.describe("Region Console smoke tests", () => {
   }, async ({ page }) => {
     await page.locator("#regionsToggle").click();
     await expect(page.locator("#sidebar")).toBeVisible();
-    await expect(page.locator("#sidebar input[placeholder='Bölge ara']")).toHaveCount(1);
+    await expect(page.locator("#sidebar input[placeholder='Bölge ara']")).toHaveCount(0);
+    await expect(page.locator("#regionSearch")).toHaveCount(1);
     await page.locator("#regionsToggle").click();
     await expect(page.locator("#sidebar")).toBeHidden();
   });
@@ -89,31 +97,14 @@ test.describe("Region Console smoke tests", () => {
     tag: ["@regions", "@import"]
   }, async ({ page }) => {
     await page.locator("#regionsToggle").click();
-
-    const chooserPromise = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: "İçe aktar" }).click();
-    const chooser = await chooserPromise;
-    await chooser.setFiles(fixturePath);
-
-    await expect(page.locator("#toast")).toContainText("1 bölge içe aktarıldı", { timeout: 10_000 });
-    await expect(page.locator("#sidebar")).toBeVisible();
-    await expect(page.locator("#statArea")).toHaveText("1");
-    await expect(page.locator(".region-row[data-region-id]")).toContainText("Test Bölgesi");
+    await importFixture(page);
   });
 
   test("opens the same region information panel from the regions menu", {
     tag: ["@regions", "@ui"]
   }, async ({ page }) => {
     await page.locator("#regionsToggle").click();
-
-    const chooserPromise = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: "İçe aktar" }).click();
-    const chooser = await chooserPromise;
-    await chooser.setFiles(fixturePath);
-
-    await expect(page.locator("#sidebar")).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator(".region-row[data-region-id]")).toContainText("Test Bölgesi");
-
+    await importFixture(page);
     await page.locator(".region-row[data-region-id]").click();
     await expect(page.locator("#regionActionPanel")).toBeVisible();
     await expect(page.locator("#regionNameInput")).toHaveValue("Test Bölgesi");
@@ -124,31 +115,21 @@ test.describe("Region Console smoke tests", () => {
     tag: ["@regions", "@map", "@boundary-edit"]
   }, async ({ page }) => {
     await page.locator("#regionsToggle").click();
-
-    const chooserPromise = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: "İçe aktar" }).click();
-    const chooser = await chooserPromise;
-    await chooser.setFiles(fixturePath);
-    await expect(page.locator("#toast")).toContainText("1 bölge içe aktarıldı", { timeout: 10_000 });
-
+    await importFixture(page);
     await page.locator(".region-row[data-region-id]").click();
     await page.locator("#regionBoundaryButton").click();
 
     const vertices = page.locator(".boundary-vertex-marker");
     const midpoints = page.locator(".boundary-midpoint-marker");
     const initialVertexCount = await vertices.count();
-
     expect(initialVertexCount).toBeGreaterThanOrEqual(3);
     await expect(midpoints).toHaveCount(initialVertexCount);
 
     const first = vertices.nth(0);
-    const firstBox = await first.boundingBox();
-    expect(firstBox).not.toBeNull();
-
+    await expect(first).toBeVisible();
     await first.click();
     await page.keyboard.press("ArrowRight");
     await page.keyboard.press("Enter");
-
     await expect(vertices).toHaveCount(initialVertexCount);
 
     await midpoints.nth(0).click();
