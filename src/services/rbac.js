@@ -49,10 +49,14 @@ export async function getAccess(accessToken, userId) {
   const permissions = profile.role_id
     ? await request(`/rest/v1/role_permissions?role_id=eq.${encodeURIComponent(profile.role_id)}&select=permission`, accessToken)
     : [];
+  const scopes = profile.role_id
+    ? await request(`/rest/v1/role_scopes?role_id=eq.${encodeURIComponent(profile.role_id)}&select=id,country_id,province_id,district_id`, accessToken)
+    : [];
   return {
     profile,
     role: profile.roles || null,
-    permissions: [...new Set((permissions || []).map((item) => item.permission))]
+    permissions: [...new Set((permissions || []).map((item) => item.permission))],
+    scopes: scopes || []
   };
 }
 
@@ -64,6 +68,27 @@ export function can(access, permission) {
 
 export function canAny(access, permissions) {
   return permissions.some((permission) => can(access, permission));
+}
+
+export function hasScope(access, target = {}) {
+  if (!access?.profile?.is_active) return false;
+  if (access.role?.name === "super_admin" || (access.permissions || []).includes("*")) return true;
+  const scopes = access.scopes || [];
+  if (!scopes.length) return false;
+  return scopes.some((scope) => {
+    if (target.countryId && scope.country_id && target.countryId === scope.country_id) {
+      if (!target.provinceId) return true;
+    }
+    if (target.provinceId && scope.province_id && target.provinceId === scope.province_id) {
+      if (!target.districtId) return true;
+    }
+    if (target.districtId && scope.district_id && target.districtId === scope.district_id) return true;
+    return false;
+  });
+}
+
+export function canManageInScope(access, permission, target) {
+  return can(access, permission) && hasScope(access, target);
 }
 
 export async function listUsers(accessToken) {
