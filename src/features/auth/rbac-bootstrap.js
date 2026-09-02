@@ -4,47 +4,99 @@ import { getAccess, can, filterRegionTree } from "../../services/rbac.js";
 let lastSessionKey = "";
 let loading = false;
 let lastRefreshAt = 0;
+let permissionObserver = null;
+let permissionGuardBound = false;
+
+const STATIC_RULES = {
+  regionsToggle: "regions.view",
+  addRegionButton: "regions.create",
+  campaignButton: "campaigns.view",
+  usersButton: "users.manage",
+  filesButton: "files.view",
+  undoButton: "history.undo",
+  redoButton: "history.redo",
+  saveButton: "regions.save",
+  zoomInButton: "map.zoom",
+  zoomOutButton: "map.zoom",
+  resetMapButton: "map.reset",
+  mapLayerButton: "map.layer",
+  satelliteLayerButton: "map.layer",
+  themeButton: "map.theme"
+};
+
+const TOOL_RULES = {
+  draw: "regions.create",
+  edit: "regions.edit",
+  delete: "regions.delete",
+  import: "regions.import",
+  export: "data.export",
+  history: "history.view"
+};
+
+function dynamicPermission(node) {
+  if (!node) return null;
+  if (node.dataset?.rbacPermission) return node.dataset.rbacPermission;
+  if (node.matches?.(".file-delete")) return "files.delete";
+  if (node.matches?.(".files-view-button")) return "files.view";
+  if (node.matches?.("[data-campaign-action='edit'], .campaign-edit-button")) return "campaigns.edit";
+  if (node.matches?.("[data-campaign-action='delete'], .campaign-delete-button")) return "campaigns.delete";
+  if (node.matches?.("#newCampaign")) return "campaigns.create";
+  if (node.matches?.("#bulkCampaign")) return "campaigns.bulk_apply";
+  if (node.matches?.("#bulkCloseCampaign")) return "campaigns.bulk_close";
+  if (node.matches?.("#createUserForm button[type='submit']")) return "users.create";
+  if (node.matches?.(".rbac-user-save")) return "users.edit";
+  if (node.matches?.("#createRoleForm button[type='submit']")) return "roles.create";
+  if (node.matches?.(".rbac-role-form button[type='submit']")) return "roles.edit";
+  if (node.matches?.(".rbac-scope-add, .rbac-scope-remove")) return "roles.scopes";
+  if (node.matches?.("input[name='permission']")) return "roles.permissions";
+  if (node.matches?.(".campaign-tab")) return "campaigns.view";
+  return null;
+}
+
+function permissionedNodes(root = document) {
+  const nodes = [];
+  for (const [id, permission] of Object.entries(STATIC_RULES)) {
+    const node = document.getElementById(id);
+    if (node) nodes.push([node, permission]);
+  }
+  for (const [tool, permission] of Object.entries(TOOL_RULES)) {
+    root.querySelectorAll?.(`.tool[data-tool="${tool}"]`).forEach((node) => nodes.push([node, permission]));
+  }
+  root.querySelectorAll?.("[data-rbac-permission], .file-delete, .files-view-button, [data-campaign-action], .campaign-edit-button, .campaign-delete-button, #newCampaign, #bulkCampaign, #bulkCloseCampaign, #createUserForm button[type='submit'], .rbac-user-save, #createRoleForm button[type='submit'], .rbac-role-form button[type='submit'], .rbac-scope-add, .rbac-scope-remove, input[name='permission'], .campaign-tab").forEach((node) => {
+    const permission = dynamicPermission(node);
+    if (permission) nodes.push([node, permission]);
+  });
+  return nodes;
+}
 
 function applyPermissionUI(access) {
-  const rules = {
-    regionsToggle: "regions.view",
-    addRegionButton: "regions.create",
-    campaignButton: "campaigns.view",
-    usersButton: "users.manage",
-    filesButton: "files.view",
-    undoButton: "history.undo",
-    redoButton: "history.redo",
-    saveButton: "regions.save",
-    zoomInButton: "map.zoom",
-    zoomOutButton: "map.zoom",
-    resetMapButton: "map.reset",
-    mapLayerButton: "map.layer",
-    satelliteLayerButton: "map.layer",
-    themeButton: "map.view"
-  };
-  for (const [id, permission] of Object.entries(rules)) {
-    const node = document.getElementById(id);
-    if (!node) continue;
+  for (const [node, permission] of permissionedNodes(document)) {
     const allowed = can(access, permission);
     node.hidden = !allowed;
     node.setAttribute("aria-hidden", String(!allowed));
     if ("disabled" in node) node.disabled = !allowed;
+    if (!allowed) node.setAttribute("data-rbac-hidden", "true");
+    else node.removeAttribute("data-rbac-hidden");
   }
-  const tools = {
-    draw: "regions.create",
-    edit: "regions.edit",
-    delete: "regions.delete",
-    import: "regions.import",
-    export: "data.export",
-    history: "history.view"
-  };
-  for (const [tool, permission] of Object.entries(tools)) {
-    document.querySelectorAll(`.tool[data-tool="${tool}"]`).forEach((node) => {
-      const allowed = can(access, permission);
-      node.hidden = !allowed;
-      node.setAttribute("aria-hidden", String(!allowed));
-    });
-  }
+}
+
+function bindPermissionGuard() {
+  if (permissionGuardBound) return;
+  permissionGuardBound = true;
+  document.addEventListener("click", (event) => {
+    const node = event.target?.closest?.("[data-rbac-permission]");
+    if (!node) return;
+    const permission = node.dataset.rbacPermission;
+    if (can(window.RegionConsoleRBAC?.access, permission)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+  permissionObserver = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.addedNodes?.length) { applyPermissionUI(window.RegionConsoleRBAC?.access || null); break; }
+    }
+  });
+  permissionObserver.observe(document.body, { childList: true, subtree: true });
 }
 
 function countTree(items, keyNames) {
@@ -71,7 +123,7 @@ function applyFooterVisibility(access) {
     if (!button) return;
     const status = button.dataset.statusFilter;
     const permission = status === "campaign" ? "campaigns.view" : "service_areas.view";
-    group.hidden = !can(access, permission);
+    group.hidden = !can(access, permission) || !can(access, "stats.filter");
   });
   document.querySelectorAll("[data-status-popover]").forEach((popover) => { if (!popover.hidden) popover.hidden = true; });
 }
@@ -115,6 +167,7 @@ async function refresh(force = false) {
   } finally { loading = false; }
 }
 
+bindPermissionGuard();
 store.subscribe(() => {
   refresh(false);
   const access = window.RegionConsoleRBAC?.access || null;
