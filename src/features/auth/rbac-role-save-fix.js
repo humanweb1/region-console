@@ -26,12 +26,70 @@ function normalizeRoleDropdowns(root = document) {
   });
 }
 
+function collapseCreateRoleForm(root) {
+  const form = root.querySelector("#createRoleForm");
+  if (!form || form.dataset.collapsedUi === "true") return;
+
+  const details = document.createElement("details");
+  details.className = "rbac-role-card rbac-create-role-card";
+  details.dataset.createRoleDetails = "true";
+
+  const summary = document.createElement("summary");
+  summary.innerHTML = `
+    <span class="rbac-role-name">
+      <strong>Yeni rol oluştur</strong>
+      <small>Yeni bir rol, izin ve bölge kapsamı tanımlayın.</small>
+    </span>
+    <span class="rbac-role-badges"><i>›</i></span>
+  `;
+
+  form.dataset.collapsedUi = "true";
+  form.parentNode.insertBefore(details, form);
+  details.appendChild(summary);
+  details.appendChild(form);
+}
+
+function installPermissionClickFix(dialogBody) {
+  if (dialogBody.dataset.permissionClickFixInstalled === "true") return;
+  dialogBody.dataset.permissionClickFixInstalled = "true";
+
+  dialogBody.addEventListener("click", (event) => {
+    const switchLabel = event.target.closest(".rbac-permission-switch, .rbac-group-switch");
+    if (!switchLabel || !dialogBody.contains(switchLabel)) return;
+
+    const input = switchLabel.querySelector("input[type=checkbox]");
+    if (!input) return;
+
+    // Permission switches live inside <summary> for group-level permissions.
+    // Prevent the summary's default toggle/scroll behavior and toggle the checkbox ourselves.
+    event.preventDefault();
+    event.stopPropagation();
+
+    input.checked = !input.checked;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+
+    const bodyScrollTop = dialogBody.scrollTop;
+    const pageScrollTop = document.scrollingElement?.scrollTop ?? window.scrollY;
+    requestAnimationFrame(() => {
+      dialogBody.scrollTop = bodyScrollTop;
+      if (document.scrollingElement) document.scrollingElement.scrollTop = pageScrollTop;
+      window.scrollTo(window.scrollX, pageScrollTop);
+    });
+  }, true);
+}
+
 function installRoleUiFixes() {
   const dialogBody = document.getElementById("dialogBody");
   if (!dialogBody || dialogBody.dataset.roleUiFixInstalled === "true") return;
   dialogBody.dataset.roleUiFixInstalled = "true";
   normalizeRoleDropdowns(dialogBody);
-  const observer = new MutationObserver(() => normalizeRoleDropdowns(dialogBody));
+  collapseCreateRoleForm(dialogBody);
+  installPermissionClickFix(dialogBody);
+
+  const observer = new MutationObserver(() => {
+    collapseCreateRoleForm(dialogBody);
+    normalizeRoleDropdowns(dialogBody);
+  });
   observer.observe(dialogBody, { childList: true, subtree: true });
 
   const style = document.createElement("style");
@@ -40,6 +98,7 @@ function installRoleUiFixes() {
     .app-dialog { overflow: hidden; display: flex; flex-direction: column; }
     .app-dialog > .dialog-header { flex: 0 0 auto; }
     .app-dialog > .dialog-body { flex: 1 1 auto; min-height: 0; max-height: none; overflow-x: hidden; overflow-y: auto; }
+    .rbac-create-role-card > .rbac-role-create { display: grid; }
   `;
   document.head.appendChild(style);
 }
