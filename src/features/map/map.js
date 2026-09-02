@@ -8,14 +8,14 @@ export function createMap() {
   const map = L.map("map", { center: [39.0, 35.0], zoom: 5, zoomControl: false, attributionControl: true, doubleClickZoom: true });
   const standard = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
   const satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri" });
-  const mapState = { map, layers: { standard, satellite }, polygons: L.featureGroup().addTo(map), mask: L.featureGroup().addTo(map), regionLayers: [], overlayVisibility: { ...DEFAULT_OVERLAY_VISIBILITY } };
+  const mapState = { map, layers: { standard, satellite }, polygons: L.featureGroup().addTo(map), mask: L.featureGroup().addTo(map), regionLayers: [], overlayVisibility: { ...DEFAULT_OVERLAY_VISIBILITY }, initialAccessFitDone: false };
   let previousRegions = store.get().regions.custom; let previousMapSettings = store.get().mapSettings;
-  store.subscribe((state) => { const regionsChanged = state.regions.custom !== previousRegions; const settingsChanged = state.mapSettings !== previousMapSettings; if (!regionsChanged && !settingsChanged) return; previousRegions = state.regions.custom; previousMapSettings = state.mapSettings; renderRegionsOnMap(mapState, state.regions.custom, state.mapSettings); });
-  document.addEventListener("region-console:rbac-updated", () => renderRegionsOnMap(mapState, store.get().regions.custom, store.get().mapSettings));
+  store.subscribe((state) => { const regionsChanged = state.regions.custom !== previousRegions; const settingsChanged = state.mapSettings !== previousMapSettings; if (!regionsChanged && !settingsChanged) return; previousRegions = state.regions.custom; previousMapSettings = state.mapSettings; renderRegionsOnMap(mapState, state.regions.custom, state.mapSettings); fitInitialVisibleAccess(mapState); });
+  document.addEventListener("region-console:rbac-updated", () => { mapState.initialAccessFitDone = false; renderRegionsOnMap(mapState, store.get().regions.custom, store.get().mapSettings); fitInitialVisibleAccess(mapState); });
   window.__regionConsoleMapState = mapState; return mapState;
 }
 export function setLayer(mapState, name) { const { map, layers } = mapState; Object.values(layers).forEach((layer) => { if (map.hasLayer(layer)) map.removeLayer(layer); }); (layers[name] || layers.standard).addTo(map); }
-export function resetView(mapState) { mapState.map.setView([39.0, 35.0], 5); }
+export function resetView(mapState) { mapState.map.setView([39.0, 35.0], 5); mapState.initialAccessFitDone = true; }
 function normalizeSettings(settings = {}) { return { ...DEFAULT_MAP_SETTINGS, ...settings, boundaryWeight: Math.max(0.5, Math.min(8, Number(settings.boundaryWeight ?? DEFAULT_MAP_SETTINGS.boundaryWeight))), outsideOpacity: Math.max(0, Math.min(1, Number(settings.outsideOpacity ?? DEFAULT_MAP_SETTINGS.outsideOpacity))), closedOpacity: Math.max(0, Math.min(1, Number(settings.closedOpacity ?? DEFAULT_MAP_SETTINGS.closedOpacity))), campaignOpacity: Math.max(0, Math.min(1, Number(settings.campaignOpacity ?? DEFAULT_MAP_SETTINGS.campaignOpacity))) }; }
 function toLatLngRing(ring) { return (ring || []).filter((point) => Array.isArray(point) && point.length >= 2).map(([lng, lat]) => [Number(lat), Number(lng)]); }
 function geometryToLatLngs(geometry) { if (!geometry) return []; if (geometry.type === "Polygon") return (geometry.coordinates || []).map(toLatLngRing).filter((ring) => ring.length >= 3); if (geometry.type === "MultiPolygon") return (geometry.coordinates || []).map((polygon) => (polygon || []).map(toLatLngRing).filter((ring) => ring.length >= 3)).filter((polygon) => polygon.length > 0); return []; }
@@ -36,6 +36,23 @@ function ringBounds(ring) { let minLat = Infinity, minLng = Infinity, maxLat = -
 function ringContainsRing(parentRing, childRing) { if (!parentRing?.length || !childRing?.length) return false; const p = childRing[Math.floor(childRing.length / 2)]; const pb = ringBounds(parentRing); const cb = ringBounds(childRing); if (cb.minLat < pb.minLat || cb.maxLat > pb.maxLat || cb.minLng < pb.minLng || cb.maxLng > pb.maxLng) return false; return pointInRing(p, parentRing); }
 function serviceChildRings(region, regions) { return regions.filter((candidate) => { if (!candidate || candidate === region) return false; if (candidate.status === "outside" || candidate.status === "closed" || isCampaignRegion(candidate)) return false; return regionHasParent(candidate, [region, ...regions]); }).flatMap((child) => geometryToOuterRings(child.geometry)); }
 function addServiceHoles(latLngs, holes) { if (!holes.length) return latLngs; if (!Array.isArray(latLngs[0])) return latLngs; if (Array.isArray(latLngs[0][0]) && Array.isArray(latLngs[0][0][0])) return latLngs.map((polygon) => { if (!polygon?.length) return polygon; const outer = polygon[0]; const matching = holes.filter((ring) => ringContainsRing(outer, ring)); return [outer, ...polygon.slice(1), ...matching]; }); const outer = latLngs[0]; const matching = holes.filter((ring) => ringContainsRing(outer, ring)); return [outer, ...latLngs.slice(1), ...matching]; }
+function fitInitialVisibleAccess(mapState) {
+  if (mapState.initialAccessFitDone) return false;
+  const access = window.RegionConsoleRBAC?.access || null;
+  if (!access?.loaded) return false;
+  const regions = store.get().regions?.custom || [];
+  const visibleRegions = regions.filter((region) => isRegionVisible(access, region));
+  const coordinates = [];
+  for (const region of visibleRegions) {
+    const geometry = region?.geometry;
+    if (!geometry) continue;
+    for (const ring of geometryToOuterRings(geometry)) coordinates.push(...ring);
+  }
+  if (!coordinates.length) return false;
+  mapState.map.fitBounds(L.latLngBounds(coordinates), { padding: [42, 42], maxZoom: 13, animate: false });
+  mapState.initialAccessFitDone = true;
+  return true;
+}
 export function renderRegionsOnMap(mapState, regions = [], settings = null) {
   const normalized = normalizeSettings(settings || store.get().mapSettings); const access = window.RegionConsoleRBAC?.access || null; const visibleRegions = (regions || []).filter((region) => isRegionVisible(access, region)); mapState.polygons.clearLayers(); mapState.regionLayers = []; const bounds = []; const serviceRings = [];
   for (const region of visibleRegions) {
