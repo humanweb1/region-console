@@ -1,11 +1,12 @@
 import { exportToFolders } from "../../services/folder-export.js";
 import { store } from "../../state/store.js";
 import { openDialog } from "../../components/shell.js";
+import { can } from "../../services/rbac.js";
 
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
+    .replaceAll("<", "&lt;",)
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
@@ -36,12 +37,50 @@ function showHistory(elements) {
   renderHistoryDialog(elements, Math.min(5, entries.length));
 }
 
+const TOOL_ICONS = {
+  draw: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19 19 5M5 19h5M14 5h5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 19 1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L9 18l-4 1Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m14 7 3 3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>',
+  delete: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V5h6v2M8 10v8M12 10v8M16 10v8M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  import: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M8 11l4 4 4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  export: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M8 8l4-4 4 4M5 13v6h14v-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  history: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5M4 4v4.5h4.5M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+
+function applyToolbarAccess() {
+  const access = window.RegionConsoleRBAC?.access || null;
+  const rules = {
+    draw: "regions.manage",
+    edit: "regions.manage",
+    delete: "regions.manage",
+    import: "regions.manage",
+    export: "data.export",
+    history: "history.view"
+  };
+  document.querySelectorAll(".tool[data-tool]").forEach((button) => {
+    const tool = button.dataset.tool;
+    const permission = rules[tool];
+    if (permission) button.hidden = !can(access, permission);
+    if (TOOL_ICONS[tool] && !button.querySelector(".tool-icon")) {
+      button.insertAdjacentHTML("afterbegin", `<span class="tool-icon">${TOOL_ICONS[tool]}</span>`);
+    }
+  });
+  const manage = can(access, "regions.manage");
+  if (document.getElementById("addRegionButton")) document.getElementById("addRegionButton").hidden = !manage;
+  const campaign = document.getElementById("campaignButton");
+  if (campaign) campaign.hidden = !can(access, "campaigns.view");
+  const users = document.getElementById("usersButton");
+  if (users) users.hidden = !can(access, "users.manage");
+  const files = document.getElementById("filesButton");
+  if (files) files.hidden = !can(access, "files.view");
+}
+
 export function bindPanels(elements, mapState, drawing, handlers) {
-  // Export is handled here in capture phase so the legacy toolbar handler
-  // cannot trigger the old single-file download at the same time.
+  applyToolbarAccess();
+  window.addEventListener("region-console:rbac-updated", applyToolbarAccess);
+
   document.addEventListener("click", async (event) => {
     const exportButton = event.target?.closest?.('.tool[data-tool="export"]');
-    if (!exportButton) return;
+    if (!exportButton || exportButton.hidden) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     exportButton.classList.add("active");
@@ -58,11 +97,9 @@ export function bindPanels(elements, mapState, drawing, handlers) {
     }
   }, true);
 
-  // History is handled in capture phase so the legacy app-level handler
-  // cannot replace this paginated history dialog.
   document.addEventListener("click", (event) => {
     const historyButton = event.target?.closest?.('.tool[data-tool="history"]');
-    if (!historyButton) return;
+    if (!historyButton || historyButton.hidden) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     document.querySelectorAll(".tool:not(.tool-action)").forEach((button) => button.classList.remove("active"));
@@ -70,12 +107,7 @@ export function bindPanels(elements, mapState, drawing, handlers) {
     showHistory(elements);
   }, true);
 
-  const toolLabels = {
-    draw: "Çizim",
-    import: "İçe aktar",
-    export: "Dışa aktar",
-    history: "Geçmiş"
-  };
+  const toolLabels = { draw: "Çizim", edit: "Düzenle", delete: "Sil", import: "İçe aktar", export: "Dışa aktar", history: "Geçmiş" };
 
   document.querySelectorAll(".tool:not(.tool-action)").forEach((button) => {
     const label = toolLabels[button.dataset.tool];
@@ -103,20 +135,9 @@ export function bindPanels(elements, mapState, drawing, handlers) {
     elements.menuButton?.setAttribute("aria-expanded", "false");
   };
 
-  elements.campaignButton?.addEventListener("click", () => {
-    closeHeaderMenu();
-    handlers.onCampaigns?.();
-  });
-
-  elements.usersButton?.addEventListener("click", () => {
-    closeHeaderMenu();
-    handlers.onUsers?.();
-  });
-
-  elements.filesButton?.addEventListener("click", () => {
-    closeHeaderMenu();
-    handlers.onFiles?.();
-  });
+  elements.campaignButton?.addEventListener("click", () => { closeHeaderMenu(); handlers.onCampaigns?.(); });
+  elements.usersButton?.addEventListener("click", () => { closeHeaderMenu(); handlers.onUsers?.(); });
+  elements.filesButton?.addEventListener("click", () => { closeHeaderMenu(); handlers.onFiles?.(); });
 
   elements.regionsToggle?.addEventListener("click", () => {
     const open = !elements.sidebar.hidden;
@@ -125,13 +146,12 @@ export function bindPanels(elements, mapState, drawing, handlers) {
   });
 
   elements.addRegionButton?.addEventListener("click", (event) => {
+    if (!can(window.RegionConsoleRBAC?.access, "regions.manage")) return;
     event.preventDefault();
     event.stopPropagation();
     elements.sidebar.hidden = true;
     elements.regionsToggle?.setAttribute("aria-expanded", "false");
-    document.querySelectorAll(".tool:not(.tool-action)").forEach((button) => {
-      button.classList.toggle("active", button.dataset.tool === "draw");
-    });
+    document.querySelectorAll(".tool:not(.tool-action)").forEach((button) => button.classList.toggle("active", button.dataset.tool === "draw"));
     handlers.onTool?.("draw");
   });
 
@@ -145,11 +165,7 @@ export function bindPanels(elements, mapState, drawing, handlers) {
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    if (!elements.headerMenu.hidden) {
-      closeHeaderMenu();
-      elements.menuButton.focus();
-      return;
-    }
+    if (!elements.headerMenu.hidden) { closeHeaderMenu(); elements.menuButton.focus(); return; }
     if (elements.sidebar.hidden) return;
     elements.sidebar.hidden = true;
     elements.regionsToggle.setAttribute("aria-expanded", "false");
@@ -159,19 +175,8 @@ export function bindPanels(elements, mapState, drawing, handlers) {
   document.getElementById("zoomInButton").addEventListener("click", () => mapState.map.zoomIn());
   document.getElementById("zoomOutButton").addEventListener("click", () => mapState.map.zoomOut());
   document.getElementById("resetMapButton").addEventListener("click", handlers.onResetMap);
-
-  document.getElementById("mapLayerButton").addEventListener("click", () => {
-    handlers.onLayer?.("standard");
-    document.getElementById("mapLayerButton").classList.add("active");
-    document.getElementById("satelliteLayerButton").classList.remove("active");
-  });
-
-  document.getElementById("satelliteLayerButton").addEventListener("click", () => {
-    handlers.onLayer?.("satellite");
-    document.getElementById("satelliteLayerButton").classList.add("active");
-    document.getElementById("mapLayerButton").classList.remove("active");
-  });
-
+  document.getElementById("mapLayerButton").addEventListener("click", () => { handlers.onLayer?.("standard"); document.getElementById("mapLayerButton").classList.add("active"); document.getElementById("satelliteLayerButton").classList.remove("active"); });
+  document.getElementById("satelliteLayerButton").addEventListener("click", () => { handlers.onLayer?.("satellite"); document.getElementById("satelliteLayerButton").classList.add("active"); document.getElementById("mapLayerButton").classList.remove("active"); });
   document.getElementById("themeButton").addEventListener("click", handlers.onTheme);
   document.getElementById("logoutButton").addEventListener("click", handlers.onLogout);
   document.getElementById("dialogClose")?.addEventListener("click", () => elements.appDialog.close());
