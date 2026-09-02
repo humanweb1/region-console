@@ -33,7 +33,8 @@ export function renderRegions(container, countries = [], query = "", custom = []
     if (type === "custom") {
       const kind = regionLabel(data);
       const status = data.status === "outside" ? "Dış" : data.status === "closed" ? "Kapalı" : kind;
-      return `<div class="region-item region-item-custom"><button type="button" class="region-row" data-region-id="${escapeHtml(data.id || data.importMeta?.sourceId || "")"}"><span class="region-name">⌂ &nbsp;${escapeHtml(data.name || "İsimsiz")}</span><b>${escapeHtml(status)}</b></button></div>`;
+      const id = data.id || data.importMeta?.sourceId || "";
+      return `<div class="region-item region-item-custom"><button type="button" class="region-row" data-region-id="${escapeHtml(id)}"><span class="region-name">⌂ &nbsp;${escapeHtml(data.name || "İsimsiz")}</span><b>${escapeHtml(status)}</b></button></div>`;
     }
     return `<div class="region-item"><button type="button" class="region-row" data-country-id="${escapeHtml(data.id || "")}"><span class="region-name">› &nbsp;▱ ${escapeHtml(data.name || "İsimsiz")}</span><b>${Number(data.count || 0)}</b></button></div>`;
   }).join("");
