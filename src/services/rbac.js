@@ -55,6 +55,11 @@ export function hasScope(access, target = {}) {
 }
 function catalogRegionId(region) { return region?.id == null ? null : String(region.id); }
 function catalogExternalId(region) { return region?.external_id == null ? null : String(region.external_id); }
+function scopeCatalogMatch(catalog, value, type) {
+  const normalized = value == null ? "" : String(value);
+  if (!normalized) return null;
+  return catalog.find((region) => String(region.type) === String(type) && (catalogRegionId(region) === normalized || catalogExternalId(region) === normalized)) || null;
+}
 function descendantsOf(catalog, rootIds) {
   const allowed = new Set(rootIds.filter(Boolean).map(String)); let changed = true;
   while (changed) { changed = false; for (const region of catalog) { const id = catalogRegionId(region); const parent = region?.parent_id == null ? null : String(region.parent_id); if (id && parent && allowed.has(parent) && !allowed.has(id)) { allowed.add(id); changed = true; } } }
@@ -65,28 +70,54 @@ export function getVisibleRegionIds(access) {
   if (access.role?.name === "super_admin" || (access.permissions || []).includes("*")) return null;
   const catalog = access.regionCatalog || []; const rootIds = [];
   for (const scope of access.scopes || []) {
-    const country = scope.country_id ? String(scope.country_id) : null; const province = scope.province_id ? String(scope.province_id) : null; const district = scope.district_id ? String(scope.district_id) : null;
+    const country = scopeCatalogMatch(catalog, scope.country_id, "country");
+    const province = scopeCatalogMatch(catalog, scope.province_id, "province");
+    const district = scopeCatalogMatch(catalog, scope.district_id, "district");
     if (!country && !province && !district) return null;
-    if (country) { const match = catalog.find((region) => catalogExternalId(region) === country && String(region.type) === "country"); if (match) rootIds.push(match.id); }
-    else if (province) { const match = catalog.find((region) => catalogExternalId(region) === province && String(region.type) === "province"); if (match) rootIds.push(match.id); }
-    else if (district) { const match = catalog.find((region) => catalogExternalId(region) === district && String(region.type) === "district"); if (match) rootIds.push(match.id); }
+    if (country) rootIds.push(country.id);
+    else if (province) rootIds.push(province.id);
+    else if (district) rootIds.push(district.id);
   }
   return descendantsOf(catalog, rootIds);
 }
 export function isRegionVisible(access, region) {
-  const visible = getVisibleRegionIds(access); if (visible === null) return true;
-  const externalId = region?.id == null ? null : String(region.id); const catalog = access?.regionCatalog || [];
-  if (externalId && visible.has(externalId)) return true;
-  const match = catalog.find((item) => catalogExternalId(item) === externalId);
-  return Boolean(match && visible.has(catalogRegionId(match)));
+  const visible = getVisibleRegionIds(access); if (visible === null) return true; if (!region) return false;
+  const catalog = access?.regionCatalog || [];
+  const hierarchy = region?.hierarchy || {};
+  const candidates = [
+    [region?.id, String(region?.hierarchy?.type || region?.type || "")],
+    [hierarchy.countryId, "country"], [hierarchy.provinceId, "province"], [hierarchy.districtId, "district"]
+  ];
+  return candidates.some(([value, type]) => {
+    if (value == null || !String(value) || !type) return false;
+    const match = scopeCatalogMatch(catalog, value, type);
+    return Boolean(match && visible.has(catalogRegionId(match)));
+  });
 }
 export function filterRegionTree(access, countries = [], custom = []) {
   if (getVisibleRegionIds(access) === null) return { countries, custom };
   const visible = getVisibleRegionIds(access); const catalog = access?.regionCatalog || [];
-  const isVisible = (region) => { const externalId = region?.id == null ? null : String(region.id); if (!externalId) return false; const match = catalog.find((item) => catalogExternalId(item) === externalId); return Boolean(match && visible.has(catalogRegionId(match))); };
-  const filterNode = (node, childKeys) => { const childrenKey = childKeys.find((key) => Array.isArray(node?.[key])); const children = childrenKey ? node[childrenKey].filter((child) => isVisible(child)).map((child) => filterNode(child, childKeys)) : undefined; if (!isVisible(node)) return null; return childrenKey ? { ...node, [childrenKey]: children } : node; };
-  const filteredCountries = (countries || []).map((country) => filterNode(country, ["provinces", "children"])).filter(Boolean);
-  const filteredCustom = (custom || []).filter((region) => isVisible(region));
+  const isVisible = (region) => {
+    const hierarchy = region?.hierarchy || {};
+    const candidates = [
+      [region?.id, String(region?.hierarchy?.type || region?.type || "")],
+      [hierarchy.countryId, "country"], [hierarchy.provinceId, "province"], [hierarchy.districtId, "district"]
+    ];
+    return candidates.some(([value, type]) => {
+      if (value == null || !String(value) || !type) return false;
+      const match = scopeCatalogMatch(catalog, value, type);
+      return Boolean(match && visible.has(catalogRegionId(match)));
+    });
+  };
+  const filterNode = (node, childKeys) => {
+    if (!isVisible(node)) return null;
+    const childrenKey = childKeys.find((key) => Array.isArray(node?.[key]));
+    if (!childrenKey) return node;
+    const children = node[childrenKey].map((child) => filterNode(child, childKeys)).filter(Boolean);
+    return { ...node, [childrenKey]: children };
+  };
+  const filteredCountries = (countries || []).map((country) => filterNode(country, ["provinces", "districts", "neighborhoods", "children"])).filter(Boolean);
+  const filteredCustom = (custom || []).filter(isVisible);
   return { countries: filteredCountries, custom: filteredCustom };
 }
 export function canManageInScope(access, permission, target) { return can(access, permission) && hasScope(access, target); }
