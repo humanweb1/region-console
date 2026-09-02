@@ -1,5 +1,5 @@
 import { store } from "../../state/store.js";
-import { filterRegionTree, getVisibleRegionIds } from "../../services/rbac.js";
+import { filterRegionTree, getVisibleRegionIds, isRegionVisible } from "../../services/rbac.js";
 
 const TOOL_ICONS = {
   draw: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.7-5.3L15.8 4.6a2.3 2.3 0 0 1 3.3 3.3L9 18l-5 2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M13.8 6.6l3.6 3.6M5.7 14.7l3.6 3.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
@@ -21,11 +21,7 @@ const STYLE = `
 .footer-status-popover { min-width: 220px; }
 .footer-status-item.is-selected { background: var(--panel-2); }
 `;
-
-function ensureStyles() {
-  if (document.getElementById("rbacUiFixStyles")) return;
-  const style = document.createElement("style"); style.id = "rbacUiFixStyles"; style.textContent = STYLE; document.head.appendChild(style);
-}
+function ensureStyles() { if (document.getElementById("rbacUiFixStyles")) return; const style = document.createElement("style"); style.id = "rbacUiFixStyles"; style.textContent = STYLE; document.head.appendChild(style); }
 function escapeHtml(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 function regionType(region) { return String(region?.hierarchy?.type || region?.type || "").toLowerCase(); }
 function regionLabel(region) { const type = regionType(region); if (type === "province" || type === "il") return "İl"; if (type === "district" || type === "ilce" || type === "ilçe") return "İlçe"; if (type === "country" || type === "ülke") return "Ülke"; return "Alan"; }
@@ -33,26 +29,24 @@ function visibleCatalog(access) { const catalog = access?.regionCatalog || []; c
 function visibleCustom(access) { const state = store.get(); const result = filterRegionTree(access, state.regions?.countries || [], state.regions?.custom || []); return Array.isArray(result.custom) ? result.custom : []; }
 function summary(access) {
   if (!access?.loaded) return { countries: 0, provinces: 0, districts: 0, custom: [], service: [], campaign: [], closed: [] };
-  const allCatalog = access.regionCatalog || []; const catalog = visibleCatalog(access); const byId = new Map(allCatalog.map((r) => [String(r.id), r]));
-  const countryIds = new Set(); const provinceIds = new Set(); const districtIds = new Set();
+  const allCatalog = access.regionCatalog || []; const catalog = visibleCatalog(access); const byId = new Map(allCatalog.map((r) => [String(r.id), r])); const countryIds = new Set(); const provinceIds = new Set(); const districtIds = new Set();
   for (const item of catalog) { let current = item; const seen = new Set(); while (current && !seen.has(String(current.id))) { const id = String(current.id); seen.add(id); const type = String(current.type || "").toLowerCase(); if (type === "country") countryIds.add(id); if (type === "province") provinceIds.add(id); if (type === "district") districtIds.add(id); current = current.parent_id ? byId.get(String(current.parent_id)) : null; } }
-  const custom = visibleCustom(access); const service = custom.filter((r) => !["outside", "closed", "campaign"].includes(r?.status) && !(r?.status === "campaign" || r?.campaign === true || Boolean(r?.campaignId))); const campaign = custom.filter((r) => r?.status === "campaign" || r?.campaign === true || Boolean(r?.campaignId)); const closed = custom.filter((r) => r?.status === "closed");
+  const custom = visibleCustom(access); const isCampaign = (r) => r?.status === "campaign" || r?.campaign === true || Boolean(r?.campaignId); const service = custom.filter((r) => !["outside", "closed", "campaign"].includes(r?.status) && !isCampaign(r)); const campaign = custom.filter(isCampaign); const closed = custom.filter((r) => r?.status === "closed");
   return { countries: countryIds.size, provinces: provinceIds.size, districts: districtIds.size, custom, service, campaign, closed };
 }
 function setCount(id, value) { const node = document.getElementById(id); if (node) node.textContent = String(value); }
 function renderPopover(button, items, title) {
   const popover = document.querySelector(`[data-status-popover="${button.dataset.statusFilter}"]`); if (!popover) return; const selectedId = store.get().regions?.selectedId;
   popover.innerHTML = items.length ? `<strong>${escapeHtml(title)} (${items.length})</strong>${items.map((region) => `<button type="button" class="footer-status-item${String(region.id) === String(selectedId) ? " is-selected" : ""}" data-footer-region-id="${escapeHtml(region.id)}"><span>${escapeHtml(region.name || "İsimsiz")}</span><small>${escapeHtml(regionLabel(region))}</small></button>`).join("")}` : `<strong>${escapeHtml(title)} (0)</strong><div class="footer-status-empty">Yetkiniz dahilinde kayıt yok.</div>`;
-  popover.querySelectorAll("[data-footer-region-id]").forEach((item) => item.addEventListener("click", () => { const id = item.dataset.footerRegionId; const region = (store.get().regions?.custom || []).find((candidate) => String(candidate.id) === String(id)); if (!region || !isRegionAllowed(region)) return; store.update("regions", { selectedId: region.id }); document.dispatchEvent(new CustomEvent("region-console:region-selected", { detail: { region, mapState: window.__regionConsoleMapState } })); popover.hidden = true; }));
+  popover.querySelectorAll("[data-footer-region-id]").forEach((item) => item.addEventListener("click", () => { const id = item.dataset.footerRegionId; const region = (store.get().regions?.custom || []).find((candidate) => String(candidate.id) === String(id)); if (!region || !isRegionVisible(window.RegionConsoleRBAC?.access || null, region)) return; store.update("regions", { selectedId: region.id }); document.dispatchEvent(new CustomEvent("region-console:region-selected", { detail: { region, mapState: window.__regionConsoleMapState } })); popover.hidden = true; }));
 }
-function isRegionAllowed(region) { const access = window.RegionConsoleRBAC?.access || null; return visibleCustom(access).some((candidate) => String(candidate.id) === String(region?.id)); }
 function apply() {
   ensureStyles(); const access = window.RegionConsoleRBAC?.access || null; const data = summary(access);
   setCount("statCountries", data.countries); setCount("statProvinces", data.provinces); setCount("statDistricts", data.districts); setCount("statArea", data.custom.length); setCount("statService", data.service.length); setCount("statCampaign", data.campaign.length); setCount("statClosed", data.closed.length);
   const titles = { draw: "Çizim", edit: "Düzenle", delete: "Sil", import: "İçe aktar", export: "Dışa aktar", history: "Geçmiş" };
   document.querySelectorAll(".tool[data-tool]").forEach((button) => { const tool = button.dataset.tool; const icon = TOOL_ICONS[tool]; if (!icon) return; let holder = button.querySelector(":scope > .tool-icon"); if (!holder) { holder = document.createElement("span"); holder.className = "tool-icon"; button.prepend(holder); } holder.innerHTML = icon; button.title = titles[tool] || tool; button.setAttribute("aria-label", titles[tool] || tool); });
   const groups = [["service", data.service, "Hizmet verilen alanlar"], ["campaign", data.campaign, "Kampanyalı alanlar"], ["closed", data.closed, "Hizmete kapalı alanlar"]];
-  for (const [status, items, title] of groups) { const button = document.querySelector(`.footer-status[data-status-filter="${status}"]`); const group = button?.closest(".footer-status-group"); if (!button || !group) continue; group.dataset.rbacFilterHidden = "false"; renderPopover(button, items, title); if (button.dataset.rbacBound !== "true") { button.dataset.rbacBound = "true"; button.addEventListener("click", (event) => { event.stopPropagation(); const popover = document.querySelector(`[data-status-popover="${status}"]`); if (!popover) return; renderPopover(button, summary(window.RegionConsoleRBAC?.access || null)[status] || [], title); document.querySelectorAll("[data-status-popover]").forEach((node) => { if (node !== popover) node.hidden = true; }); popover.hidden = !popover.hidden; }); } }
+  for (const [status, items, title] of groups) { const button = document.querySelector(`.footer-status[data-status-filter="${status}"]`); const group = button?.closest(".footer-status-group"); if (!button || !group) continue; group.dataset.rbacFilterHidden = "false"; renderPopover(button, items, title); }
 }
 ensureStyles();
 store.subscribe(() => apply());
