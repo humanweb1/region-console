@@ -10,28 +10,64 @@ const dialog = {
 };
 const esc = (v) => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 const session = () => store.get().auth?.session || null;
-const regions = () => store.get().regions?.countries || [];
+const countries = () => store.get().regions?.countries || [];
+const customRegions = () => store.get().regions?.custom || [];
 let access = null;
 
 function opts(items, selected = "", placeholder = "Seçiniz") {
   return `<option value="">${placeholder}</option>` + (items || []).map((x) => `<option value="${esc(x.id)}" ${String(x.id) === String(selected) ? "selected" : ""}>${esc(x.name || x.title || "İsimsiz")}</option>`).join("");
 }
 
+function countryProvinces(country) {
+  const nested = Array.isArray(country?.provinces) ? country.provinces : (Array.isArray(country?.children) ? country.children : []);
+  if (nested.length) return nested;
+  const countryId = String(country?.id || "");
+  return customRegions().filter((region) => {
+    const hierarchy = region?.hierarchy || {};
+    return String(region?.type || hierarchy.type || "") === "province"
+      && String(hierarchy.countryId || hierarchy.parentId || "") === countryId;
+  });
+}
+
+function provinceDistricts(province) {
+  const nested = Array.isArray(province?.districts) ? province.districts : (Array.isArray(province?.children) ? province.children : []);
+  if (nested.length) return nested;
+  const provinceId = String(province?.id || "");
+  return customRegions().filter((region) => {
+    const hierarchy = region?.hierarchy || {};
+    return String(region?.type || hierarchy.type || "") === "district"
+      && String(hierarchy.parentId || "") === provinceId;
+  });
+}
+
+function findCountry(id) {
+  return countries().find((country) => String(country.id) === String(id)) || null;
+}
+
+function findProvince(country, id) {
+  return countryProvinces(country).find((province) => String(province.id) === String(id)) || null;
+}
+
+function findDistrict(province, id) {
+  return provinceDistricts(province).find((district) => String(district.id) === String(id)) || null;
+}
+
 function scopeRow(s = {}) {
-  return `<div class="rbac-scope-row"><select class="scope-country">${opts(regions(), s.country_id, "Ülke")}</select><select class="scope-province"><option value="">İl</option></select><select class="scope-district"><option value="">İlçe</option></select><button type="button" class="button rbac-scope-remove">×</button></div>`;
+  return `<div class="rbac-scope-row"><select class="scope-country">${opts(countries(), s.country_id, "Ülke")}</select><select class="scope-province"><option value="">İl</option></select><select class="scope-district"><option value="">İlçe</option></select><button type="button" class="button rbac-scope-remove">×</button></div>`;
 }
 
 function populate(row, scope = {}) {
-  const country = regions().find((x) => String(x.id) === String(scope.country_id || row.querySelector(".scope-country").value));
-  const provinces = country?.provinces || country?.children || [];
+  const countryId = scope.country_id || row.querySelector(".scope-country").value;
+  const country = findCountry(countryId);
+  const provinces = countryProvinces(country);
   const provinceSelect = row.querySelector(".scope-province");
   const districtSelect = row.querySelector(".scope-district");
   provinceSelect.innerHTML = opts(provinces, scope.province_id, "İl");
-  provinceSelect.disabled = !provinces.length;
-  const province = provinces.find((x) => String(x.id) === String(scope.province_id || provinceSelect.value));
-  const districts = province?.districts || province?.children || [];
+  provinceSelect.disabled = !country || !provinces.length;
+  const province = findProvince(country, scope.province_id || provinceSelect.value);
+  const districts = provinceDistricts(province);
   districtSelect.innerHTML = opts(districts, scope.district_id, "İlçe");
-  districtSelect.disabled = !districts.length;
+  districtSelect.disabled = !province || !districts.length;
 }
 
 function read(root) {
@@ -40,11 +76,9 @@ function read(root) {
     const provinceId = row.querySelector(".scope-province").value;
     const districtId = row.querySelector(".scope-district").value;
     if (!countryId && !provinceId && !districtId) return null;
-    const country = regions().find((x) => String(x.id) === String(countryId));
-    const provinces = country?.provinces || country?.children || [];
-    const province = provinces.find((x) => String(x.id) === String(provinceId));
-    const districts = province?.districts || province?.children || [];
-    const district = districts.find((x) => String(x.id) === String(districtId));
+    const country = findCountry(countryId);
+    const province = findProvince(country, provinceId);
+    const district = findDistrict(province, districtId);
     return {
       country_id: countryId || null,
       country_name: country?.name || null,
