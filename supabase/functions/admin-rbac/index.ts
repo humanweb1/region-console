@@ -90,13 +90,14 @@ async function listUsers(admin: Admin) {
   return { users, roles: roles || [], permissionsByRole, scopesByRole };
 }
 
-async function saveRole(admin: Admin, payload: { roleId: string | null; name: string; description: string; permissions: string[]; scopes: unknown[] }) {
+async function saveRole(admin: Admin, actorId: string, payload: { roleId: string | null; name: string; description: string; permissions: string[]; scopes: unknown[] }) {
   const { data, error } = await admin.rpc("admin_save_role", {
     p_role_id: payload.roleId,
     p_name: payload.name,
     p_description: payload.description,
     p_permissions: normalizePermissions(payload.permissions),
-    p_scopes: payload.scopes
+    p_scopes: payload.scopes,
+    p_actor_user_id: actorId
   });
   if (error) {
     const code = error.code === "23505" ? 409 : error.code === "42501" ? 403 : 400;
@@ -140,7 +141,7 @@ Deno.serve(async (req) => {
     if (action === "create-role" || action === "update-role") {
       const roleId = action === "update-role" ? String(body.role_id || "") : null;
       if (action === "update-role" && !roleId) return json({ error: "Rol zorunludur." }, 400);
-      const role = await saveRole(admin, {
+      const role = await saveRole(admin, actor.id, {
         roleId,
         name: String(body.name || "").trim(),
         description: String(body.description || "").trim(),
@@ -158,7 +159,7 @@ Deno.serve(async (req) => {
       if (role.name === "super_admin") return json({ error: "Super Admin için scope gerekmez." }, 400);
       const { data: existingPermissions, error: permissionError } = await admin.from("role_permissions").select("permission").eq("role_id", roleId);
       if (permissionError) throw permissionError;
-      await saveRole(admin, {
+      await saveRole(admin, actor.id, {
         roleId,
         name: role.name,
         description: role.description || "",
