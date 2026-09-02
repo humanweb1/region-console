@@ -69,7 +69,7 @@ function permissionGroup(group, selected) {
   if (!entries.length) return "";
   const checked = entries.filter(([key]) => selected.has(key)).length;
   const state = checked === entries.length ? "checked" : "";
-  return `<details class="rbac-permission-group" data-permission-group="${esc(group.id)}" ${group.open ? "open" : ""}><summary><span class="rbac-group-title"><strong>${esc(group.title)}</strong><small>${esc(group.description)}</small></span><span class="rbac-group-meta"><b data-group-count>${checked}/${entries.length}</b><label class="rbac-group-switch" title="Bu bölümün tüm izinlerini aç/kapat"><input type="checkbox" class="rbac-group-master" ${state}><i></i></label></span></summary><div class="rbac-permission-list">${entries.map(([value, label]) => permissionItem(value, label, selected)).join("")}</div></details>`;
+  return `<details class="rbac-permission-group" data-permission-group="${esc(group.id)}" ${group.open ? "open" : ""}><summary><span class="rbac-group-title"><strong>${esc(group.title)}</strong><small>${esc(group.description)}</small></span><span class="rbac-group-meta"><b data-group-count>${checked}/${entries.length}</b></span></summary><span class="rbac-group-control"><label class="rbac-group-switch" title="Bu bölümün tüm izinlerini aç/kapat"><input type="checkbox" class="rbac-group-master" ${state}><i></i></label></span><div class="rbac-permission-list">${entries.map(([value, label]) => permissionItem(value, label, selected)).join("")}</div></details>`;
 }
 function perms(selected = []) {
   const set = new Set(selected.filter((value) => buttonPermissionMap.has(value)));
@@ -83,7 +83,7 @@ function syncPermissionState(root) {
   const all = [...root.querySelectorAll(".rbac-permission-groups input[name=permission]")]; const total = root.querySelector("[data-permission-total]"); const checked = all.filter((box) => box.checked).length; if (total) total.textContent = checked; const allToggle = root.querySelector(".rbac-all-toggle"); if (allToggle) allToggle.textContent = checked === all.length ? "Tümünü kapat" : "Tümünü aç";
 }
 function wirePermissionGroups(root) {
-  root.querySelectorAll(".rbac-permission-group").forEach((group) => { const master = group.querySelector(".rbac-group-master"); const boxes = [...group.querySelectorAll("input[name=permission]")]; master?.addEventListener("click", (event) => event.stopPropagation()); master?.addEventListener("change", () => { boxes.forEach((box) => { box.checked = master.checked; }); syncPermissionState(root); }); boxes.forEach((box) => box.addEventListener("change", () => syncPermissionState(root))); });
+  root.querySelectorAll(".rbac-permission-group").forEach((group) => { const master = group.querySelector(".rbac-group-master"); const boxes = [...group.querySelectorAll("input[name=permission]")]; master?.addEventListener("change", () => { boxes.forEach((box) => { box.checked = master.checked; }); syncPermissionState(root); }); boxes.forEach((box) => box.addEventListener("change", () => syncPermissionState(root))); });
   root.querySelector(".rbac-all-toggle")?.addEventListener("click", () => { const boxes = [...root.querySelectorAll(".rbac-permission-groups input[name=permission]")]; const shouldEnable = boxes.some((box) => !box.checked); boxes.forEach((box) => { box.checked = shouldEnable; }); syncPermissionState(root); });
   syncPermissionState(root);
 }
