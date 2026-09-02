@@ -37,17 +37,43 @@ export function can(access, permission) {
   return access.role?.name === "super_admin" || permissions.includes("*") || permissions.includes(permission);
 }
 export function canAny(access, permissions) { return permissions.some((permission) => can(access, permission)); }
+
+// A scope is hierarchical: country covers every province/district below it,
+// province covers every district below it, and district covers only itself.
 export function hasScope(access, target = {}) {
   if (!access?.profile?.is_active) return false;
   if (access.role?.name === "super_admin" || (access.permissions || []).includes("*")) return true;
   const scopes = access.scopes || [];
   if (!scopes.length) return false;
+
+  const targetCountry = target.countryId ? String(target.countryId) : null;
+  const targetProvince = target.provinceId ? String(target.provinceId) : null;
+  const targetDistrict = target.districtId ? String(target.districtId) : null;
+
   return scopes.some((scope) => {
-    if (target.countryId && scope.country_id && target.countryId === scope.country_id) return !target.provinceId;
-    if (target.provinceId && scope.province_id && target.provinceId === scope.province_id) return !target.districtId;
-    return Boolean(target.districtId && scope.district_id && target.districtId === scope.district_id);
+    const country = scope.country_id ? String(scope.country_id) : null;
+    const province = scope.province_id ? String(scope.province_id) : null;
+    const district = scope.district_id ? String(scope.district_id) : null;
+
+    // Empty scope is global.
+    if (!country && !province && !district) return true;
+
+    // Country scope covers the country and all descendants.
+    if (country && targetCountry && country === targetCountry) {
+      if (!province && !district) return true;
+    }
+
+    // Province scope covers the province and all districts below it.
+    if (province && targetProvince && province === targetProvince) {
+      if (!district || (targetDistrict && district === targetDistrict)) return true;
+    }
+
+    // District scope is exact.
+    if (district && targetDistrict && district === targetDistrict) return true;
+    return false;
   });
 }
+
 export function canManageInScope(access, permission, target) { return can(access, permission) && hasScope(access, target); }
 export async function listUsers(accessToken) { return request("/functions/v1/admin-rbac", accessToken, { method: "POST", body: JSON.stringify({ action: "list" }) }); }
 export async function createUser(accessToken, payload) { return request("/functions/v1/admin-create-user", accessToken, { method: "POST", body: JSON.stringify(payload) }); }
