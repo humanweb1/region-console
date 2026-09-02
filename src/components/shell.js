@@ -17,7 +17,17 @@ export function getElements() {
 export function showLogin(elements) { elements.loginView.hidden = false; elements.consoleView.hidden = true; }
 export function showConsole(elements) { elements.loginView.hidden = true; elements.consoleView.hidden = false; }
 export function setCloudStatus(elements, text, state = "idle") { elements.cloudStatus.textContent = text; elements.cloudStatus.dataset.state = state; }
-export function toast(elements, message) { elements.toast.textContent = message; elements.toast.hidden = false; window.clearTimeout(toast.timer); toast.timer = window.setTimeout(() => { elements.toast.hidden = true; }, 3200); }
+export function toast(elements, message) {
+  if (typeof elements === "string" && message === undefined) {
+    message = elements;
+    elements = getElements();
+  }
+  if (!elements?.toast) return;
+  elements.toast.textContent = message;
+  elements.toast.hidden = false;
+  window.clearTimeout(toast.timer);
+  toast.timer = window.setTimeout(() => { elements.toast.hidden = true; }, 3200);
+}
 
 function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
