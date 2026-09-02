@@ -10,61 +10,51 @@ const dialog = {
 };
 const esc = (v) => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 const session = () => store.get().auth?.session || null;
-const countries = () => store.get().regions?.countries || [];
-const customRegions = () => store.get().regions?.custom || [];
 let access = null;
+let regionCatalog = [];
 
 function opts(items, selected = "", placeholder = "Seçiniz") {
   return `<option value="">${placeholder}</option>` + (items || []).map((x) => `<option value="${esc(x.id)}" ${String(x.id) === String(selected) ? "selected" : ""}>${esc(x.name || x.title || "İsimsiz")}</option>`).join("");
 }
 
+function regionsByType(type) {
+  return regionCatalog.filter((region) => String(region.type) === type);
+}
+
+function childrenOf(parentId, type) {
+  if (!parentId) return [];
+  return regionCatalog.filter((region) => String(region.parent_id || "") === String(parentId) && (!type || String(region.type) === type));
+}
+
+function findRegion(id, type = null) {
+  return regionCatalog.find((region) => String(region.id) === String(id) && (!type || String(region.type) === type)) || null;
+}
+
+function countries() {
+  return regionsByType("country");
+}
+
 function countryProvinces(country) {
-  const nested = Array.isArray(country?.provinces) ? country.provinces : (Array.isArray(country?.children) ? country.children : []);
-  if (nested.length) return nested;
-  const countryId = String(country?.id || "");
-  return customRegions().filter((region) => {
-    const hierarchy = region?.hierarchy || {};
-    return String(region?.type || hierarchy.type || "") === "province"
-      && String(hierarchy.countryId || hierarchy.parentId || "") === countryId;
-  });
+  return childrenOf(country?.id, "province");
 }
 
 function provinceDistricts(province) {
-  const nested = Array.isArray(province?.districts) ? province.districts : (Array.isArray(province?.children) ? province.children : []);
-  if (nested.length) return nested;
-  const provinceId = String(province?.id || "");
-  return customRegions().filter((region) => {
-    const hierarchy = region?.hierarchy || {};
-    return String(region?.type || hierarchy.type || "") === "district"
-      && String(hierarchy.parentId || "") === provinceId;
-  });
+  return childrenOf(province?.id, "district");
 }
 
-function findCountry(id) {
-  return countries().find((country) => String(country.id) === String(id)) || null;
-}
-
-function findProvince(country, id) {
-  return countryProvinces(country).find((province) => String(province.id) === String(id)) || null;
-}
-
-function findDistrict(province, id) {
-  return provinceDistricts(province).find((district) => String(district.id) === String(id)) || null;
-}
-
-function scopeRow(s = {}) {
-  return `<div class="rbac-scope-row"><select class="scope-country">${opts(countries(), s.country_id, "Ülke")}</select><select class="scope-province"><option value="">İl</option></select><select class="scope-district"><option value="">İlçe</option></select><button type="button" class="button rbac-scope-remove">×</button></div>`;
+function scopeRow() {
+  return `<div class="rbac-scope-row"><select class="scope-country">${opts(countries(), "", "Ülke")}</select><select class="scope-province"><option value="">İl</option></select><select class="scope-district"><option value="">İlçe</option></select><button type="button" class="button rbac-scope-remove">×</button></div>`;
 }
 
 function populate(row, scope = {}) {
   const countryId = scope.country_id || row.querySelector(".scope-country").value;
-  const country = findCountry(countryId);
+  const country = findRegion(countryId, "country");
   const provinces = countryProvinces(country);
   const provinceSelect = row.querySelector(".scope-province");
   const districtSelect = row.querySelector(".scope-district");
   provinceSelect.innerHTML = opts(provinces, scope.province_id, "İl");
   provinceSelect.disabled = !country || !provinces.length;
-  const province = findProvince(country, scope.province_id || provinceSelect.value);
+  const province = findRegion(scope.province_id || provinceSelect.value, "province");
   const districts = provinceDistricts(province);
   districtSelect.innerHTML = opts(districts, scope.district_id, "İlçe");
   districtSelect.disabled = !province || !districts.length;
@@ -76,9 +66,9 @@ function read(root) {
     const provinceId = row.querySelector(".scope-province").value;
     const districtId = row.querySelector(".scope-district").value;
     if (!countryId && !provinceId && !districtId) return null;
-    const country = findCountry(countryId);
-    const province = findProvince(country, provinceId);
-    const district = findDistrict(province, districtId);
+    const country = findRegion(countryId, "country");
+    const province = findRegion(provinceId, "province");
+    const district = findRegion(districtId, "district");
     return {
       country_id: countryId || null,
       country_name: country?.name || null,
@@ -97,7 +87,7 @@ function wire(root, initial = []) {
     wireRow(list.lastElementChild);
   });
   initial.forEach((scope) => {
-    list.insertAdjacentHTML("beforeend", scopeRow(scope));
+    list.insertAdjacentHTML("beforeend", scopeRow());
     wireRow(list.lastElementChild, scope);
   });
 }
@@ -142,8 +132,9 @@ async function openManager() {
 }
 
 function render(data) {
-  const { users = [], roles = [], permissionsByRole = {}, scopesByRole = {} } = data;
-  dialog.body.innerHTML = `<div class="rbac-tabs"><button class="button button-primary" data-tab="users">Kullanıcılar <b>${users.length}</b></button><button class="button" data-tab="roles">Roller <b>${roles.length}</b></button></div><section data-section="users"><form id="createUserForm" class="dialog-form"><h3>Yeni kullanıcı</h3><div class="rbac-form-grid"><label>Ad soyad<input name="full_name" required></label><label>E-posta<input name="email" type="email" required></label><label>Geçici şifre<input name="password" type="password" minlength="8" required></label><label>Rol<select name="role_id" required>${roleOpts(roles.filter((role) => role.name !== "super_admin"), roles.find((role) => role.name !== "super_admin")?.id)}</select></label></div><button class="button button-primary" type="submit">Kullanıcı oluştur</button><p class="form-error"></p></form><div class="rbac-user-list"><h3>Kullanıcılar</h3>${users.map((user) => `<article class="rbac-user-card" data-user-id="${esc(user.id)}"><div><strong>${esc(user.full_name || user.email)}</strong><small>${esc(user.email)}</small></div><select class="rbac-user-role">${roleOpts(roles, user.role_id)}</select><label class="rbac-active"><input class="rbac-user-active" type="checkbox" ${user.is_active ? "checked" : ""}> Aktif</label><button class="button rbac-user-save" type="button">Kaydet</button></article>`).join("")}</div></section><section data-section="roles" hidden><form id="createRoleForm" class="dialog-form"><h3>Yeni rol</h3><div class="rbac-form-grid"><label>Rol adı<input name="name" placeholder="supervisor" required></label><label>Açıklama<input name="description" required></label></div><fieldset><legend>İzinler</legend><div class="rbac-permission-grid">${perms()}</div></fieldset>${editor()}<button class="button button-primary" type="submit">Rol oluştur</button><p class="form-error"></p></form><div class="rbac-role-list"><h3>Roller ve yetki alanları</h3>${roles.filter((role) => role.name !== "super_admin").map((role) => `<details class="rbac-role-card"><summary><strong>${esc(role.name)}</strong><span>${esc(role.description || "")}</span><em>${(scopesByRole[role.id] || []).length ? `${scopesByRole[role.id].length} kapsam` : "Kapsam yok"}</em></summary><form class="dialog-form rbac-role-form" data-role-id="${esc(role.id)}"><div class="rbac-form-grid"><label>Rol adı<input name="name" value="${esc(role.name)}" required></label><label>Açıklama<input name="description" value="${esc(role.description || "")}" required></label></div><fieldset><legend>İzinler</legend><div class="rbac-permission-grid">${perms(permissionsByRole[role.id] || [])}</div></fieldset>${editor()}<button class="button button-primary" type="submit">Rolü ve yetkileri kaydet</button><p class="form-error"></p></form></details>`).join("")}</div></section>`;
+  const { users = [], roles = [], permissionsByRole = {}, scopesByRole = {}, regionCatalog: catalog = [] } = data;
+  regionCatalog = catalog;
+  dialog.body.innerHTML = `<div class="rbac-tabs"><button class="button button-primary" data-tab="users">Kullanıcılar <b>${users.length}</b></button><button class="button" data-tab="roles">Roller <b>${roles.length}</b></button></div><section data-section="users"><form id="createUserForm" class="dialog-form"><h3>Yeni kullanıcı</h3><div class="rbac-form-grid"><label>Ad soyad<input name="full_name" required></label><label>E-posta<input name="email" type="email" required></label><label>Geçici şifre<input name="password" type="password" minlength="8" required></label><label>Rol<select name="role_id" required>${roleOpts(roles.filter((role) => role.name !== "super_admin"), roles.find((role) => role.name !== "super_admin")?.id)}</select></label></div><button class="button button-primary" type="submit">Kullanıcı oluştur</button><p class="form-error"></p></form><div class="rbac-user-list"><h3>Kullanıcılar</h3>${users.map((user) => `<article class="rbac-user-card" data-user-id="${esc(user.id)}"><div><strong>${esc(user.full_name || user.email)}</strong><small>${esc(user.email)}</small></div><select class="rbac-user-role">${roleOpts(roles, user.role_id)}</select><label class="rbac-active"><input class="rbac-user-active" type="checkbox" ${user.is_active ? "checked" : ""}> Aktif</label><button class="button rbac-user-save" type="button">Kaydet</button></article>`).join("")}</div></section><section data-section="roles" hidden><form id="createRoleForm" class="dialog-form"><h3>Yeni rol</h3><div class="rbac-form-grid"><label>Rol adı<input name="name" placeholder="supervisor" required></label><label>Açıklama<input name="description" required></label></div><fieldset><legend>İzinler</legend><div class="rbac-permission-grid">${perms()}</div></fieldset>${editor()}<button class="button button-primary" type="submit">Rol oluştur</button><p class="form-error"></p></form><div class="rbac-role-list"><h3>Roller ve yetki alanları</h3>${roles.filter((role) => role.name !== "super_admin").map((role) => `<details class="rbac-role-card"><summary><strong>${esc(role.name)}</strong><span>${esc(role.description || "")}</span><em>${(scopesByRole[role.id] || []).length ? `${scopesByRole[role.id].length} kapsam` : "Kapsam yok"}</em></summary><form class="dialog-form rbac-role-form" data-role-id="${esc(role.id)}"><div class="rbac-form-grid"><label>Rol adı<input name="name" value="${esc(role.name)}" required></label><label>Açıklama<input name="description" value="${esc(role.description || "")} required></label></div><fieldset><legend>İzinler</legend><div class="rbac-permission-grid">${perms(permissionsByRole[role.id] || [])}</div></fieldset>${editor()}<button class="button button-primary" type="submit">Rolü ve yetkileri kaydet</button><p class="form-error"></p></form></details>`).join("")}</div></section>`;
   dialog.body.querySelectorAll("[data-tab]").forEach((tab) => tab.addEventListener("click", () => {
     dialog.body.querySelectorAll("[data-section]").forEach((section) => { section.hidden = section.dataset.section !== tab.dataset.tab; });
     dialog.body.querySelectorAll("[data-tab]").forEach((item) => item.classList.toggle("button-primary", item === tab));
