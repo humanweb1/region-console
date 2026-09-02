@@ -1,51 +1,50 @@
 import { store } from "../../state/store.js";
-import { getAccess, can, filterRegionTree, isRegionVisible } from "../../services/rbac.js";
+import { getAccess, can, filterRegionTree } from "../../services/rbac.js";
 
 let lastSessionKey = "";
 let loading = false;
 let lastRefreshAt = 0;
 
 function applyPermissionUI(access) {
-  const rules = [
-    ["regionsToggle", "regions.view"],
-    ["addRegionButton", "regions.manage"],
-    ["campaignButton", "campaigns.view"],
-    ["usersButton", "users.manage"],
-    ["filesButton", "files.view"],
-    ["undoButton", "regions.manage"],
-    ["redoButton", "regions.manage"],
-    ["saveButton", "regions.manage"],
-    ["history", "history.view"],
-    ["export", "data.export"],
-    ["import", "regions.manage"]
-  ];
-
-  for (const [target, permission] of rules) {
-    const nodes = target.startsWith("#")
-      ? document.querySelectorAll(target)
-      : target.includes(".")
-        ? document.querySelectorAll(target)
-        : [document.getElementById(target)].filter(Boolean);
-    nodes.forEach((node) => {
+  const rules = {
+    regionsToggle: "regions.view",
+    addRegionButton: "regions.create",
+    campaignButton: "campaigns.view",
+    usersButton: "users.manage",
+    filesButton: "files.view",
+    undoButton: "history.undo",
+    redoButton: "history.redo",
+    saveButton: "regions.save",
+    zoomInButton: "map.zoom",
+    zoomOutButton: "map.zoom",
+    resetMapButton: "map.reset",
+    mapLayerButton: "map.layer",
+    satelliteLayerButton: "map.layer",
+    themeButton: "map.view"
+  };
+  for (const [id, permission] of Object.entries(rules)) {
+    const node = document.getElementById(id);
+    if (!node) continue;
+    const allowed = can(access, permission);
+    node.hidden = !allowed;
+    node.setAttribute("aria-hidden", String(!allowed));
+    if ("disabled" in node) node.disabled = !allowed;
+  }
+  const tools = {
+    draw: "regions.create",
+    edit: "regions.edit",
+    delete: "regions.delete",
+    import: "regions.import",
+    export: "data.export",
+    history: "history.view"
+  };
+  for (const [tool, permission] of Object.entries(tools)) {
+    document.querySelectorAll(`.tool[data-tool="${tool}"]`).forEach((node) => {
       const allowed = can(access, permission);
       node.hidden = !allowed;
       node.setAttribute("aria-hidden", String(!allowed));
-      if ("disabled" in node) node.disabled = !allowed;
     });
   }
-
-  document.querySelectorAll('.tool[data-tool="history"]').forEach((node) => {
-    node.hidden = !can(access, "history.view");
-    node.setAttribute("aria-hidden", String(!can(access, "history.view")));
-  });
-  document.querySelectorAll('.tool[data-tool="export"]').forEach((node) => {
-    node.hidden = !can(access, "data.export");
-    node.setAttribute("aria-hidden", String(!can(access, "data.export")));
-  });
-  document.querySelectorAll('.tool[data-tool="import"], .tool[data-tool="draw"], .tool[data-tool="delete"], .tool[data-tool="edit"]').forEach((node) => {
-    node.hidden = !can(access, "regions.manage");
-    node.setAttribute("aria-hidden", String(!can(access, "regions.manage")));
-  });
 }
 
 function countTree(items, keyNames) {
@@ -65,32 +64,16 @@ function applyFooterVisibility(access) {
   const service = custom.filter((region) => (region?.status || "service") === "service").length;
   const campaign = custom.filter((region) => region?.status === "campaign" || region?.campaign === true || Boolean(region?.campaignId)).length;
   const closed = custom.filter((region) => region?.status === "closed").length;
-  const values = {
-    statCountries: countries.length,
-    statProvinces: provinces,
-    statDistricts: districts,
-    statArea: custom.length,
-    statService: service,
-    statCampaign: campaign,
-    statClosed: closed
-  };
-  for (const [id, value] of Object.entries(values)) {
-    const node = document.getElementById(id);
-    if (node) node.textContent = String(value);
-  }
-
+  const values = { statCountries: countries.length, statProvinces: provinces, statDistricts: districts, statArea: custom.length, statService: service, statCampaign: campaign, statClosed: closed };
+  for (const [id, value] of Object.entries(values)) { const node = document.getElementById(id); if (node) node.textContent = String(value); }
   document.querySelectorAll(".footer-status-group").forEach((group) => {
     const button = group.querySelector(".footer-status");
     if (!button) return;
     const status = button.dataset.statusFilter;
     const permission = status === "campaign" ? "campaigns.view" : "service_areas.view";
-    const allowed = can(access, permission);
-    group.hidden = !allowed;
+    group.hidden = !can(access, permission);
   });
-
-  document.querySelectorAll("[data-status-popover]").forEach((popover) => {
-    if (!popover.hidden) popover.hidden = true;
-  });
+  document.querySelectorAll("[data-status-popover]").forEach((popover) => { if (!popover.hidden) popover.hidden = true; });
 }
 
 async function refresh(force = false) {
@@ -129,9 +112,7 @@ async function refresh(force = false) {
     applyFooterVisibility(null);
     window.dispatchEvent(new CustomEvent("region-console:rbac-error", { detail: { error } }));
     return null;
-  } finally {
-    loading = false;
-  }
+  } finally { loading = false; }
 }
 
 store.subscribe(() => {
@@ -140,14 +121,7 @@ store.subscribe(() => {
   if (access?.loaded) applyFooterVisibility(access);
 });
 window.addEventListener("region-console:rbac-refresh", () => refresh(true));
-window.addEventListener("region-console:rbac-updated", () => {
-  const access = window.RegionConsoleRBAC?.access || null;
-  applyPermissionUI(access);
-  applyFooterVisibility(access);
-});
-window.addEventListener("focus", () => {
-  if (Date.now() - lastRefreshAt > 15000) refresh(true);
-}, { passive: true });
+window.addEventListener("region-console:rbac-updated", () => { const access = window.RegionConsoleRBAC?.access || null; applyPermissionUI(access); applyFooterVisibility(access); });
+window.addEventListener("focus", () => { if (Date.now() - lastRefreshAt > 15000) refresh(true); }, { passive: true });
 window.addEventListener("pageshow", () => refresh(true), { passive: true });
-
 refresh(true);
