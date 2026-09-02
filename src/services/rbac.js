@@ -10,28 +10,50 @@ async function request(path, accessToken, options = {}) {
   return data;
 }
 
+// Every business action exposed by the console has its own permission.
+// Parent/umbrella permissions are kept only for backward-compatible roles;
+// UI actions themselves always check their concrete permission.
 export const PERMISSIONS = [
   ["regions.view", "Bölgeleri görüntüle"],
   ["regions.create", "Bölge ekle / çiz"],
-  ["regions.edit", "Bölge düzenle"],
-  ["regions.delete", "Bölge sil"],
+  ["regions.edit", "Alanı düzenle"],
+  ["regions.delete", "Alanı sil"],
   ["regions.import", "Bölge içe aktar"],
   ["regions.save", "Bölge değişikliklerini kaydet"],
   ["service_areas.view", "Hizmet alanlarını görüntüle"],
-  ["service_areas.manage", "Hizmet alanlarını yönet"],
+  ["service_areas.open", "Hizmete aç"],
+  ["service_areas.close", "Hizmete kapat"],
+  ["service_areas.manage", "Hizmet alanlarını yönet (üst yetki)"],
   ["campaigns.view", "Kampanyaları görüntüle"],
-  ["campaigns.manage", "Kampanyaları yönet"],
+  ["campaigns.create", "Kampanya oluştur"],
+  ["campaigns.edit", "Kampanya düzenle"],
+  ["campaigns.delete", "Kampanya sil"],
+  ["campaigns.assign", "Kampanyayı alana uygula"],
+  ["campaigns.remove", "Kampanyayı alandan kaldır"],
+  ["campaigns.bulk_apply", "Toplu kampanya uygula"],
+  ["campaigns.bulk_close", "Toplu kampanya kapat"],
+  ["campaigns.end", "Bölge kampanyasını sonlandır"],
   ["history.view", "Değişiklik geçmişini görüntüle"],
   ["history.undo", "Geri al"],
   ["history.redo", "İleri al"],
   ["files.view", "Dosyaları görüntüle"],
-  ["files.manage", "Dosyaları yönet"],
-  ["users.manage", "Kullanıcı ve rol yönetimi"],
+  ["files.delete", "İçe aktarılan dosyayı sil"],
+  ["files.manage", "Dosyaları yönet (üst yetki)"],
+  ["users.manage", "Kullanıcı ve rol yönetimine eriş"],
+  ["users.create", "Kullanıcı oluştur"],
+  ["users.edit", "Kullanıcı düzenle"],
+  ["roles.create", "Rol oluştur"],
+  ["roles.edit", "Rol düzenle"],
+  ["roles.permissions", "Rol izinlerini düzenle"],
+  ["roles.scopes", "Rol kapsamlarını düzenle"],
   ["data.export", "Veri dışa aktarımı"],
   ["map.view", "Haritayı görüntüle"],
   ["map.zoom", "Haritayı yakınlaştır / uzaklaştır"],
   ["map.reset", "Haritayı sıfırla"],
-  ["map.layer", "Harita / uydu katmanı"]
+  ["map.layer", "Harita / uydu katmanı"],
+  ["map.theme", "Harita temasını değiştir"],
+  ["stats.view", "Durum özetini görüntüle"],
+  ["stats.filter", "Durum özetini filtrele"]
 ];
 
 export async function getAccess(accessToken, userId) {
@@ -122,12 +144,7 @@ export function getVisibleRegionIds(access) {
 function regionCandidates(region, explicitType = null) {
   const hierarchy = region?.hierarchy || {};
   const type = explicitType || String(hierarchy.type || region?.type || "");
-  return [
-    [region?.id, type],
-    [hierarchy.countryId, "country"],
-    [hierarchy.provinceId, "province"],
-    [hierarchy.districtId, "district"]
-  ];
+  return [[region?.id, type], [hierarchy.countryId, "country"], [hierarchy.provinceId, "province"], [hierarchy.districtId, "district"]];
 }
 
 export function isRegionVisible(access, region) {
@@ -172,16 +189,12 @@ export function filterRegionTree(access, countries = [], custom = []) {
     const children = node[childrenKey].map((child) => filterNode(child, childKeys)).filter(Boolean);
     return { ...node, [childrenKey]: children };
   };
-
-  // Country scopes keep the normal country tree. Province/district scopes are
-  // promoted to the sidebar root so a scoped user never sees the whole country.
   if (roots.has("country")) {
     return {
       countries: (countries || []).map((country) => filterNode(country, ["provinces", "districts", "neighborhoods", "children"], "country")).filter(Boolean),
       custom: (custom || []).filter((region) => isVisible(region))
     };
   }
-
   const scopedCustom = (custom || []).filter((region) => isVisible(region));
   const promoted = scopedCustom.filter((region) => {
     const type = String(region?.hierarchy?.type || region?.type || "").toLowerCase();
