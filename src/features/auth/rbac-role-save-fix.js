@@ -26,6 +26,21 @@ function normalizeRoleDropdowns(root = document) {
   });
 }
 
+function normalizePermissionGroupStructure(root) {
+  root.querySelectorAll(".rbac-permission-group").forEach((group) => {
+    if (group.dataset.switchMoved === "true") return;
+    const summary = group.querySelector(":scope > summary");
+    const switchLabel = summary?.querySelector(":scope .rbac-group-switch");
+    if (!summary || !switchLabel) return;
+
+    const control = document.createElement("span");
+    control.className = "rbac-group-control";
+    control.appendChild(switchLabel);
+    group.insertBefore(control, group.querySelector(":scope > .rbac-permission-list"));
+    group.dataset.switchMoved = "true";
+  });
+}
+
 function collapseCreateRoleForm(root) {
   const form = root.querySelector("#createRoleForm");
   if (!form || form.dataset.collapsedUi === "true") return;
@@ -80,9 +95,6 @@ function installRoleCardGuard(dialogBody) {
   if (dialogBody.dataset.roleCardGuardInstalled === "true") return;
   dialogBody.dataset.roleCardGuardInstalled = "true";
 
-  // A permission control is inside the role form, never the role header.
-  // If browser summary activation or another handler closes the parent role card
-  // while focus is still inside its form, immediately restore the role card.
   dialogBody.addEventListener("toggle", (event) => {
     const details = event.target;
     if (!(details instanceof HTMLDetailsElement)) return;
@@ -98,13 +110,13 @@ function installRoleUiFixes() {
   dialogBody.dataset.roleUiFixInstalled = "true";
   normalizeRoleDropdowns(dialogBody);
   collapseCreateRoleForm(dialogBody);
+  normalizePermissionGroupStructure(dialogBody);
   installPermissionClickFix(dialogBody);
   installRoleCardGuard(dialogBody);
 
-  // Do not normalize <details> on every DOM mutation. Dynamic scope rows and
-  // other legitimate form updates must not collapse the role currently being edited.
   const observer = new MutationObserver(() => {
     collapseCreateRoleForm(dialogBody);
+    normalizePermissionGroupStructure(dialogBody);
   });
   observer.observe(dialogBody, { childList: true, subtree: true });
 
@@ -115,6 +127,10 @@ function installRoleUiFixes() {
     .app-dialog > .dialog-header { flex: 0 0 auto; }
     .app-dialog > .dialog-body { flex: 1 1 auto; min-height: 0; max-height: none; overflow-x: hidden; overflow-y: auto; }
     .rbac-create-role-card > .rbac-role-create { display: grid; }
+    .rbac-permission-group { position: relative; }
+    .rbac-permission-group > .rbac-group-control { position: absolute; top: 8px; right: 10px; z-index: 2; display: block; }
+    .rbac-permission-group > .rbac-group-control .rbac-group-switch { display: block !important; margin: 0 !important; }
+    .rbac-permission-group > summary { padding-right: 58px; }
   `;
   document.head.appendChild(style);
 }
