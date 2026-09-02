@@ -20,27 +20,6 @@ function readScopes(form) {
   }).filter(Boolean);
 }
 
-function normalizeRoleDropdowns(root = document) {
-  root.querySelectorAll(".rbac-permission-group, .rbac-role-card").forEach((details) => {
-    details.removeAttribute("open");
-  });
-}
-
-function normalizePermissionGroupStructure(root) {
-  root.querySelectorAll(".rbac-permission-group").forEach((group) => {
-    if (group.dataset.switchMoved === "true") return;
-    const summary = group.querySelector(":scope > summary");
-    const switchLabel = summary?.querySelector(":scope .rbac-group-switch");
-    if (!summary || !switchLabel) return;
-
-    const control = document.createElement("span");
-    control.className = "rbac-group-control";
-    control.appendChild(switchLabel);
-    group.insertBefore(control, group.querySelector(":scope > .rbac-permission-list"));
-    group.dataset.switchMoved = "true";
-  });
-}
-
 function collapseCreateRoleForm(root) {
   const form = root.querySelector("#createRoleForm");
   if (!form || form.dataset.collapsedUi === "true") return;
@@ -64,60 +43,13 @@ function collapseCreateRoleForm(root) {
   details.appendChild(form);
 }
 
-function installPermissionClickFix(dialogBody) {
-  if (dialogBody.dataset.permissionClickFixInstalled === "true") return;
-  dialogBody.dataset.permissionClickFixInstalled = "true";
-
-  dialogBody.addEventListener("click", (event) => {
-    const switchLabel = event.target.closest(".rbac-permission-switch, .rbac-group-switch");
-    if (!switchLabel || !dialogBody.contains(switchLabel)) return;
-
-    const input = switchLabel.querySelector("input[type=checkbox]");
-    if (!input) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    input.checked = !input.checked;
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-
-    const bodyScrollTop = dialogBody.scrollTop;
-    const pageScrollTop = document.scrollingElement?.scrollTop ?? window.scrollY;
-    requestAnimationFrame(() => {
-      dialogBody.scrollTop = bodyScrollTop;
-      if (document.scrollingElement) document.scrollingElement.scrollTop = pageScrollTop;
-      window.scrollTo(window.scrollX, pageScrollTop);
-    });
-  }, true);
-}
-
-function installRoleCardGuard(dialogBody) {
-  if (dialogBody.dataset.roleCardGuardInstalled === "true") return;
-  dialogBody.dataset.roleCardGuardInstalled = "true";
-
-  dialogBody.addEventListener("toggle", (event) => {
-    const details = event.target;
-    if (!(details instanceof HTMLDetailsElement)) return;
-    if (!details.classList.contains("rbac-role-card") || details.open) return;
-    if (details.dataset.createRoleDetails === "true") return;
-    if (details.contains(document.activeElement)) details.open = true;
-  });
-}
-
 function installRoleUiFixes() {
   const dialogBody = document.getElementById("dialogBody");
   if (!dialogBody || dialogBody.dataset.roleUiFixInstalled === "true") return;
   dialogBody.dataset.roleUiFixInstalled = "true";
-  normalizeRoleDropdowns(dialogBody);
   collapseCreateRoleForm(dialogBody);
-  normalizePermissionGroupStructure(dialogBody);
-  installPermissionClickFix(dialogBody);
-  installRoleCardGuard(dialogBody);
 
-  const observer = new MutationObserver(() => {
-    collapseCreateRoleForm(dialogBody);
-    normalizePermissionGroupStructure(dialogBody);
-  });
+  const observer = new MutationObserver(() => collapseCreateRoleForm(dialogBody));
   observer.observe(dialogBody, { childList: true, subtree: true });
 
   const style = document.createElement("style");
@@ -127,10 +59,6 @@ function installRoleUiFixes() {
     .app-dialog > .dialog-header { flex: 0 0 auto; }
     .app-dialog > .dialog-body { flex: 1 1 auto; min-height: 0; max-height: none; overflow-x: hidden; overflow-y: auto; }
     .rbac-create-role-card > .rbac-role-create { display: grid; }
-    .rbac-permission-group { position: relative; }
-    .rbac-permission-group > .rbac-group-control { position: absolute; top: 8px; right: 10px; z-index: 2; display: block; }
-    .rbac-permission-group > .rbac-group-control .rbac-group-switch { display: block !important; margin: 0 !important; }
-    .rbac-permission-group > summary { padding-right: 58px; }
   `;
   document.head.appendChild(style);
 }
@@ -171,11 +99,8 @@ document.addEventListener("submit", async (event) => {
     await updateRole(current.access_token, payload);
     toast("Rol ve bölge yetkileri güncellendi.");
     window.dispatchEvent(new CustomEvent("region-console:rbac-refresh"));
-    const dialogBody = document.getElementById("dialogBody");
-    if (dialogBody) {
-      const data = await listUsers(current.access_token);
-      window.dispatchEvent(new CustomEvent("region-console:rbac-list-updated", { detail: data }));
-    }
+    const data = await listUsers(current.access_token);
+    window.dispatchEvent(new CustomEvent("region-console:rbac-list-updated", { detail: data }));
   } catch (exception) {
     if (error) error.textContent = exception?.message || "Rol güncellenemedi.";
   } finally {
