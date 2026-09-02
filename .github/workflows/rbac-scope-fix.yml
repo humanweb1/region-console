@@ -65,8 +65,12 @@ jobs:
               if (scopeProvince) return Boolean(targetProvince && String(scopeProvince.id) === targetProvince);
               if (scopeCountry) {
                 if (targetDistrict) {
-                  const districtRow = catalog.find((row) => String(row.id) === targetDistrict);
-                  return Boolean(districtRow && String(districtRow.parent_id) === String(scopeProvince?.id || districtRow.parent_id) && String((scopeProvince || {}).parent_id || scopeCountry.id) === String(scopeCountry.id));
+                  let cursor = catalog.find((row) => String(row.id) === targetDistrict);
+                  while (cursor?.parent_id) {
+                    if (String(cursor.parent_id) === String(scopeCountry.id)) return true;
+                    cursor = catalog.find((row) => String(row.id) === String(cursor.parent_id));
+                  }
+                  return false;
                 }
                 if (targetProvince) {
                   const provinceRow = catalog.find((row) => String(row.id) === targetProvince);
@@ -93,3 +97,5 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m 'fix(rbac): normalize scoped action targets'
           git push
+
+# trigger
