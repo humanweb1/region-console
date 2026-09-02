@@ -1,5 +1,7 @@
 import { store } from "../../state/store.js";
-import { filterRegionTree } from "../../services/rbac.js";
+import { isRegionVisible } from "../../services/rbac.js";
+
+const CHILD_KEYS = ["provinces", "districts", "neighborhoods", "cemeteries", "children"];
 
 function regionType(region) {
   return String(region?.hierarchy?.type || region?.type || "custom").toLowerCase();
@@ -12,9 +14,37 @@ function regionLabel(region) {
   return "Alan";
 }
 
+function filterNode(access, node) {
+  if (!node) return null;
+  let hasVisibleDescendant = false;
+  const result = { ...node };
+
+  for (const key of CHILD_KEYS) {
+    if (!Array.isArray(node[key])) continue;
+    const children = node[key].map((child) => filterNode(access, child)).filter(Boolean);
+    result[key] = children;
+    if (children.length) hasVisibleDescendant = true;
+  }
+
+  const selfVisible = isRegionVisible(access, node);
+  return selfVisible || hasVisibleDescendant ? result : null;
+}
+
+function filterScopedRegions(access, countries = [], custom = []) {
+  if (!access?.loaded) return { countries: [], custom: [] };
+  if (access.role?.name === "super_admin" || (access.permissions || []).includes("*")) return { countries, custom };
+
+  // Keep non-visible parent countries as structural containers when one of
+  // their scoped provinces/districts is visible. This is required for users
+  // whose scope starts below country level.
+  const filteredCountries = (countries || []).map((country) => filterNode(access, country)).filter(Boolean);
+  const filteredCustom = (custom || []).filter((region) => isRegionVisible(access, region));
+  return { countries: filteredCountries, custom: filteredCustom };
+}
+
 export function renderRegions(container, countries = [], query = "", custom = []) {
   const access = window.RegionConsoleRBAC?.access || null;
-  const visible = filterRegionTree(access, countries, custom);
+  const visible = filterScopedRegions(access, countries, custom);
   const normalized = query.trim().toLocaleLowerCase("tr-TR");
   const safeCountries = Array.isArray(visible.countries) ? visible.countries : [];
   const safeCustom = Array.isArray(visible.custom) ? visible.custom : [];
