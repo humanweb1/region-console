@@ -24,18 +24,21 @@ function findRegion(id, type = null) { return regionCatalog.find((region) => Str
 function countries() { return regionsByType("country"); }
 function countryProvinces(country) { return childrenOf(country?.id, "province"); }
 function provinceDistricts(province) { return childrenOf(province?.id, "district"); }
-function scopeRow(scope = {}) { return `<div class="rbac-scope-row"><select class="scope-country">${opts(countries(), scope.country_id, "Ülke")}</select><select class="scope-province"><option value="">İl</option></select><select class="scope-district"><option value="">İlçe</option></select><button type="button" class="button rbac-scope-remove">×</button></div>`; }
+function scopeRow(scope = {}) { return `<div class="rbac-scope-row"><select class="scope-country">${opts(countries(), scope.country_id, "Ülke")}</select><select class="scope-province"><option value="">İl</option></select><select class="scope-district"><option value="">İlçe</option></select><button type="button" class="button rbac-scope-remove" aria-label="Yetki alanını kaldır" title="Yetki alanını kaldır">×</button></div>`; }
 function populate(row, scope = {}) {
-  const countryId = scope.country_id || row.querySelector(".scope-country").value;
-  const country = findRegion(countryId, "country");
-  const provinces = countryProvinces(country);
+  const countrySelect = row.querySelector(".scope-country");
   const provinceSelect = row.querySelector(".scope-province");
   const districtSelect = row.querySelector(".scope-district");
-  provinceSelect.innerHTML = opts(provinces, scope.province_id, "İl");
+  const countryId = scope.country_id ?? countrySelect.value;
+  const selectedProvinceId = scope.province_id ?? provinceSelect.value;
+  const selectedDistrictId = scope.district_id ?? districtSelect.value;
+  const country = findRegion(countryId, "country");
+  const provinces = countryProvinces(country);
+  provinceSelect.innerHTML = opts(provinces, selectedProvinceId, "İl");
   provinceSelect.disabled = !country || !provinces.length;
-  const province = findRegion(scope.province_id || provinceSelect.value, "province");
+  const province = findRegion(selectedProvinceId, "province");
   const districts = provinceDistricts(province);
-  districtSelect.innerHTML = opts(districts, scope.district_id, "İlçe");
+  districtSelect.innerHTML = opts(districts, selectedDistrictId, "İlçe");
   districtSelect.disabled = !province || !districts.length;
 }
 function read(root) {
@@ -59,6 +62,7 @@ function wireRow(row, scope = {}) {
   populate(row, scope);
   row.querySelector(".scope-country").addEventListener("change", () => { row.querySelector(".scope-province").value = ""; row.querySelector(".scope-district").value = ""; populate(row); });
   row.querySelector(".scope-province").addEventListener("change", () => { row.querySelector(".scope-district").value = ""; populate(row); });
+  row.querySelector(".scope-district").addEventListener("change", () => populate(row));
   row.querySelector(".rbac-scope-remove").addEventListener("click", () => row.remove());
 }
 function editor() { return `<fieldset class="rbac-scope-fieldset"><legend>Bölge yetkisi</legend><p class="dialog-muted">Ülke tüm alt bölgeleri, il tüm ilçeleri kapsar. İlçe yalnızca seçilen ilçeyi kapsar.</p><div class="rbac-scopes"></div><button type="button" class="button rbac-scope-add">+ Yetki alanı ekle</button></fieldset>`; }
