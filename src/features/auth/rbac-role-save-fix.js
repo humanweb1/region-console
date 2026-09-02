@@ -20,6 +20,36 @@ function readScopes(form) {
   }).filter(Boolean);
 }
 
+function normalizeRoleDropdowns(root = document) {
+  root.querySelectorAll(".rbac-permission-group, .rbac-role-card").forEach((details) => {
+    details.removeAttribute("open");
+  });
+}
+
+function installRoleUiFixes() {
+  const dialogBody = document.getElementById("dialogBody");
+  if (!dialogBody || dialogBody.dataset.roleUiFixInstalled === "true") return;
+  dialogBody.dataset.roleUiFixInstalled = "true";
+  normalizeRoleDropdowns(dialogBody);
+  const observer = new MutationObserver(() => normalizeRoleDropdowns(dialogBody));
+  observer.observe(dialogBody, { childList: true, subtree: true });
+
+  const style = document.createElement("style");
+  style.dataset.regionConsoleRoleUi = "true";
+  style.textContent = `
+    .app-dialog { overflow: hidden; display: flex; flex-direction: column; }
+    .app-dialog > .dialog-header { flex: 0 0 auto; }
+    .app-dialog > .dialog-body { flex: 1 1 auto; min-height: 0; max-height: none; overflow-x: hidden; overflow-y: auto; }
+  `;
+  document.head.appendChild(style);
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", installRoleUiFixes, { once: true });
+} else {
+  installRoleUiFixes();
+}
+
 document.addEventListener("submit", async (event) => {
   const form = event.target;
   if (!(form instanceof HTMLFormElement) || !form.matches(".rbac-role-form")) return;
