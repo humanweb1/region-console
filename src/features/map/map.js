@@ -1,5 +1,6 @@
 import { store } from "../../state/store.js";
 import { openRegionActions } from "../regions/region-actions.js";
+import { isRegionVisible } from "../../services/rbac.js";
 
 const DEFAULT_MAP_SETTINGS = { boundaryColor: "#ffffff", boundaryWeight: 1.5, outsideColor: "#4b5563", outsideOpacity: 0.55, closedColor: "#7c3aed", closedOpacity: 0.55, campaignColor: "#ffd400", campaignOpacity: 0.55 };
 const DEFAULT_OVERLAY_VISIBILITY = { regions: true, outside: true, campaign: true, mask: true, province: true, district: true, neighborhood: true, cemetery: true, special: true };
@@ -10,6 +11,7 @@ export function createMap() {
   const mapState = { map, layers: { standard, satellite }, polygons: L.featureGroup().addTo(map), mask: L.featureGroup().addTo(map), regionLayers: [], overlayVisibility: { ...DEFAULT_OVERLAY_VISIBILITY } };
   let previousRegions = store.get().regions.custom; let previousMapSettings = store.get().mapSettings;
   store.subscribe((state) => { const regionsChanged = state.regions.custom !== previousRegions; const settingsChanged = state.mapSettings !== previousMapSettings; if (!regionsChanged && !settingsChanged) return; previousRegions = state.regions.custom; previousMapSettings = state.mapSettings; renderRegionsOnMap(mapState, state.regions.custom, state.mapSettings); });
+  document.addEventListener("region-console:rbac-updated", () => renderRegionsOnMap(mapState, store.get().regions.custom, store.get().mapSettings));
   window.__regionConsoleMapState = mapState; return mapState;
 }
 export function setLayer(mapState, name) { const { map, layers } = mapState; Object.values(layers).forEach((layer) => { if (map.hasLayer(layer)) map.removeLayer(layer); }); (layers[name] || layers.standard).addTo(map); }
@@ -35,19 +37,19 @@ function ringContainsRing(parentRing, childRing) { if (!parentRing?.length || !c
 function serviceChildRings(region, regions) { return regions.filter((candidate) => { if (!candidate || candidate === region) return false; if (candidate.status === "outside" || candidate.status === "closed" || isCampaignRegion(candidate)) return false; return regionHasParent(candidate, [region, ...regions]); }).flatMap((child) => geometryToOuterRings(child.geometry)); }
 function addServiceHoles(latLngs, holes) { if (!holes.length) return latLngs; if (!Array.isArray(latLngs[0])) return latLngs; if (Array.isArray(latLngs[0][0]) && Array.isArray(latLngs[0][0][0])) return latLngs.map((polygon) => { if (!polygon?.length) return polygon; const outer = polygon[0]; const matching = holes.filter((ring) => ringContainsRing(outer, ring)); return [outer, ...polygon.slice(1), ...matching]; }); const outer = latLngs[0]; const matching = holes.filter((ring) => ringContainsRing(outer, ring)); return [outer, ...latLngs.slice(1), ...matching]; }
 export function renderRegionsOnMap(mapState, regions = [], settings = null) {
-  const normalized = normalizeSettings(settings || store.get().mapSettings); mapState.polygons.clearLayers(); mapState.regionLayers = []; const bounds = []; const serviceRings = [];
-  for (const region of regions) {
+  const normalized = normalizeSettings(settings || store.get().mapSettings); const access = window.RegionConsoleRBAC?.access || null; const visibleRegions = (regions || []).filter((region) => isRegionVisible(access, region)); mapState.polygons.clearLayers(); mapState.regionLayers = []; const bounds = []; const serviceRings = [];
+  for (const region of visibleRegions) {
     const geometry = region?.geometry; const rawLatLngs = geometryToLatLngs(geometry); if (!rawLatLngs.length) continue;
     const outside = region.status === "outside"; const closed = region.status === "closed"; const campaign = isCampaignRegion(region); const category = regionCategory(region);
     const fillColor = outside ? normalized.outsideColor : closed ? normalized.closedColor : campaign ? normalized.campaignColor : "transparent";
     const fillOpacity = outside ? normalized.outsideOpacity : closed ? normalized.closedOpacity : campaign ? normalized.campaignOpacity : 0;
-    const latLngs = closed ? addServiceHoles(rawLatLngs, serviceChildRings(region, regions)) : rawLatLngs;
+    const latLngs = closed ? addServiceHoles(rawLatLngs, serviceChildRings(region, visibleRegions)) : rawLatLngs;
     const polygon = L.polygon(latLngs, { color: normalized.boundaryColor, weight: normalized.boundaryWeight, fillColor, fillOpacity });
-    polygon.bindTooltip(hierarchyTooltipText(region, regions) || region.name || "Alan", { sticky: true, direction: "top", opacity: 0.96, className: "region-hierarchy-tooltip" });
-    polygon.on("click", (event) => { L.DomEvent.stopPropagation(event); for (const layer of mapState.regionLayers) { if (!layer.options) continue; layer.setStyle({ weight: normalized.boundaryWeight, fillOpacity: layer.options._baseFillOpacity ?? layer.options.fillOpacity }); } polygon.setStyle({ weight: Math.min(8, normalized.boundaryWeight + 1.5), fillOpacity: Math.min(0.9, fillOpacity + 0.12) }); store.update("regions", { selectedId: region.id }); openRegionActions(region, mapState); mapState.map.fitBounds(polygon.getBounds(), { padding: [36, 36], maxZoom: 12, animate: true }); });
+    polygon.bindTooltip(hierarchyTooltipText(region, visibleRegions) || region.name || "Alan", { sticky: true, direction: "top", opacity: 0.96, className: "region-hierarchy-tooltip" });
+    polygon.on("click", (event) => { L.DomEvent.stopPropagation(event); if (!isRegionVisible(window.RegionConsoleRBAC?.access || null, region)) return; for (const layer of mapState.regionLayers) { if (!layer.options) continue; layer.setStyle({ weight: normalized.boundaryWeight, fillOpacity: layer.options._baseFillOpacity ?? layer.options.fillOpacity }); } polygon.setStyle({ weight: Math.min(8, normalized.boundaryWeight + 1.5), fillOpacity: Math.min(0.9, fillOpacity + 0.12) }); store.update("regions", { selectedId: region.id }); openRegionActions(region, mapState); mapState.map.fitBounds(polygon.getBounds(), { padding: [36, 36], maxZoom: 12, animate: true }); });
     polygon.options._baseFillOpacity = fillOpacity; polygon._regionLayerKind = category; polygon._regionCategory = category; polygon._regionStatus = outside ? "outside" : closed ? "closed" : campaign ? "campaign" : "service"; mapState.regionLayers.push(polygon); if (mapState.overlayVisibility[category] !== false) polygon.addTo(mapState.polygons);
     const allPoints = Array.isArray(latLngs[0]?.[0]) ? latLngs.flat(2) : latLngs.flat(); allPoints.forEach((point) => bounds.push(point));
-    if (!outside && !regionHasParent(region, regions)) serviceRings.push(...geometryToOuterRings(geometry));
+    if (!outside && !regionHasParent(region, visibleRegions)) serviceRings.push(...geometryToOuterRings(geometry));
   }
   renderOutsideMask(mapState, serviceRings, normalized); return bounds;
 }
