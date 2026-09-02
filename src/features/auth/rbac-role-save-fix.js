@@ -60,8 +60,6 @@ function installPermissionClickFix(dialogBody) {
     const input = switchLabel.querySelector("input[type=checkbox]");
     if (!input) return;
 
-    // Permission switches live inside <summary> for group-level permissions.
-    // Prevent the summary's default toggle/scroll behavior and toggle the checkbox ourselves.
     event.preventDefault();
     event.stopPropagation();
 
@@ -78,6 +76,22 @@ function installPermissionClickFix(dialogBody) {
   }, true);
 }
 
+function installRoleCardGuard(dialogBody) {
+  if (dialogBody.dataset.roleCardGuardInstalled === "true") return;
+  dialogBody.dataset.roleCardGuardInstalled = "true";
+
+  // A permission control is inside the role form, never the role header.
+  // If browser summary activation or another handler closes the parent role card
+  // while focus is still inside its form, immediately restore the role card.
+  dialogBody.addEventListener("toggle", (event) => {
+    const details = event.target;
+    if (!(details instanceof HTMLDetailsElement)) return;
+    if (!details.classList.contains("rbac-role-card") || details.open) return;
+    if (details.dataset.createRoleDetails === "true") return;
+    if (details.contains(document.activeElement)) details.open = true;
+  });
+}
+
 function installRoleUiFixes() {
   const dialogBody = document.getElementById("dialogBody");
   if (!dialogBody || dialogBody.dataset.roleUiFixInstalled === "true") return;
@@ -85,10 +99,12 @@ function installRoleUiFixes() {
   normalizeRoleDropdowns(dialogBody);
   collapseCreateRoleForm(dialogBody);
   installPermissionClickFix(dialogBody);
+  installRoleCardGuard(dialogBody);
 
+  // Do not normalize <details> on every DOM mutation. Dynamic scope rows and
+  // other legitimate form updates must not collapse the role currently being edited.
   const observer = new MutationObserver(() => {
     collapseCreateRoleForm(dialogBody);
-    normalizeRoleDropdowns(dialogBody);
   });
   observer.observe(dialogBody, { childList: true, subtree: true });
 
