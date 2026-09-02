@@ -9,8 +9,6 @@ const cors = {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 type Admin = ReturnType<typeof createClient>;
 
-// Permissions are intentionally independent. A manager may grant/revoke
-// each permission checkbox without the backend silently adding another one.
 const normalizePermissions = (permissions: string[]) => [...new Set((permissions || []).map(String).map((permission) => permission.trim()).filter(Boolean))];
 
 async function actorContext(admin: Admin, token: string) {
@@ -28,9 +26,13 @@ async function actorContext(admin: Admin, token: string) {
     .select("permission")
     .eq("role_id", actor.role_id);
   if (permError) throw permError;
-  if (!(roleName === "super_admin" || (perms || []).some((p) => p.permission === "*" || p.permission === "users.manage"))) {
-    throw new Error("Kullanıcı ve rol yönetimi yetkiniz yok.");
-  }
+  const canManageUsersAndRoles = roleName === "super_admin" || (perms || []).some((p) => [
+    "*",
+    "users.manage",
+    "button.rbac.tab_users",
+    "button.rbac.tab_roles"
+  ].includes(p.permission));
+  if (!canManageUsersAndRoles) throw new Error("Kullanıcı ve rol yönetimi yetkiniz yok.");
   return { actor, roleName };
 }
 
