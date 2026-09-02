@@ -18,7 +18,7 @@ export function renderRegions(container, countries = [], query = "", custom = []
 
 function escapeHtml(value) { return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 
-document.addEventListener("region-console:rbac-updated", () => {
+window.addEventListener("region-console:rbac-updated", () => {
   const container = document.getElementById("regionTree");
   if (!container) return;
   const state = store.get();
