@@ -46,7 +46,7 @@ async function listUsers(admin: Admin) {
     admin.from("roles").select("id,name,description,created_at").order("name"),
     admin.from("role_permissions").select("role_id,permission"),
     admin.from("role_scopes").select("id,role_id,country_id,province_id,district_id"),
-    admin.from("regions").select("id,external_id,type,name,parent_id")
+    admin.from("regions").select("id,external_id,type,name,parent_id").eq("is_active", true).order("type").order("name")
   ]);
   if (authError) throw authError;
   if (profileError) throw profileError;
@@ -74,6 +74,12 @@ async function listUsers(admin: Admin) {
       district_name: district?.name || null
     });
   }
+  const regionCatalog = (regions || []).map((region) => ({
+    id: region.external_id || region.id,
+    type: region.type,
+    name: region.name,
+    parent_id: region.parent_id ? (regionMap.get(region.parent_id)?.external_id || region.parent_id) : null
+  }));
   const users = (authUsers?.users || []).map((u) => {
     const p = profileMap.get(u.id);
     return {
@@ -87,7 +93,7 @@ async function listUsers(admin: Admin) {
       last_sign_in_at: u.last_sign_in_at || null
     };
   });
-  return { users, roles: roles || [], permissionsByRole, scopesByRole };
+  return { users, roles: roles || [], permissionsByRole, scopesByRole, regionCatalog };
 }
 
 async function saveRole(admin: Admin, actorId: string, payload: { roleId: string | null; name: string; description: string; permissions: string[]; scopes: unknown[] }) {
