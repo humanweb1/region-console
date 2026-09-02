@@ -9,14 +9,9 @@ const cors = {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 type Admin = ReturnType<typeof createClient>;
 
-const normalizePermissions = (permissions: string[]) => {
-  const set = new Set(permissions.filter(Boolean));
-  if (set.has("regions.manage")) set.add("regions.view");
-  if (set.has("service_areas.manage")) set.add("service_areas.view");
-  if (set.has("campaigns.manage")) set.add("campaigns.view");
-  if (set.has("files.manage")) set.add("files.view");
-  return [...set];
-};
+// Permissions are intentionally independent. A manager may grant/revoke
+// each permission checkbox without the backend silently adding another one.
+const normalizePermissions = (permissions: string[]) => [...new Set((permissions || []).map(String).map((permission) => permission.trim()).filter(Boolean))];
 
 async function actorContext(admin: Admin, token: string) {
   const { data: authData, error: authError } = await admin.auth.getUser(token);
