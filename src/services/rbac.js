@@ -14,17 +14,26 @@ export const PERMISSIONS = [
   ["campaigns.view", "Kampanyaları görüntüle"], ["campaigns.manage", "Kampanyaları yönet"], ["history.view", "Değişiklik geçmişini görüntüle"], ["files.view", "Dosyaları görüntüle"],
   ["files.manage", "Dosyaları yönet"], ["users.manage", "Kullanıcı ve rol yönetimi"], ["data.export", "Veri dışa aktarımı"], ["map.view", "Haritayı görüntüle"]
 ];
-async function loadRegionCatalog(accessToken) { return request("/rest/v1/rpc/get_rbac_region_catalog?select=id,external_id,type,name,parent_id", accessToken, { method: "GET" }); }
+
 export async function getAccess(accessToken, userId) {
   if (!accessToken || !userId) return null;
-  const profiles = await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,full_name,role_id,is_active,roles(id,name,description)&limit=1`, accessToken);
-  const profile = profiles?.[0] || null;
-  if (!profile) throw new Error("Kullanıcı profili bulunamadı.");
-  const permissions = profile.role_id ? await request(`/rest/v1/role_permissions?role_id=eq.${encodeURIComponent(profile.role_id)}&select=permission`, accessToken) : [];
-  const scopes = profile.role_id ? await request(`/rest/v1/role_scopes?role_id=eq.${encodeURIComponent(profile.role_id)}&select=id,country_id,province_id,district_id`, accessToken) : [];
-  const regionCatalog = await loadRegionCatalog(accessToken);
-  const access = { profile, role: profile.roles || null, permissions: [...new Set((permissions || []).map((item) => item.permission))], scopes: scopes || [], regionCatalog: regionCatalog || [], loaded: true };
-  if (typeof window !== "undefined") { window.RegionConsoleRBAC = window.RegionConsoleRBAC || {}; window.RegionConsoleRBAC.access = access; window.RegionConsoleRBAC.error = null; window.dispatchEvent(new CustomEvent("region-console:rbac-updated")); }
+  const result = await request("/rest/v1/rpc/get_current_user_rbac_access", accessToken, { method: "POST", body: "{}" });
+  const payload = Array.isArray(result) ? result[0] : result;
+  if (!payload?.profile?.id) throw new Error("Kullanıcı profili bulunamadı.");
+  const access = {
+    profile: payload.profile,
+    role: payload.role || null,
+    permissions: [...new Set(Array.isArray(payload.permissions) ? payload.permissions.map(String) : [])],
+    scopes: Array.isArray(payload.scopes) ? payload.scopes : [],
+    regionCatalog: Array.isArray(payload.regionCatalog) ? payload.regionCatalog : [],
+    loaded: true
+  };
+  if (typeof window !== "undefined") {
+    window.RegionConsoleRBAC = window.RegionConsoleRBAC || {};
+    window.RegionConsoleRBAC.access = access;
+    window.RegionConsoleRBAC.error = null;
+    window.dispatchEvent(new CustomEvent("region-console:rbac-updated"));
+  }
   return access;
 }
 export function can(access, permission) { if (!access?.loaded || !access?.profile?.is_active) return false; const permissions = access.permissions || []; return access.role?.name === "super_admin" || permissions.includes("*") || permissions.includes(permission); }
@@ -34,7 +43,7 @@ export function hasScope(access, target = {}) {
   if (access.role?.name === "super_admin" || (access.permissions || []).includes("*")) return true;
   const scopes = access.scopes || []; if (!scopes.length) return false;
   const targetCountry = target.countryId ? String(target.countryId) : null; const targetProvince = target.provinceId ? String(target.provinceId) : null; const targetDistrict = target.districtId ? String(target.districtId) : null;
-  return scopes.some((scope) => { const country = scope.country_id ? String(scope.country_id) : null; const province = scope.province_id ? String(scope.province_id) : null; const district = scope.district_id ? String(scope.district_id) : null; if (!country && !province && !district) return true; if (country && targetCountry && country === targetCountry && !province && !district) return true; if (province && targetProvince && province === targetProvince && (!district || (targetDistrict && district === targetDistrict))) return true; if (district && targetDistrict && district === targetDistrict) return true; return false; });
+  return scopes.some((scope) => { const country = scope.country_id ? String(scope.country_id) : null; const province = scope.province_id ? String(scope.province_id) : null; const district = scope.district_id ? String(scope.district_id) : null; if (!country && !province && !district) return true; if (country && targetCountry && country === targetCountry && !province && !district) return true; if (province && targetProvince && (!district || (targetDistrict && district === targetDistrict))) return true; if (district && targetDistrict && district === targetDistrict) return true; return false; });
 }
 function catalogRegionId(region) { return region?.id == null ? null : String(region.id); }
 function catalogExternalId(region) { return region?.external_id == null ? null : String(region.external_id); }
