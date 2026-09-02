@@ -260,3 +260,4 @@ window.addEventListener("region-console:rbac-updated", () => { const access = wi
 window.addEventListener("focus", () => { if (Date.now() - lastRefreshAt > 15000) refresh(true); }, { passive: true });
 window.addEventListener("pageshow", () => refresh(true), { passive: true });
 refresh(true);
+import "./rbac-ui-fix.js";
