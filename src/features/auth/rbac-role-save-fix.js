@@ -1,0 +1,63 @@
+import { store } from "../../state/store.js";
+import { updateRole, listUsers } from "../../services/rbac.js";
+import { toast } from "../../components/shell.js";
+
+function readScopes(form) {
+  return [...form.querySelectorAll(".rbac-scope-row")].map((row) => {
+    const country = row.querySelector(".scope-country")?.value || null;
+    const province = row.querySelector(".scope-province")?.value || null;
+    const district = row.querySelector(".scope-district")?.value || null;
+    if (!country && !province && !district) return null;
+    const name = (selector) => row.querySelector(selector)?.selectedOptions?.[0]?.textContent?.trim() || null;
+    return {
+      country_id: country,
+      country_name: name(".scope-country"),
+      province_id: province,
+      province_name: name(".scope-province"),
+      district_id: district,
+      district_name: name(".scope-district")
+    };
+  }).filter(Boolean);
+}
+
+document.addEventListener("submit", async (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.matches(".rbac-role-form")) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const current = store.get().auth?.session;
+  const roleId = form.dataset.roleId;
+  const button = form.querySelector("button[type=submit]");
+  const error = form.querySelector(".form-error");
+  if (!current?.access_token || !roleId) {
+    if (error) error.textContent = "Rol bilgisi bulunamadı.";
+    return;
+  }
+  const payload = {
+    role_id: roleId,
+    name: form.elements.name?.value?.trim() || "",
+    description: form.elements.description?.value?.trim() || "",
+    permissions: [...form.querySelectorAll("input[name=permission]:checked")].map((input) => input.value),
+    scopes: readScopes(form)
+  };
+  if (!payload.name || !payload.description) {
+    if (error) error.textContent = "Rol adı ve açıklama zorunludur.";
+    return;
+  }
+  if (button) button.disabled = true;
+  if (error) error.textContent = "";
+  try {
+    await updateRole(current.access_token, payload);
+    toast("Rol ve bölge yetkileri güncellendi.");
+    window.dispatchEvent(new CustomEvent("region-console:rbac-refresh"));
+    const dialogBody = document.getElementById("dialogBody");
+    if (dialogBody) {
+      const data = await listUsers(current.access_token);
+      window.dispatchEvent(new CustomEvent("region-console:rbac-list-updated", { detail: data }));
+    }
+  } catch (exception) {
+    if (error) error.textContent = exception?.message || "Rol güncellenemedi.";
+  } finally {
+    if (button) button.disabled = false;
+  }
+}, true);
