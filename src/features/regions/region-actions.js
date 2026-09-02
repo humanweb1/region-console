@@ -13,21 +13,19 @@ let editMidMarkers = [];
 let editParts = [];
 let draftName = "";
 
-const SERVICE_CLOSE_REASONS = [
-  "Teknik arıza", "Altyapı / bakım çalışması", "Personel yetersizliği", "Güvenlik nedeniyle",
-  "Hava koşulları", "Yoğunluk / kapasite doluluğu", "Geçici operasyonel neden", "Diğer"
-];
+const SERVICE_CLOSE_REASONS = ["Teknik arıza", "Altyapı / bakım çalışması", "Personel yetersizliği", "Güvenlik nedeniyle", "Hava koşulları", "Yoğunluk / kapasite doluluğu", "Geçici operasyonel neden", "Diğer"];
 
 function escapeHtml(value) { return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 function access() { return window.RegionConsoleRBAC?.access || null; }
-function regionScope(region) {
-  const hierarchy = region?.hierarchy || {};
-  return { countryId: hierarchy.countryId || null, provinceId: hierarchy.provinceId || null, districtId: hierarchy.districtId || null };
-}
+function regionScope(region) { const hierarchy = region?.hierarchy || {}; return { countryId: hierarchy.countryId || null, provinceId: hierarchy.provinceId || null, districtId: hierarchy.districtId || null }; }
 function canViewRegion(region) { return can(access(), "regions.view") && isRegionVisible(access(), region); }
-function canManageRegion(region) { return canManageInScope(access(), "regions.manage", regionScope(region)); }
-function canManageService(region) { return canManageInScope(access(), "service_areas.manage", regionScope(region)); }
-function canManageCampaign(region) { return canManageInScope(access(), "campaigns.manage", regionScope(region)); }
+function canEditRegion(region) { return canManageInScope(access(), "regions.edit", regionScope(region)); }
+function canDeleteRegion(region) { return canManageInScope(access(), "regions.delete", regionScope(region)); }
+function canSaveRegion(region) { return canManageInScope(access(), "regions.save", regionScope(region)); }
+function canServiceOpen(region) { return canManageInScope(access(), "service_areas.open", regionScope(region)); }
+function canServiceClose(region) { return canManageInScope(access(), "service_areas.close", regionScope(region)); }
+function canAssignCampaign(region) { return canManageInScope(access(), "campaigns.assign", regionScope(region)); }
+function canRemoveCampaign(region) { return canManageInScope(access(), "campaigns.remove", regionScope(region)); }
 
 function activeCampaigns() { return (store.get().campaigns || []).filter((campaign) => { const status = String(campaign.status || "active").toLocaleLowerCase("tr-TR"); return !["pasif", "inactive", "closed", "tamamlandı", "completed"].includes(status); }); }
 function isService(region) { return region?.status !== "outside" && region?.status !== "closed"; }
@@ -44,29 +42,29 @@ async function saveCloud() {
   } catch (error) { store.update("cloud", { status: "error", error: error.message }); toast(elements, `Bölge kaydedilemedi: ${error.message}`); }
 }
 function refreshMap() { if (!selected?.mapState) return; renderRegionsOnMap(selected.mapState, store.get().regions.custom); }
-function commitRegion(label, updater) {
-  const before = store.dataSnapshot(); updater(); const after = store.dataSnapshot(); store.recordHistory(label, before, after); refreshMap(); renderPanel(); saveCloud();
-}
+function commitRegion(label, updater) { const before = store.dataSnapshot(); updater(); const after = store.dataSnapshot(); store.recordHistory(label, before, after); refreshMap(); renderPanel(); saveCloud(); }
+
 function deleteSelectedRegion() {
   const region = getRegion();
-  if (!region || !canManageRegion(region)) return toast(elements, "Bu bölgeyi yönetme yetkiniz yok.");
+  if (!region || !canDeleteRegion(region)) return toast(elements, "Bu alanı silme yetkiniz yok.");
   const name = region.name || "Bölge";
   if (!window.confirm(`“${name}” alanı silinsin mi? Bu işlem geri alınabilir.`)) return;
   commitRegion("Bölge silindi", () => { const current = getRegion(); if (!current) return; store.update("regions", { custom: store.get().regions.custom.filter((item) => String(item.id) !== String(current.id)), selectedId: null }); });
   selected = null; draftName = ""; stopBoundaryEdit(); document.getElementById("regionActionPanel")?.remove(); toast(elements, "Bölge silindi.");
 }
+
 function showServiceDialog() {
   const region = getRegion();
-  if (!region || !canManageService(region)) return toast(elements, "Hizmet alanı yönetme yetkiniz yok.");
+  if (!region || !canServiceClose(region)) return toast(elements, "Hizmete kapatma yetkiniz yok.");
   const currentReason = String(region.serviceCloseReason || "");
   const options = SERVICE_CLOSE_REASONS.map((reason) => `<option value="${escapeHtml(reason)}" ${reason === currentReason ? "selected" : ""}>${escapeHtml(reason)}</option>`).join("");
   const customReason = currentReason && !SERVICE_CLOSE_REASONS.includes(currentReason) ? currentReason : "";
-  openDialog(elements, "Hizmete kapat", `<div class="region-dialog"><p><strong>${escapeHtml(region.name || "Bölge")}</strong> hizmete kapatılacak.</p><label>Hizmete kapatma sebebi<select id="serviceCloseReason" required><option value="">Sebep seçin...</option>${options}</select></label><label id="serviceCloseCustomWrap" style="display:${customReason || currentReason === "Diğer" ? "grid" : "none"}">Açıklama<textarea id="serviceCloseCustomReason" rows="3" placeholder="Sebebi açıklayın...">${escapeHtml(customReason)}</textarea></label><div class="dialog-actions"><button id="serviceCloseCancel" class="button" type="button">Vazgeç</button><button id="serviceCloseConfirm" class="button button-primary" type="button">Hizmete kapat</button></div></div>`);
+  openDialog(elements, "Hizmete kapat", `<div class="region-dialog"><p><strong>${escapeHtml(region.name || "Bölge")}</strong> hizmete kapatılacak.</p><label>Hizmete kapatma sebebi<select id="serviceCloseReason" required><option value="">Sebep seçin...</option>${options}</select></label><label id="serviceCloseCustomWrap" style="display:${customReason || currentReason === "Diğer" ? "grid" : "none"}">Açıklama<textarea id="serviceCloseCustomReason" rows="3" placeholder="Sebebi açıklayın...">${escapeHtml(customReason)}</textarea></label><div class="dialog-actions"><button id="serviceCloseCancel" class="button" type="button">Vazgeç</button><button id="serviceCloseConfirm" class="button button-primary" data-rbac-permission="service_areas.close" type="button">Hizmete kapat</button></div></div>`);
   const reasonSelect = elements.dialogBody.querySelector("#serviceCloseReason"); const customWrap = elements.dialogBody.querySelector("#serviceCloseCustomWrap"); const customInput = elements.dialogBody.querySelector("#serviceCloseCustomReason");
   reasonSelect.addEventListener("change", () => { const isOther = reasonSelect.value === "Diğer"; customWrap.style.display = isOther ? "grid" : "none"; if (!isOther) customInput.value = ""; });
   elements.dialogBody.querySelector("#serviceCloseCancel").addEventListener("click", () => closeDialog(elements));
   elements.dialogBody.querySelector("#serviceCloseConfirm").addEventListener("click", () => {
-    if (!canManageService(getRegion())) return toast(elements, "Hizmet alanı yönetme yetkiniz yok.");
+    if (!canServiceClose(getRegion())) return toast(elements, "Hizmete kapatma yetkiniz yok.");
     const selectedReason = reasonSelect.value.trim(); if (!selectedReason) return toast(elements, "Lütfen hizmete kapatma sebebi seçin.");
     const custom = customInput.value.trim(); if (selectedReason === "Diğer" && !custom) return toast(elements, "Lütfen diğer sebebi açıklayın.");
     const reason = selectedReason === "Diğer" ? `Diğer: ${custom}` : selectedReason;
@@ -74,15 +72,18 @@ function showServiceDialog() {
     closeDialog(elements); toast(elements, "Bölge hizmete kapatıldı.");
   });
 }
+
 function showCampaignDialog() {
   const region = getRegion();
-  if (!region || !canManageCampaign(region)) return toast(elements, "Kampanya yönetme yetkiniz yok.");
+  if (!region || (!canAssignCampaign(region) && !canRemoveCampaign(region))) return toast(elements, "Bu bölgenin kampanyasını yönetme yetkiniz yok.");
   const campaigns = activeCampaigns(); const currentCampaignId = region.campaignId || "";
-  openDialog(elements, "Kampanya", `<div class="region-dialog"><p><strong>${escapeHtml(region.name || "Bölge")}</strong> için kampanya durumu.</p>${isCampaign(region) && currentCampaignId ? `<div class="campaign-active-info"><strong>Aktif kampanya</strong><span>${escapeHtml(campaigns.find((item) => String(item.id) === String(currentCampaignId))?.name || "Tanımsız kampanya")}</span></div>` : `<p class="dialog-muted">Bu bölgede aktif kampanya yok.</p>`}<label>Kampanya seç<select id="regionCampaignSelect"><option value="">Kampanyasız</option>${campaigns.map((campaign) => `<option value="${escapeHtml(campaign.id)}" ${String(campaign.id) === String(currentCampaignId) ? "selected" : ""}>${escapeHtml(campaign.name)}</option>`).join("")}</select></label><div class="dialog-actions"><button id="campaignCancel" class="button" type="button">Vazgeç</button><button id="campaignSave" class="button button-primary" type="button">Uygula</button></div></div>`);
+  const canApply = canAssignCampaign(region); const canRemove = canRemoveCampaign(region);
+  openDialog(elements, "Kampanya", `<div class="region-dialog"><p><strong>${escapeHtml(region.name || "Bölge")}</strong> için kampanya durumu.</p>${isCampaign(region) && currentCampaignId ? `<div class="campaign-active-info"><strong>Aktif kampanya</strong><span>${escapeHtml(campaigns.find((item) => String(item.id) === String(currentCampaignId))?.name || "Tanımsız kampanya")}</span></div>` : `<p class="dialog-muted">Bu bölgede aktif kampanya yok.</p>`}<label>Kampanya seç<select id="regionCampaignSelect"><option value="">Kampanyasız</option>${campaigns.map((campaign) => `<option value="${escapeHtml(campaign.id)}" ${String(campaign.id) === String(currentCampaignId) ? "selected" : ""}>${escapeHtml(campaign.name)}</option>`).join("")}</select></label><div class="dialog-actions"><button id="campaignCancel" class="button" type="button">Vazgeç</button><button id="campaignSave" class="button button-primary" data-rbac-permission="${currentCampaignId ? (canRemove ? "campaigns.remove" : "campaigns.assign") : "campaigns.assign"}" type="button">Uygula</button></div></div>`);
   elements.dialogBody.querySelector("#campaignCancel").addEventListener("click", () => closeDialog(elements));
   elements.dialogBody.querySelector("#campaignSave").addEventListener("click", () => {
-    if (!canManageCampaign(getRegion())) return toast(elements, "Kampanya yönetme yetkiniz yok.");
     const campaignId = elements.dialogBody.querySelector("#regionCampaignSelect").value;
+    if (campaignId && !canAssignCampaign(getRegion())) return toast(elements, "Kampanyayı alana uygulama yetkiniz yok.");
+    if (!campaignId && !canRemoveCampaign(getRegion())) return toast(elements, "Kampanyayı alandan kaldırma yetkiniz yok.");
     commitRegion(campaignId ? "Bölge kampanyaya bağlandı" : "Bölge kampanyadan çıkarıldı", () => { const current = getRegion(); if (!current) return; store.update("regions", { custom: store.get().regions.custom.map((item) => item.id === current.id ? { ...current, status: campaignId ? "campaign" : (current.status === "campaign" ? "service" : current.status), campaignId: campaignId || null, campaign: Boolean(campaignId), updatedAt: new Date().toISOString() } : item) }); });
     closeDialog(elements); toast(elements, campaignId ? "Kampanya bölgeye uygulandı." : "Bölge kampanyadan çıkarıldı.");
   });
@@ -102,38 +103,26 @@ function rebuildPartMarkers(part, points) { part.markers.forEach((marker) => mar
 function rebuildMultiPartEditor(parts) { clearEditMarkers(); const map = selected?.mapState?.map; if (!map) return; parts.forEach((points) => { if (points.length < 3) return; const part = { layer: L.polygon(points, { color: "#ff7a00", weight: 3, dashArray: "5 5", fillOpacity: 0.08, interactive: false }).addTo(map), markers: [], midMarkers: [] }; editParts.push(part); rebuildPartMarkers(part, points); }); }
 function rebuildMidMarkers() { editMidMarkers.forEach((marker) => marker.remove()); editMidMarkers = []; const map = selected?.mapState?.map; const currentPoints = editMarkers.map((marker) => marker.getLatLng()); if (!map || currentPoints.length < 3) return; currentPoints.forEach((point, index) => { const next = currentPoints[(index + 1) % currentPoints.length]; const midpoint = L.latLng((point.lat + next.lat) / 2, (point.lng + next.lng) / 2); const marker = L.marker(midpoint, { draggable: false, keyboard: false, zIndexOffset: 1100, icon: midpointIcon() }).addTo(map); marker.on("click", (event) => { L.DomEvent.stopPropagation(event); const current = editMarkers.map((item) => item.getLatLng()); current.splice(index + 1, 0, marker.getLatLng()); rebuildEditMarkers(current); }); editMidMarkers.push(marker); }); }
 function rebuildEditMarkers(points) { editMarkers.forEach((marker) => marker.remove()); editMidMarkers.forEach((marker) => marker.remove()); editMarkers = []; editMidMarkers = []; const map = selected?.mapState?.map; if (!map || points.length < 3) return; points.forEach((point, index) => { const marker = L.marker(point, { draggable: true, autoPan: true, keyboard: false, zIndexOffset: 1200, icon: vertexIcon(index) }).addTo(map); marker.on("dragstart", rebuildMidMarkers); marker.on("drag", syncEditLayer); marker.on("dragend", () => { syncEditLayer(); rebuildMidMarkers(); }); marker.on("dblclick", (event) => { L.DomEvent.stopPropagation(event); if (editMarkers.length <= 3) return toast(elements, "Sınır için en az 3 nokta gerekir."); const current = editMarkers.map((item) => item.getLatLng()); current.splice(index, 1); rebuildEditMarkers(current); syncEditLayer(); }); editMarkers.push(marker); }); rebuildMidMarkers(); }
-function startBoundaryEdit() {
-  const region = getRegion(); if (!region || !canManageRegion(region)) return toast(elements, "Sınırları düzenleme yetkiniz yok.");
-  editing = true; clearEditMarkers();
-  const geometry = region.geometry; const parts = geometryToEditParts(geometry);
-  if (parts.length > 1) { rebuildMultiPartEditor(parts); editLayer = null; } else { const points = parts[0] || []; const map = selected.mapState.map; editLayer = L.polygon(points, { color: "#ff7a00", weight: 3, dashArray: "5 5", fillOpacity: 0.08, interactive: false }).addTo(map); rebuildEditMarkers(points); }
-}
+function startBoundaryEdit() { const region = getRegion(); if (!region || !canEditRegion(region)) return toast(elements, "Sınırları düzenleme yetkiniz yok."); editing = true; clearEditMarkers(); const geometry = region.geometry; const parts = geometryToEditParts(geometry); if (parts.length > 1) { rebuildMultiPartEditor(parts); editLayer = null; } else { const points = parts[0] || []; const map = selected.mapState.map; editLayer = L.polygon(points, { color: "#ff7a00", weight: 3, dashArray: "5 5", fillOpacity: 0.08, interactive: false }).addTo(map); rebuildEditMarkers(points); } }
 function stopBoundaryEdit() { editing = false; clearEditMarkers(); editLayer?.remove(); editLayer = null; }
-function savePanelChanges() {
-  const region = getRegion(); if (!region || !canManageRegion(region)) return toast(elements, "Bu bölgeyi yönetme yetkiniz yok.");
-  const nextName = String(document.getElementById("regionNameInput")?.value || "").trim(); if (!nextName) return toast(elements, "Bölge adı boş olamaz.");
-  let geometry = region.geometry;
-  if (editing) { if (editParts.length) geometry = editPartsToGeometry(editParts, region.geometry); else if (editMarkers.length) geometry = latLngsToGeometry(editMarkers.map((marker) => marker.getLatLng())); }
-  commitRegion("Bölge güncellendi", () => { const current = getRegion(); if (!current) return; store.update("regions", { custom: store.get().regions.custom.map((item) => item.id === current.id ? { ...current, name: nextName, geometry, updatedAt: new Date().toISOString() } : item) }); });
-  stopBoundaryEdit(); toast(elements, "Bölge güncellendi.");
-}
+function savePanelChanges() { const region = getRegion(); if (!region || !canSaveRegion(region)) return toast(elements, "Bu alanı kaydetme yetkiniz yok."); const nextName = String(document.getElementById("regionNameInput")?.value || "").trim(); if (!nextName) return toast(elements, "Bölge adı boş olamaz."); let geometry = region.geometry; if (editing) { if (editParts.length) geometry = editPartsToGeometry(editParts, region.geometry); else if (editMarkers.length) geometry = latLngsToGeometry(editMarkers.map((marker) => marker.getLatLng())); } commitRegion("Bölge güncellendi", () => { const current = getRegion(); if (!current) return; store.update("regions", { custom: store.get().regions.custom.map((item) => item.id === current.id ? { ...current, name: nextName, geometry, updatedAt: new Date().toISOString() } : item) }); }); stopBoundaryEdit(); toast(elements, "Bölge güncellendi."); }
+
 function renderPanel() {
   let panel = document.getElementById("regionActionPanel"); const region = getRegion(); if (!region) return panel?.remove();
-  const manageRegion = canManageRegion(region); const manageService = canManageService(region); const manageCampaign = canManageCampaign(region);
+  const edit = canEditRegion(region); const del = canDeleteRegion(region); const save = canSaveRegion(region); const open = canServiceOpen(region); const close = canServiceClose(region); const assign = canAssignCampaign(region); const removeCampaign = canRemoveCampaign(region);
   if (!panel) { panel = document.createElement("section"); panel.id = "regionActionPanel"; panel.className = "region-action-panel"; document.querySelector(".map-stage")?.appendChild(panel); }
   const campaigns = activeCampaigns(); const campaign = campaigns.find((item) => String(item.id) === String(region.campaignId));
-  panel.innerHTML = `<div class="region-action-head"><input id="regionNameInput" class="region-name-input" value="${escapeHtml(draftName || region.name || "Bölge")}" aria-label="Bölge adı" ${manageRegion ? "" : "disabled"}><button id="regionPanelClose" class="icon-button region-panel-close" type="button" aria-label="Kapat">×</button></div>${campaign ? `<div class="region-campaign-badge">${escapeHtml(campaign.name)}</div>` : ""}<div class="region-action-buttons">${manageService ? (isService(region) ? `<button id="regionServiceButton" class="button region-action-danger" type="button">Hizmete kapat</button>` : `<button id="regionServiceButton" class="button button-primary" type="button">Hizmete aç</button>`) : ""}${manageCampaign ? `<button id="regionCampaignButton" class="button" type="button">Kampanya</button>` : ""}${manageRegion ? `<button id="regionBoundaryButton" class="button" type="button">${editing ? "Sınır düzenleniyor" : "Sınırları düzenle"}</button>` : ""}</div><div class="region-panel-footer">${manageRegion ? `<button id="regionDeleteButton" class="button region-action-danger" type="button">Alanı sil</button><button id="regionCancelButton" class="button" type="button">İptal</button><button id="regionSaveButton" class="button button-primary" type="button">Kaydet</button>` : `<button id="regionCancelButton" class="button" type="button">Kapat</button>`}</div>`;
-  panel.querySelector("#regionPanelClose").addEventListener("click", () => { stopBoundaryEdit(); selected = null; panel.remove(); });
-  panel.querySelector("#regionServiceButton")?.addEventListener("click", () => { if (region.status === "outside" || region.status === "closed") { if (!canManageService(getRegion())) return toast(elements, "Hizmet alanı yönetme yetkiniz yok."); commitRegion("Bölge hizmete açıldı", () => { const current = getRegion(); if (!current) return; store.update("regions", { custom: store.get().regions.custom.map((item) => item.id === current.id ? { ...current, status: "service", serviceCloseReason: null, serviceClosedAt: null, updatedAt: new Date().toISOString() } : item) }); }); toast(elements, "Bölge yeniden hizmete açıldı."); } else showServiceDialog(); });
+  const serviceButton = isService(region) ? (close ? `<button id="regionServiceButton" class="button region-action-danger" data-rbac-permission="service_areas.close" type="button">Hizmete kapat</button>` : "") : (open ? `<button id="regionServiceButton" class="button button-primary" data-rbac-permission="service_areas.open" type="button">Hizmete aç</button>` : "");
+  const campaignButton = assign || removeCampaign ? `<button id="regionCampaignButton" class="button" data-rbac-permission="${campaign ? (removeCampaign ? "campaigns.remove" : "campaigns.assign") : "campaigns.assign"}" type="button">Kampanya</button>` : "";
+  panel.innerHTML = `<div class="region-action-head"><input id="regionNameInput" class="region-name-input" value="${escapeHtml(draftName || region.name || "Bölge")}" aria-label="Bölge adı" ${edit ? "" : "disabled"}><button id="regionPanelClose" class="icon-button region-panel-close" type="button" aria-label="Kapat">×</button></div>${campaign ? `<div class="region-campaign-badge">${escapeHtml(campaign.name)}</div>` : ""}<div class="region-action-buttons">${serviceButton}${campaignButton}${edit ? `<button id="regionBoundaryButton" class="button" data-rbac-permission="regions.edit" type="button">${editing ? "Sınır düzenleniyor" : "Sınırları düzenle"}</button>` : ""}</div><div class="region-panel-footer">${del ? `<button id="regionDeleteButton" class="button region-action-danger" data-rbac-permission="regions.delete" type="button">Alanı sil</button>` : ""}${edit ? `<button id="regionCancelButton" class="button" type="button">İptal</button>` : `<button id="regionCancelButton" class="button" type="button">Kapat</button>`}${save ? `<button id="regionSaveButton" class="button button-primary" data-rbac-permission="regions.save" type="button">Kaydet</button>` : ""}</div>`;
+  panel.querySelector("#regionPanelClose")?.addEventListener("click", () => { stopBoundaryEdit(); selected = null; panel.remove(); });
+  panel.querySelector("#regionServiceButton")?.addEventListener("click", () => { const current = getRegion(); if (!current) return; if (current.status === "outside" || current.status === "closed") { if (!canServiceOpen(current)) return toast(elements, "Hizmete açma yetkiniz yok."); commitRegion("Bölge hizmete açıldı", () => { const fresh = getRegion(); if (!fresh) return; store.update("regions", { custom: store.get().regions.custom.map((item) => item.id === fresh.id ? { ...fresh, status: "service", serviceCloseReason: null, serviceClosedAt: null, updatedAt: new Date().toISOString() } : item) }); }); toast(elements, "Bölge yeniden hizmete açıldı."); } else { if (!canServiceClose(current)) return toast(elements, "Hizmete kapatma yetkiniz yok."); showServiceDialog(); } });
   panel.querySelector("#regionCampaignButton")?.addEventListener("click", showCampaignDialog);
-  panel.querySelector("#regionBoundaryButton")?.addEventListener("click", () => editing ? stopBoundaryEdit() || renderPanel() : startBoundaryEdit());
+  panel.querySelector("#regionBoundaryButton")?.addEventListener("click", () => editing ? (stopBoundaryEdit(), renderPanel()) : startBoundaryEdit());
   panel.querySelector("#regionDeleteButton")?.addEventListener("click", deleteSelectedRegion);
   panel.querySelector("#regionCancelButton")?.addEventListener("click", () => { stopBoundaryEdit(); selected = null; panel?.remove(); });
   panel.querySelector("#regionSaveButton")?.addEventListener("click", savePanelChanges);
 }
 
-export function openRegionActions(region, mapState) {
-  if (!region || !mapState || !canViewRegion(region)) return;
-  selected = { region, mapState }; draftName = region.name || ""; stopBoundaryEdit(); renderPanel();
-}
+export function openRegionActions(region, mapState) { if (!region || !mapState || !canViewRegion(region)) return; selected = { region, mapState }; draftName = region.name || ""; stopBoundaryEdit(); renderPanel(); window.dispatchEvent(new CustomEvent("region-console:region-selected")); }
 export function closeRegionActions() { stopBoundaryEdit(); selected = null; document.getElementById("regionActionPanel")?.remove(); }
