@@ -10,10 +10,93 @@ async function request(path, accessToken, options = {}) {
   return data;
 }
 
-// Every business action exposed by the console has its own permission.
-// Parent/umbrella permissions are kept only for backward-compatible roles;
-// UI actions themselves always check their concrete permission.
-export const PERMISSIONS = [
+// Every clickable console control is represented separately. These are the
+// permissions shown in the role editor. Legacy domain permissions remain
+// below for compatibility with existing data and handler-level checks.
+export const BUTTON_PERMISSIONS = [
+  ["button.menu.open", "Menü — aç"],
+  ["button.auth.logout", "Oturum — çıkış yap"],
+  ["button.theme.toggle", "Tema — değiştir"],
+  ["button.regions.toggle", "Bölgeler paneli — aç / kapat"],
+  ["button.region.create", "Bölge — yeni alan ekle"],
+  ["button.tool.draw", "Araç — Çizim"],
+  ["button.tool.edit", "Araç — Düzenle"],
+  ["button.tool.delete", "Araç — Sil"],
+  ["button.tool.import", "Araç — İçe aktar"],
+  ["button.tool.export", "Araç — Dışa aktar"],
+  ["button.tool.history", "Araç — Geçmiş"],
+  ["button.map.reset", "Harita — sıfırla"],
+  ["button.map.layer.standard", "Harita — standart katman"],
+  ["button.map.layer.satellite", "Harita — uydu katmanı"],
+  ["button.map.zoom_out", "Harita — uzaklaştır"],
+  ["button.map.zoom_in", "Harita — yakınlaştır"],
+  ["button.undo", "Değişiklik — geri al"],
+  ["button.redo", "Değişiklik — ileri al"],
+  ["button.save", "Değişiklik — kaydet"],
+  ["button.footer.service_filter", "Alt bilgi — hizmet verilen filtresi"],
+  ["button.footer.campaign_filter", "Alt bilgi — kampanyalı alan filtresi"],
+  ["button.footer.closed_filter", "Alt bilgi — hizmete kapalı filtresi"],
+  ["button.dialog.close", "Pencere — kapat"],
+  ["button.region.panel.close", "Bölge bilgi ekranı — kapat"],
+  ["button.region.service.open", "Bölge bilgi ekranı — Hizmete aç"],
+  ["button.region.service.close", "Bölge bilgi ekranı — Hizmete kapat"],
+  ["button.region.campaign.manage", "Bölge bilgi ekranı — Kampanya"],
+  ["button.region.boundary.edit", "Bölge bilgi ekranı — Sınırları düzenle"],
+  ["button.region.delete", "Bölge bilgi ekranı — Alanı sil"],
+  ["button.region.panel.cancel", "Bölge bilgi ekranı — İptal / Kapat"],
+  ["button.region.save", "Bölge bilgi ekranı — Kaydet"],
+  ["button.region.info.campaign_end", "Bölge bilgi ekranı — Kampanyayı sonlandır"],
+  ["button.service_dialog.cancel", "Hizmete kapat penceresi — Vazgeç"],
+  ["button.service_dialog.confirm", "Hizmete kapat penceresi — Hizmete kapat"],
+  ["button.campaign_dialog.cancel", "Kampanya penceresi — Vazgeç"],
+  ["button.campaign_dialog.apply", "Kampanya penceresi — Uygula"],
+  ["button.campaigns.open", "Kampanyalar — aç"],
+  ["button.campaigns.bulk_apply", "Kampanyalar — Toplu kampanya"],
+  ["button.campaigns.bulk_close", "Kampanyalar — Toplu kapat"],
+  ["button.campaigns.create", "Kampanyalar — Yeni kampanya"],
+  ["button.campaigns.tab.upcoming", "Kampanyalar — Yaklaşan sekmesi"],
+  ["button.campaigns.tab.expired", "Kampanyalar — Süresi dolan sekmesi"],
+  ["button.campaigns.tab.limit", "Kampanyalar — Limiti dolan sekmesi"],
+  ["button.campaigns.tab.active", "Kampanyalar — Aktif sekmesi"],
+  ["button.campaigns.tab.regions", "Kampanyalar — Kampanyalı bölgeler sekmesi"],
+  ["button.campaigns.edit", "Kampanyalar — Düzenle"],
+  ["button.campaigns.delete", "Kampanyalar — Sil"],
+  ["button.bulk.select_all", "Toplu kampanya — Tümünü seç"],
+  ["button.bulk.clear_all", "Toplu kampanya — Temizle"],
+  ["button.bulk.cancel", "Toplu kampanya — İptal"],
+  ["button.bulk.confirm_apply", "Toplu kampanya — Kampanyayı uygula"],
+  ["button.bulk.confirm_close", "Toplu kampanya — Kampanyaları kapat"],
+  ["button.campaign_delete.cancel", "Kampanya silme — İptal"],
+  ["button.campaign_delete.confirm", "Kampanya silme — Kampanyayı sil"],
+  ["button.campaign_form.cancel", "Kampanya formu — İptal"],
+  ["button.campaign_form.create", "Kampanya formu — Kampanyayı oluştur"],
+  ["button.campaign_form.edit", "Kampanya formu — Değişiklikleri kaydet"],
+  ["button.files.open", "Dosyalar — aç"],
+  ["button.files.view_list", "Dosyalar — Liste görünümü"],
+  ["button.files.view_icons", "Dosyalar — Simge görünümü"],
+  ["button.files.delete", "Dosyalar — Sil"],
+  ["button.draw.cancel", "Çizim kaydetme — İptal"],
+  ["button.draw.submit", "Çizim kaydetme — Alanı kaydet"],
+  ["button.import.cancel", "İçe aktarma — İptal"],
+  ["button.import.continue", "İçe aktarma — Devam et"],
+  ["button.history.simulate", "Geçmiş — Haritada simüle et"],
+  ["button.history.back", "Harita simülasyonu — Geçmişe dön"],
+  ["button.history.load_more", "Geçmiş — Daha eskiyi göster"],
+  ["button.settings.open", "Ayarlar — aç"],
+  ["button.settings.reset", "Harita ayarları — Varsayılanlar"],
+  ["button.settings.apply", "Harita ayarları — Uygula"],
+  ["button.rbac.tab_users", "Rol yönetimi — Kullanıcılar sekmesi"],
+  ["button.rbac.tab_roles", "Rol yönetimi — Roller sekmesi"],
+  ["button.rbac.create_user", "Rol yönetimi — Kullanıcı oluştur"],
+  ["button.rbac.save_user", "Rol yönetimi — Kullanıcı Kaydet"],
+  ["button.rbac.create_role", "Rol yönetimi — Rol oluştur"],
+  ["button.rbac.save_role", "Rol yönetimi — Rolü ve yetkileri kaydet"],
+  ["button.rbac.permission_toggle", "Rol yönetimi — İzin seçimi"],
+  ["button.rbac.add_scope", "Rol yönetimi — Yetki alanı ekle"],
+  ["button.rbac.remove_scope", "Rol yönetimi — Yetki alanı kaldır"]
+];
+
+export const LEGACY_PERMISSIONS = [
   ["regions.view", "Bölgeleri görüntüle"],
   ["regions.create", "Bölge ekle / çiz"],
   ["regions.edit", "Alanı düzenle"],
@@ -56,6 +139,81 @@ export const PERMISSIONS = [
   ["stats.filter", "Durum özetini filtrele"]
 ];
 
+export const PERMISSIONS = [...BUTTON_PERMISSIONS, ...LEGACY_PERMISSIONS];
+
+const BUTTON_TO_LEGACY = {
+  "button.region.create": "regions.create",
+  "button.tool.draw": "regions.create",
+  "button.tool.edit": "regions.edit",
+  "button.tool.delete": "regions.delete",
+  "button.tool.import": "regions.import",
+  "button.tool.export": "data.export",
+  "button.tool.history": "history.view",
+  "button.map.reset": "map.reset",
+  "button.map.layer.standard": "map.layer",
+  "button.map.layer.satellite": "map.layer",
+  "button.map.zoom_out": "map.zoom",
+  "button.map.zoom_in": "map.zoom",
+  "button.undo": "history.undo",
+  "button.redo": "history.redo",
+  "button.save": "regions.save",
+  "button.footer.service_filter": "service_areas.view",
+  "button.footer.campaign_filter": "campaigns.view",
+  "button.footer.closed_filter": "service_areas.view",
+  "button.region.panel.close": "regions.view",
+  "button.region.service.open": "service_areas.open",
+  "button.region.service.close": "service_areas.close",
+  "button.region.campaign.manage": "campaigns.assign",
+  "button.region.boundary.edit": "regions.edit",
+  "button.region.delete": "regions.delete",
+  "button.region.panel.cancel": "regions.view",
+  "button.region.save": "regions.save",
+  "button.region.info.campaign_end": "campaigns.end",
+  "button.service_dialog.confirm": "service_areas.close",
+  "button.campaign_dialog.apply": "campaigns.assign",
+  "button.campaigns.open": "campaigns.view",
+  "button.campaigns.bulk_apply": "campaigns.bulk_apply",
+  "button.campaigns.bulk_close": "campaigns.bulk_close",
+  "button.campaigns.create": "campaigns.create",
+  "button.campaigns.tab.upcoming": "campaigns.view",
+  "button.campaigns.tab.expired": "campaigns.view",
+  "button.campaigns.tab.limit": "campaigns.view",
+  "button.campaigns.tab.active": "campaigns.view",
+  "button.campaigns.tab.regions": "campaigns.view",
+  "button.campaigns.edit": "campaigns.edit",
+  "button.campaigns.delete": "campaigns.delete",
+  "button.bulk.confirm_apply": "campaigns.bulk_apply",
+  "button.bulk.confirm_close": "campaigns.bulk_close",
+  "button.campaign_delete.confirm": "campaigns.delete",
+  "button.campaign_form.create": "campaigns.create",
+  "button.campaign_form.edit": "campaigns.edit",
+  "button.files.open": "files.view",
+  "button.files.view_list": "files.view",
+  "button.files.view_icons": "files.view",
+  "button.files.delete": "files.delete",
+  "button.draw.submit": "regions.create",
+  "button.import.continue": "regions.import",
+  "button.history.simulate": "history.view",
+  "button.history.back": "history.view",
+  "button.history.load_more": "history.view",
+  "button.settings.open": "map.theme",
+  "button.settings.reset": "map.theme",
+  "button.settings.apply": "map.theme",
+  "button.rbac.tab_users": "users.manage",
+  "button.rbac.tab_roles": "users.manage",
+  "button.rbac.create_user": "users.create",
+  "button.rbac.save_user": "users.edit",
+  "button.rbac.create_role": "roles.create",
+  "button.rbac.save_role": "roles.edit",
+  "button.rbac.permission_toggle": "roles.permissions",
+  "button.rbac.add_scope": "roles.scopes",
+  "button.rbac.remove_scope": "roles.scopes"
+};
+
+function headersForButtonPermission(permission) {
+  return BUTTON_TO_LEGACY[permission] || null;
+}
+
 export async function getAccess(accessToken, userId) {
   if (!accessToken || !userId) return null;
   const result = await request("/rest/v1/rpc/get_current_user_rbac_access", accessToken, { method: "POST", body: "{}" });
@@ -81,7 +239,15 @@ export async function getAccess(accessToken, userId) {
 export function can(access, permission) {
   if (!access?.loaded || !access?.profile?.is_active) return false;
   const permissions = access.permissions || [];
-  return access.role?.name === "super_admin" || permissions.includes("*") || permissions.includes(permission);
+  if (access.role?.name === "super_admin" || permissions.includes("*") || permissions.includes(permission)) return true;
+  // Existing handlers still ask for domain permissions. A concrete button
+  // grant is therefore allowed to satisfy its own legacy handler check, but
+  // the inverse is intentionally not true: a broad legacy permission alone
+  // cannot make a button visible.
+  if (permission && !String(permission).startsWith("button.")) {
+    return BUTTON_PERMISSIONS.some(([buttonPermission]) => headersForButtonPermission(buttonPermission) === permission && permissions.includes(buttonPermission));
+  }
+  return false;
 }
 export function canAny(access, permissions) { return permissions.some((permission) => can(access, permission)); }
 
