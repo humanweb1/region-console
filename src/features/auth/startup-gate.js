@@ -5,6 +5,7 @@ const elements = getElements();
 let released = false;
 let sessionStartedAt = 0;
 let lastStatus = "";
+let mapRefitAttempts = 0;
 
 window.RegionConsoleStartup = window.RegionConsoleStartup || {};
 window.RegionConsoleStartup.ready = false;
@@ -20,17 +21,24 @@ function setStep(step, state = "loading", detail = "") {
 function refitMapAfterStartup() {
   const mapState = window.__regionConsoleMapState;
   const map = mapState?.map;
-  if (!map) return;
+  if (!map) {
+    if (mapRefitAttempts++ < 100) window.setTimeout(refitMapAfterStartup, 50);
+    return;
+  }
 
   const container = map.getContainer?.();
   const rect = container?.getBoundingClientRect?.();
   if (!rect || rect.width <= 0 || rect.height <= 0) {
-    window.setTimeout(refitMapAfterStartup, 50);
+    if (mapRefitAttempts++ < 100) window.setTimeout(refitMapAfterStartup, 50);
     return;
   }
 
   const layers = (mapState.regionLayers || []).filter((layer) => layer?.getBounds?.()?.isValid?.());
-  if (!layers.length) return;
+  if (!layers.length) {
+    map.invalidateSize({ pan: false });
+    mapRefitAttempts = 0;
+    return;
+  }
 
   map.invalidateSize({ pan: false });
   const bounds = L.latLngBounds([]);
@@ -43,6 +51,7 @@ function refitMapAfterStartup() {
     animate: false
   });
   mapState.initialAccessFitDone = true;
+  mapRefitAttempts = 0;
 }
 
 function updateProgress() {
@@ -69,10 +78,13 @@ function updateProgress() {
     if (percent) percent.textContent = `${progress}%`;
   }
 
-  if (!accessReady || !cloudReady || !mapReady) return;
+  // The map is initialized while the startup view is visible, so its DOM size is zero.
+  // Access and data must be ready before release; map sizing/fit happens immediately after visibility.
+  if (!accessReady || !cloudReady) return;
   released = true;
   window.RegionConsoleStartup.ready = true;
   releaseStartup(elements);
+  mapRefitAttempts = 0;
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(refitMapAfterStartup);
   });
@@ -82,6 +94,7 @@ window.RegionConsoleStartup.begin = (session) => {
   sessionStartedAt = Date.now();
   released = false;
   window.RegionConsoleStartup.ready = false;
+  mapRefitAttempts = 0;
   const name = session?.user?.user_metadata?.name || session?.user?.user_metadata?.full_name || session?.user?.email?.split("@")[0] || "Kullanıcı";
   const title = document.getElementById("startupTitle");
   if (title) title.textContent = `Hoş geldiniz, ${name}`;
