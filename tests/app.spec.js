@@ -150,6 +150,7 @@ test.describe("Region Console smoke tests", () => {
     expect(view.size.x).toBeGreaterThan(500);
     expect(view.size.y).toBeGreaterThan(250);
     expect(view.zoom).toBeGreaterThan(5);
+    expect(view.zoom).toBeLessThanOrEqual(13);
     expect(view.lat).toBeGreaterThan(38.2);
     expect(view.lat).toBeLessThan(38.8);
     expect(view.lng).toBeGreaterThan(26.2);
