@@ -11,8 +11,8 @@ function closeNativeDialog(dialog) {
 
 function makeCloseControlUsable(control) {
   if (!control) return;
-  control.hidden = false;
-  control.removeAttribute("aria-disabled");
+  if (control.hidden) control.hidden = false;
+  if (control.hasAttribute("aria-disabled")) control.removeAttribute("aria-disabled");
 }
 
 function handleCloseTarget(target, event) {
@@ -39,7 +39,7 @@ function handleCloseTarget(target, event) {
     event.stopImmediatePropagation();
     const cancel = panel.querySelector("#regionCancelButton");
     if (cancel && cancel !== regionClose) {
-      cancel.hidden = false;
+      if (cancel.hidden) cancel.hidden = false;
       cancel.click();
     } else {
       panel.remove();
