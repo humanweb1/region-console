@@ -1,0 +1,41 @@
+name: Fix initial zoom race
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-initial-zoom-race.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Remove startup-wide map fit after cloud load
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/core/app.js')
+          text = path.read_text()
+          old = 'renderRegionsOnMap(mapState, allCustomRegions()); const coordinates = importedMapCoordinates(allCustomRegions()); if (coordinates.length) fitToCoordinates(mapState, coordinates); } else store.update("cloud", { status: "empty" });'
+          new = 'renderRegionsOnMap(mapState, allCustomRegions()); } else store.update("cloud", { status: "empty" });'
+          if old not in text:
+              raise SystemExit('Expected initial cloud-load fit block was not found; refusing to modify app.js.')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git diff --check
+          git diff -- src/core/app.js
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/core/app.js
+          git commit -m 'Fix scoped initial map zoom race [skip ci]'
+          git push
