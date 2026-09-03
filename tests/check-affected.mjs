@@ -13,23 +13,25 @@ function git(args) {
   }
 }
 
+const NL = String.fromCharCode(10);
+
 function changedFiles() {
   if (process.env.GITHUB_ACTIONS === "true") {
     const baseRef = process.env.GITHUB_BASE_REF;
     if (baseRef) {
-      return git(["diff", "--name-only", `origin/${baseRef}...HEAD"]).split("\n").filter(Boolean);
+      return git(["diff", "--name-only", `origin/${baseRef}...HEAD`]).split(NL).filter(Boolean);
     }
-    return git(["diff", "--name-only", "HEAD^", "HEAD"]).split("\n").filter(Boolean);
+    return git(["diff", "--name-only", "HEAD^", "HEAD"]).split(NL).filter(Boolean);
   }
 
-  const workingTree = git(["diff", "--name-only", "HEAD"]).split("\n").filter(Boolean);
-  const untracked = git(["ls-files", "--others", "--exclude-standard"]).split("\n").filter(Boolean);
+  const workingTree = git(["diff", "--name-only", "HEAD"]).split(NL).filter(Boolean);
+  const untracked = git(["ls-files", "--others", "--exclude-standard"]).split(NL).filter(Boolean);
 
   if (workingTree.length || untracked.length) {
     return [...new Set([...workingTree, ...untracked])];
   }
 
-  return git(["diff", "--name-only", "HEAD^", "HEAD"]).split("\n").filter(Boolean);
+  return git(["diff", "--name-only", "HEAD^", "HEAD"]).split(NL).filter(Boolean);
 }
 
 function existsAtHead(file) {
