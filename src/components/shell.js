@@ -1,24 +1,6 @@
 import { store } from "../state/store.js";
 import { isRegionVisible } from "../services/rbac.js";
 
-let dialogCloseDelegationBound = false;
-
-function bindDialogCloseDelegation() {
-  if (dialogCloseDelegationBound || typeof document === "undefined") return;
-  dialogCloseDelegationBound = true;
-  document.addEventListener("click", (event) => {
-    const button = event.target?.closest?.("#dialogClose");
-    if (!button) return;
-    const dialog = button.closest("dialog") || document.getElementById("appDialog");
-    if (!dialog) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    if (dialog.open) dialog.close();
-  }, true);
-}
-
-bindDialogCloseDelegation();
-
 export function getElements() {
   const ids = [
     "loginView", "consoleView", "cloudStatus", "versionLabel",
@@ -36,18 +18,16 @@ export function getElements() {
 function bindDialogClose(elements) {
   const button = elements?.dialogClose;
   const dialog = elements?.appDialog;
-  if (!button || !dialog || button.dataset.dialogCloseBound === "true") return;
-  button.dataset.dialogCloseBound = "true";
-  const close = (event) => {
+  if (!button || !dialog) return;
+
+  button.onclick = (event) => {
     event.preventDefault();
-    event.stopPropagation();
     closeDialog(elements);
   };
-  button.addEventListener("click", close);
-  dialog.addEventListener("cancel", (event) => {
+  dialog.oncancel = (event) => {
     event.preventDefault();
     closeDialog(elements);
-  });
+  };
 }
 
 export function showLogin(elements) { elements.loginView.hidden = false; elements.consoleView.hidden = true; }
@@ -130,5 +110,15 @@ if (typeof document !== "undefined") {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initFooter, { once: true }); else initFooter();
   document.addEventListener("click", (event) => { if (event.target.closest(".footer-status") || event.target.closest(".footer-status-popover")) return; document.querySelectorAll(".footer-status-popover").forEach((popover) => { popover.hidden = true; }); });
 }
-export function openDialog(elements, title, body) { elements.dialogTitle.textContent = title; elements.dialogBody.innerHTML = body; elements.appDialog.showModal(); }
-export function closeDialog(elements) { if (elements?.appDialog?.open) elements.appDialog.close(); }
+export function openDialog(elements, title, body) {
+  elements.dialogTitle.textContent = title;
+  elements.dialogBody.innerHTML = body;
+  bindDialogClose(elements);
+  if (!elements.appDialog.open) elements.appDialog.showModal();
+}
+export function closeDialog(elements) {
+  const dialog = elements?.appDialog;
+  if (!dialog) return;
+  if (dialog.open) dialog.close();
+  dialog.removeAttribute("open");
+}
