@@ -24,11 +24,10 @@ jobs:
           from pathlib import Path
           path = Path('src/core/app.js')
           text = path.read_text()
-          old = 'renderRegionsOnMap(mapState, allCustomRegions()); const coordinates = importedMapCoordinates(allCustomRegions()); if (coordinates.length) fitToCoordinates(mapState, coordinates); } else store.update("cloud", { status: "empty" });'
-          new = 'renderRegionsOnMap(mapState, allCustomRegions()); } else store.update("cloud", { status: "empty" });'
+          old = ' const coordinates = importedMapCoordinates(allCustomRegions()); if (coordinates.length) fitToCoordinates(mapState, coordinates);'
           if old not in text:
-              raise SystemExit('Expected initial cloud-load fit block was not found; refusing to modify app.js.')
-          path.write_text(text.replace(old, new, 1))
+              raise SystemExit('Expected startup-wide initial fit was not found; refusing to modify app.js.')
+          path.write_text(text.replace(old, '', 1))
           PY
           git diff --check
           git diff -- src/core/app.js
@@ -37,5 +36,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/core/app.js
-          git commit -m 'Fix scoped initial map zoom race [skip ci]'
+          git commit -m 'Fix scoped initial map zoom race'
           git push
