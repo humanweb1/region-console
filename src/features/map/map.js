@@ -36,17 +36,38 @@ function ringBounds(ring) { let minLat = Infinity, minLng = Infinity, maxLat = -
 function ringContainsRing(parentRing, childRing) { if (!parentRing?.length || !childRing?.length) return false; const p = childRing[Math.floor(childRing.length / 2)]; const pb = ringBounds(parentRing); const cb = ringBounds(childRing); if (cb.minLat < pb.minLat || cb.maxLat > pb.maxLat || cb.minLng < pb.minLng || cb.maxLng > pb.maxLng) return false; return pointInRing(p, parentRing); }
 function serviceChildRings(region, regions) { return regions.filter((candidate) => { if (!candidate || candidate === region) return false; if (candidate.status === "outside" || candidate.status === "closed" || isCampaignRegion(candidate)) return false; return regionHasParent(candidate, [region, ...regions]); }).flatMap((child) => geometryToOuterRings(child.geometry)); }
 function addServiceHoles(latLngs, holes) { if (!holes.length) return latLngs; if (!Array.isArray(latLngs[0])) return latLngs; if (Array.isArray(latLngs[0][0]) && Array.isArray(latLngs[0][0][0])) return latLngs.map((polygon) => { if (!polygon?.length) return polygon; const outer = polygon[0]; const matching = holes.filter((ring) => ringContainsRing(outer, ring)); return [outer, ...polygon.slice(1), ...matching]; }); const outer = latLngs[0]; const matching = holes.filter((ring) => ringContainsRing(outer, ring)); return [outer, ...latLngs.slice(1), ...matching]; }
+function scopeRootTypes(access) {
+  if (!access?.loaded) return new Set();
+  const roleName = String(access.role?.name || access.role || "").trim().toLowerCase();
+  if (roleName === "super_admin" || (access.permissions || []).includes("*")) return new Set();
+  const types = new Set();
+  for (const scope of access.scopes || []) {
+    if (scope?.district_id) types.add("district");
+    else if (scope?.province_id) types.add("province");
+    else if (scope?.country_id) types.add("country");
+  }
+  return types;
+}
+function regionType(region) { return String(region?.hierarchy?.type || region?.type || "").trim().toLowerCase(); }
+function isRootViewportRegion(region, rootTypes) {
+  const type = regionType(region);
+  if (rootTypes.has("province") && ["province", "provinces", "il"].includes(type)) return true;
+  if (rootTypes.has("district") && ["district", "districts", "ilce", "ilçe"].includes(type)) return true;
+  if (rootTypes.has("country") && ["country", "countries", "ülke"].includes(type)) return true;
+  return false;
+}
 export function fitInitialVisibleAccess(mapState) {
   if (mapState.initialAccessFitDone) return false;
   const access = window.RegionConsoleRBAC?.access || null;
   if (!access?.loaded) return false;
   const regions = store.get().regions?.custom || [];
   const visibleRegions = regions.filter((region) => isRegionVisible(access, region));
+  const rootTypes = scopeRootTypes(access);
+  const viewportRegions = rootTypes.size ? visibleRegions.filter((region) => isRootViewportRegion(region, rootTypes)) : visibleRegions;
+  const candidates = viewportRegions.length ? viewportRegions : visibleRegions;
   const coordinates = [];
-  for (const region of visibleRegions) {
-    const geometry = region?.geometry;
-    if (!geometry) continue;
-    for (const ring of geometryToOuterRings(geometry)) coordinates.push(...ring);
+  for (const region of candidates) {
+    for (const ring of geometryToOuterRings(region?.geometry)) coordinates.push(...ring);
   }
   if (!coordinates.length) return false;
   mapState.map.fitBounds(L.latLngBounds(coordinates), { padding: [42, 42], maxZoom: 13, animate: false });
