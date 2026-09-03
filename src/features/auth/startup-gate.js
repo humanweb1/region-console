@@ -113,10 +113,21 @@ window.RegionConsoleStartup.begin = (session) => {
   released = false;
   window.RegionConsoleStartup.ready = false;
   mapRefitAttempts = 0;
+  lastStatus = "";
   const name = session?.user?.user_metadata?.name || session?.user?.user_metadata?.full_name || session?.user?.email?.split("@")[0] || "Kullanıcı";
   const title = document.getElementById("startupTitle");
   if (title) title.textContent = `Hoş geldiniz, ${name}`;
   showStartup(elements);
+
+  // The map may have been created while consoleView was hidden. Now that the
+  // startup screen is an overlay, invalidate any stale pre-startup fit and
+  // calculate the scoped viewport against the real, measurable map container.
+  const mapState = window.__regionConsoleMapState;
+  if (mapState) mapState.initialAccessFitDone = false;
+  window.requestAnimationFrame(() => {
+    mapState?.map?.invalidateSize?.({ pan: false });
+    updateProgress();
+  });
   updateProgress();
 };
 
