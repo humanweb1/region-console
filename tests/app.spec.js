@@ -139,6 +139,7 @@ test.describe("Region Console smoke tests", () => {
 
     const vertices = page.locator(".boundary-vertex-marker");
     const midpoints = page.locator(".boundary-midpoint-marker");
+    const midpointHitTargets = page.locator(".boundary-midpoint-marker-wrap").filter({ has: page.locator(".boundary-midpoint-marker") });
     const initialVertexCount = await vertices.count();
     expect(initialVertexCount).toBeGreaterThanOrEqual(3);
     await expect(midpoints).toHaveCount(initialVertexCount);
@@ -150,7 +151,7 @@ test.describe("Region Console smoke tests", () => {
     await page.keyboard.press("Enter");
     await expect(vertices).toHaveCount(initialVertexCount);
 
-    await midpoints.nth(0).click();
+    await midpointHitTargets.nth(0).click();
     await expect(vertices).toHaveCount(initialVertexCount + 1);
     await expect(midpoints).toHaveCount(initialVertexCount + 1);
   });
