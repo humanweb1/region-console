@@ -1,6 +1,24 @@
 import { store } from "../state/store.js";
 import { isRegionVisible } from "../services/rbac.js";
 
+let dialogCloseDelegationBound = false;
+
+function bindDialogCloseDelegation() {
+  if (dialogCloseDelegationBound || typeof document === "undefined") return;
+  dialogCloseDelegationBound = true;
+  document.addEventListener("click", (event) => {
+    const button = event.target?.closest?.("#dialogClose");
+    if (!button) return;
+    const dialog = button.closest("dialog") || document.getElementById("appDialog");
+    if (!dialog) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (dialog.open) dialog.close();
+  }, true);
+}
+
+bindDialogCloseDelegation();
+
 export function getElements() {
   const ids = [
     "loginView", "consoleView", "cloudStatus", "versionLabel",
