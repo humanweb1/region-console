@@ -17,7 +17,7 @@ function changedFiles() {
   if (process.env.GITHUB_ACTIONS === "true") {
     const baseRef = process.env.GITHUB_BASE_REF;
     if (baseRef) {
-      return git(["diff", "--name-only", `origin/${baseRef}...HEAD`]).split("\n").filter(Boolean);
+      return git(["diff", "--name-only", `origin/${baseRef}...HEAD"]).split("\n").filter(Boolean);
     }
     return git(["diff", "--name-only", "HEAD^", "HEAD"]).split("\n").filter(Boolean);
   }
@@ -32,11 +32,20 @@ function changedFiles() {
   return git(["diff", "--name-only", "HEAD^", "HEAD"]).split("\n").filter(Boolean);
 }
 
+function existsAtHead(file) {
+  try {
+    execFileSync("git", ["cat-file", "-e", `HEAD:${file}`], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const files = changedFiles();
-const jsFiles = files.filter((file) => /\.(?:js|mjs|cjs)$/.test(file) && !file.includes("node_modules/"));
+const jsFiles = files.filter((file) => /\.(?:js|mjs|cjs)$/.test(file) && !file.includes("node_modules/") && existsAtHead(file));
 
 if (!jsFiles.length) {
-  console.log("No changed JavaScript files; syntax check skipped.");
+  console.log("No existing changed JavaScript files; syntax check skipped.");
   process.exit(0);
 }
 
