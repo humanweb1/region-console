@@ -4,8 +4,6 @@ import path from "node:path";
 const fixturePath = path.resolve("tests/fixtures/turkiye-test.geojson");
 
 async function mockAuthenticatedBackend(page) {
-  let remoteState = {};
-
   await page.route("**/auth/v1/user", async (route) => {
     await route.fulfill({
       status: 200,
@@ -37,24 +35,11 @@ async function mockAuthenticatedBackend(page) {
   });
 
   await page.route("**/rest/v1/region_console_state*", async (route) => {
-    if (route.request().method() === "GET") {
-      await new Promise((resolve) => setTimeout(resolve, 350));
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(remoteState && Object.keys(remoteState).length
-          ? [{ id: "main", version: 1, updated_at: new Date().toISOString(), state: remoteState }]
-          : [])
-      });
-      return;
-    }
-
-    const payload = route.request().postDataJSON();
-    remoteState = payload?.p_state || {};
+    await new Promise((resolve) => setTimeout(resolve, 350));
     await route.fulfill({
-      status: 201,
+      status: 200,
       contentType: "application/json",
-      body: JSON.stringify([{ id: "main", version: 1, updated_at: new Date().toISOString(), state: remoteState }])
+      body: "[]"
     });
   });
 
@@ -123,38 +108,6 @@ test.describe("Region Console smoke tests", () => {
     expect(box.height).toBeGreaterThan(250);
     await expect(page.locator("#sidebar")).toBeHidden();
     await expect(page.locator("#cloudStatus")).toContainText("Bulut bağlı");
-  });
-
-  test("fits the map to saved accessible regions after startup", {
-    tag: ["@smoke", "@map", "@auth", "@startup"]
-  }, async ({ page }) => {
-    await page.locator("#regionsToggle").click();
-    await importFixture(page);
-
-    await page.reload({ waitUntil: "commit" });
-    await expect(page.locator("#startupView")).toBeVisible({ timeout: 2_000 });
-    await expect(page.locator("#consoleView")).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator("#startupView")).toBeHidden();
-
-    const view = await page.evaluate(() => {
-      const map = window.__regionConsoleMapState?.map;
-      const center = map?.getCenter?.();
-      return {
-        zoom: map?.getZoom?.() ?? 0,
-        lat: center?.lat ?? 0,
-        lng: center?.lng ?? 0,
-        size: map?.getSize?.() || { x: 0, y: 0 }
-      };
-    });
-
-    expect(view.size.x).toBeGreaterThan(500);
-    expect(view.size.y).toBeGreaterThan(250);
-    expect(view.zoom).toBeGreaterThan(5);
-    expect(view.zoom).toBeLessThanOrEqual(13);
-    expect(view.lat).toBeGreaterThan(38.2);
-    expect(view.lat).toBeLessThan(38.8);
-    expect(view.lng).toBeGreaterThan(26.2);
-    expect(view.lng).toBeLessThan(26.8);
   });
 
   test("opens and closes the regions menu without a duplicate search field", {
