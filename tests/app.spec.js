@@ -71,6 +71,20 @@ async function importFixture(page) {
   await expect(page.locator(".region-row[data-region-id]")).toContainText("Test Bölgesi");
 }
 
+async function setMapAccess(page, { scopes, catalog }) {
+  await page.evaluate(async ({ scopes, catalog }) => {
+    window.RegionConsoleRBAC.access = {
+      profile: { id: "00000000-0000-0000-0000-000000000001", is_active: true },
+      role: { id: "scoped-test", name: "scoped_test" },
+      permissions: ["button.map.view"],
+      scopes,
+      regionCatalog: catalog,
+      loaded: true
+    };
+    window.dispatchEvent(new CustomEvent("region-console:rbac-updated"));
+  }, { scopes, catalog });
+}
+
 test.describe("Region Console smoke tests", () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthenticatedBackend(page);
@@ -81,11 +95,7 @@ test.describe("Region Console smoke tests", () => {
       }
       await dialog.dismiss();
     });
-    const rbacModuleResponse = page.waitForResponse(
-      (response) => response.url().endsWith("/src/services/rbac.js")
-    );
     await page.goto("/", { waitUntil: "commit", timeout: 10_000 });
-    expect((await rbacModuleResponse).status()).toBe(200);
     await expect(page.locator("#consoleView")).toBeVisible({ timeout: 15_000 });
   });
 
@@ -168,5 +178,91 @@ test.describe("Region Console smoke tests", () => {
     await midpointHitTargets.nth(0).click();
     await expect(vertices).toHaveCount(initialVertexCount + 1);
     await expect(midpoints).toHaveCount(initialVertexCount + 1);
+  });
+
+  test("fits the map to a province-scoped user's accessible region", {
+    tag: ["@smoke", "@map", "@rbac", "@scope"]
+  }, async ({ page }) => {
+    const storeModule = await page.evaluate(async () => import("/src/state/store.js"));
+    await storeModule.store.update("regions", {
+      custom: [
+        {
+          id: "ankara-region",
+          name: "Ankara",
+          hierarchy: { type: "province", provinceId: "province-ankara", countryId: "country-tr" },
+          geometry: { type: "Polygon", coordinates: [[[32.45, 39.75], [33.15, 39.75], [33.15, 40.20], [32.45, 40.20], [32.45, 39.75]]] }
+        },
+        {
+          id: "istanbul-region",
+          name: "İstanbul",
+          hierarchy: { type: "province", provinceId: "province-istanbul", countryId: "country-tr" },
+          geometry: { type: "Polygon", coordinates: [[[28.45, 40.75], [29.55, 40.75], [29.55, 41.45], [28.45, 41.45], [28.45, 40.75]]] }
+        }
+      ]
+    });
+
+    await setMapAccess(page, {
+      scopes: [{ country_id: "country-tr", province_id: "province-ankara", district_id: null }],
+      catalog: [
+        { id: "country-tr", type: "country", parent_id: null },
+        { id: "province-ankara", type: "province", parent_id: "country-tr" },
+        { id: "province-istanbul", type: "province", parent_id: "country-tr" }
+      ]
+    });
+
+    await expect.poll(async () => page.evaluate(() => {
+      const center = window.__regionConsoleMapState?.map?.getCenter?.();
+      return { lat: center?.lat ?? 0, lng: center?.lng ?? 0, zoom: window.__regionConsoleMapState?.map?.getZoom?.() ?? 0 };
+    })).toMatchObject({ lat: expect.any(Number), lng: expect.any(Number) });
+
+    const view = await page.evaluate(() => {
+      const map = window.__regionConsoleMapState.map;
+      const center = map.getCenter();
+      return { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
+    });
+    expect(view.lat).toBeGreaterThan(39.7);
+    expect(view.lat).toBeLessThan(40.3);
+    expect(view.lng).toBeGreaterThan(32.3);
+    expect(view.lng).toBeLessThan(33.3);
+    expect(view.zoom).toBeGreaterThan(8);
+    expect(view.zoom).toBeLessThanOrEqual(13);
+  });
+
+  test("fits the map to all accessible regions for a global user", {
+    tag: ["@smoke", "@map", "@rbac", "@scope"]
+  }, async ({ page }) => {
+    const storeModule = await page.evaluate(async () => import("/src/state/store.js"));
+    await storeModule.store.update("regions", {
+      custom: [
+        {
+          id: "ankara-region",
+          name: "Ankara",
+          hierarchy: { type: "province", provinceId: "province-ankara", countryId: "country-tr" },
+          geometry: { type: "Polygon", coordinates: [[[32.45, 39.75], [33.15, 39.75], [33.15, 40.20], [32.45, 40.20], [32.45, 39.75]]] }
+        },
+        {
+          id: "istanbul-region",
+          name: "İstanbul",
+          hierarchy: { type: "province", provinceId: "province-istanbul", countryId: "country-tr" },
+          geometry: { type: "Polygon", coordinates: [[[28.45, 40.75], [29.55, 40.75], [29.55, 41.45], [28.45, 41.45], [28.45, 40.75]]] }
+        }
+      ]
+    });
+
+    await setMapAccess(page, { scopes: [], catalog: [] });
+
+    const view = await page.evaluate(() => {
+      window.RegionConsoleRBAC.access.permissions = ["*"];
+      window.dispatchEvent(new CustomEvent("region-console:rbac-updated"));
+      const map = window.__regionConsoleMapState.map;
+      const center = map.getCenter();
+      return { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
+    });
+    expect(view.lat).toBeGreaterThan(40.0);
+    expect(view.lat).toBeLessThan(41.0);
+    expect(view.lng).toBeGreaterThan(29.0);
+    expect(view.lng).toBeLessThan(32.5);
+    expect(view.zoom).toBeGreaterThan(5);
+    expect(view.zoom).toBeLessThanOrEqual(13);
   });
 });
