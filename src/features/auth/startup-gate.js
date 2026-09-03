@@ -18,6 +18,38 @@ function setStep(step, state = "loading", detail = "") {
   if (detailNode && detail) detailNode.textContent = detail;
 }
 
+function fitScopedMapBeforeRelease() {
+  const mapState = window.__regionConsoleMapState;
+  const map = mapState?.map;
+  if (!map) return false;
+
+  const container = map.getContainer?.();
+  const rect = container?.getBoundingClientRect?.();
+  if (!rect || rect.width <= 0 || rect.height <= 0) return false;
+
+  map.invalidateSize({ pan: false });
+  const layers = (mapState.regionLayers || []).filter((layer) => layer?.getBounds?.()?.isValid?.());
+
+  // A user may legitimately have no visible regions. In that case there is no
+  // scoped viewport to calculate, so the initial map state is already final.
+  if (!layers.length) {
+    mapState.initialAccessFitDone = true;
+    return true;
+  }
+
+  const bounds = L.latLngBounds([]);
+  layers.forEach((layer) => bounds.extend(layer.getBounds()));
+  if (!bounds.isValid()) return false;
+
+  map.fitBounds(bounds, {
+    padding: [42, 42],
+    maxZoom: 13,
+    animate: false
+  });
+  mapState.initialAccessFitDone = true;
+  return true;
+}
+
 function refitMapAfterStartup() {
   const mapState = window.__regionConsoleMapState;
   const map = mapState?.map;
@@ -26,13 +58,7 @@ function refitMapAfterStartup() {
     return;
   }
 
-  const container = map.getContainer?.();
-  const rect = container?.getBoundingClientRect?.();
-  if (!rect || rect.width <= 0 || rect.height <= 0) {
-    if (mapRefitAttempts++ < 100) window.setTimeout(refitMapAfterStartup, 50);
-    return;
-  }
-
+  if (!mapState.initialAccessFitDone) fitScopedMapBeforeRelease();
   map.invalidateSize({ pan: false });
   mapRefitAttempts = 0;
 }
@@ -52,10 +78,18 @@ function updateProgress() {
   setStep("data", cloudReady ? (state.cloud.status === "error" ? "warning" : "done") : "loading", cloudReady ? (state.cloud.status === "error" ? "Bulut verisi alınamadı; mevcut oturum açılıyor" : "Bölge verileri hazır") : "Bölge verileri hazırlanıyor…");
   setStep("map", mapReady && accessFitReady ? "done" : "loading", mapReady && accessFitReady ? "Harita hazır" : "Harita yetki alanına göre hazırlanıyor…");
 
-  const status = `${accessReady}:${accessFitReady}:${cloudReady}:${mapReady}:${state.cloud?.status}`;
+  // RBAC can finish before the Leaflet map is created. The RBAC event then has
+  // already fired, so explicitly perform the first scoped fit here before the
+  // startup gate opens. This removes the delayed zoom on subordinate users.
+  if (cloudReady && mapReady && accessReady && !accessFitReady) {
+    fitScopedMapBeforeRelease();
+  }
+
+  const nextAccessFitReady = Boolean(mapState?.initialAccessFitDone);
+  const status = `${accessReady}:${nextAccessFitReady}:${cloudReady}:${mapReady}:${state.cloud?.status}`;
   if (status !== lastStatus) {
     lastStatus = status;
-    const completed = [accessReady, cloudReady, mapReady && accessFitReady].filter(Boolean).length;
+    const completed = [accessReady, cloudReady, mapReady && nextAccessFitReady].filter(Boolean).length;
     const progress = Math.round((completed / 3) * 100);
     const progressNode = document.getElementById("startupProgress");
     if (progressNode) progressNode.style.setProperty("--startup-progress", `${progress}%`);
@@ -63,9 +97,7 @@ function updateProgress() {
     if (percent) percent.textContent = `${progress}%`;
   }
 
-  // The console is released only after the user's RBAC scope has been applied
-  // to the map and the initial viewport has been fitted to that visible scope.
-  if (!cloudReady || !mapReady || !accessReady || !accessFitReady) return;
+  if (!cloudReady || !mapReady || !accessReady || !nextAccessFitReady) return;
 
   released = true;
   window.RegionConsoleStartup.ready = true;
