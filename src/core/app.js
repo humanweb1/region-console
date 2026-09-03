@@ -219,7 +219,7 @@ async function startApplication(session) {
   store.update("cloud", { status: "loading", error: null }); render();
   try {
     const remote = await loadState(session.access_token);
-    if (remote?.state) { store.loadPersisted(remote.state); store.update("cloud", { status: "ready", version: remote.version || null, updatedAt: remote.updated_at || null, error: null }); renderRegionsOnMap(mapState, allCustomRegions()); const coordinates = importedMapCoordinates(allCustomRegions()); if (coordinates.length) fitToCoordinates(mapState, coordinates); }
+    if (remote?.state) { store.loadPersisted(remote.state); store.update("cloud", { status: "ready", version: remote.version || null, updatedAt: remote.updated_at || null, error: null }); renderRegionsOnMap(mapState, allCustomRegions()); }
     else store.update("cloud", { status: "empty" });
   } catch (error) { console.error("[Region Console] Cloud load failed:", error); store.update("cloud", { status: "error", error: error.message }); toast(elements, `Bulut verisi yüklenemedi: ${error.message}`); }
   render(); invalidateMap(mapState);
