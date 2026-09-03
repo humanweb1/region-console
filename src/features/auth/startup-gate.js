@@ -34,13 +34,12 @@ function refitMapAfterStartup() {
   }
 
   const layers = (mapState.regionLayers || []).filter((layer) => layer?.getBounds?.()?.isValid?.());
+  map.invalidateSize({ pan: false });
   if (!layers.length) {
-    map.invalidateSize({ pan: false });
     mapRefitAttempts = 0;
     return;
   }
 
-  map.invalidateSize({ pan: false });
   const bounds = L.latLngBounds([]);
   layers.forEach((layer) => bounds.extend(layer.getBounds()));
   if (!bounds.isValid()) return;
@@ -63,7 +62,7 @@ function updateProgress() {
   const accessReady = Boolean(access?.loaded);
 
   setStep("session", "done", "Oturum doğrulandı");
-  setStep("access", accessReady ? "done" : "loading", accessReady ? "Yetkiler hazır" : "Yetkiler kontrol ediliyor…");
+  setStep("access", accessReady ? "done" : "loading", accessReady ? "Yetkiler hazır" : "Yetkiler arka planda hazırlanıyor…");
   setStep("data", cloudReady ? (state.cloud.status === "error" ? "warning" : "done") : "loading", cloudReady ? (state.cloud.status === "error" ? "Bulut verisi alınamadı; mevcut oturum açılıyor" : "Bölge verileri hazır") : "Bölge verileri hazırlanıyor…");
   setStep("map", mapReady ? "done" : "loading", mapReady ? "Harita hazır" : "Harita hazırlanıyor…");
 
@@ -78,9 +77,9 @@ function updateProgress() {
     if (percent) percent.textContent = `${progress}%`;
   }
 
-  // The map is initialized while the startup view is visible, so its DOM size is zero.
-  // Access and data must be ready before release; map sizing/fit happens immediately after visibility.
-  if (!accessReady || !cloudReady) return;
+  // Cloud data and the map instance are the hard startup requirements. RBAC continues
+  // in the background so a slow permission request cannot leave the user on a blank page.
+  if (!cloudReady || !mapReady) return;
   released = true;
   window.RegionConsoleStartup.ready = true;
   releaseStartup(elements);
