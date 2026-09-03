@@ -44,6 +44,8 @@ export function showStartup(elements) {
 
 export function showConsole(elements) {
   if (window.RegionConsoleStartup && window.RegionConsoleStartup.ready !== true) {
+    const session = store.get().auth?.session;
+    window.RegionConsoleStartup.begin?.(session);
     showStartup(elements);
     return;
   }
