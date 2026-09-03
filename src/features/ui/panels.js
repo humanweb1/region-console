@@ -53,7 +53,7 @@ export function bindPanels(elements, mapState, drawing, handlers) {
   document.getElementById("satelliteLayerButton")?.addEventListener("click", () => { if (!can(window.RegionConsoleRBAC?.access, "map.layer")) return; handlers.onLayer?.("satellite"); document.getElementById("satelliteLayerButton")?.classList.add("active"); document.getElementById("mapLayerButton")?.classList.remove("active"); });
   document.getElementById("themeButton")?.addEventListener("click", () => { if (can(window.RegionConsoleRBAC?.access, "map.theme")) handlers.onTheme?.(); });
   document.getElementById("logoutButton")?.addEventListener("click", handlers.onLogout);
-  document.getElementById("dialogClose")?.addEventListener("click", () => elements.appDialog.close());
+  elements.dialogClose?.removeAttribute("data-legacy-close-handler");
   document.getElementById("undoButton")?.addEventListener("click", () => { if (can(window.RegionConsoleRBAC?.access, "history.undo")) handlers.onUndo?.(); });
   document.getElementById("redoButton")?.addEventListener("click", () => { if (can(window.RegionConsoleRBAC?.access, "history.redo")) handlers.onRedo?.(); });
   document.getElementById("saveButton")?.addEventListener("click", () => { if (can(window.RegionConsoleRBAC?.access, "regions.save")) handlers.onSave?.(); });
