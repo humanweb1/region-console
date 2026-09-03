@@ -11,7 +11,25 @@ export function getElements() {
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
   elements.statOutside = document.getElementById("statOutside") || document.createElement("span");
+  bindDialogClose(elements);
   return elements;
+}
+
+function bindDialogClose(elements) {
+  const button = elements?.dialogClose;
+  const dialog = elements?.appDialog;
+  if (!button || !dialog || button.dataset.dialogCloseBound === "true") return;
+  button.dataset.dialogCloseBound = "true";
+  const close = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeDialog(elements);
+  };
+  button.addEventListener("click", close);
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeDialog(elements);
+  });
 }
 
 export function showLogin(elements) { elements.loginView.hidden = false; elements.consoleView.hidden = true; }
@@ -95,4 +113,4 @@ if (typeof document !== "undefined") {
   document.addEventListener("click", (event) => { if (event.target.closest(".footer-status") || event.target.closest(".footer-status-popover")) return; document.querySelectorAll(".footer-status-popover").forEach((popover) => { popover.hidden = true; }); });
 }
 export function openDialog(elements, title, body) { elements.dialogTitle.textContent = title; elements.dialogBody.innerHTML = body; elements.appDialog.showModal(); }
-export function closeDialog(elements) { if (elements.appDialog.open) elements.appDialog.close(); }
+export function closeDialog(elements) { if (elements?.appDialog?.open) elements.appDialog.close(); }
