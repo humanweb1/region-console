@@ -17,6 +17,34 @@ function setStep(step, state = "loading", detail = "") {
   if (detailNode && detail) detailNode.textContent = detail;
 }
 
+function refitMapAfterStartup() {
+  const mapState = window.__regionConsoleMapState;
+  const map = mapState?.map;
+  if (!map) return;
+
+  const container = map.getContainer?.();
+  const rect = container?.getBoundingClientRect?.();
+  if (!rect || rect.width <= 0 || rect.height <= 0) {
+    window.setTimeout(refitMapAfterStartup, 50);
+    return;
+  }
+
+  const layers = (mapState.regionLayers || []).filter((layer) => layer?.getBounds?.()?.isValid?.());
+  if (!layers.length) return;
+
+  map.invalidateSize({ pan: false });
+  const bounds = L.latLngBounds([]);
+  layers.forEach((layer) => bounds.extend(layer.getBounds()));
+  if (!bounds.isValid()) return;
+
+  map.fitBounds(bounds, {
+    padding: [42, 42],
+    maxZoom: 13,
+    animate: false
+  });
+  mapState.initialAccessFitDone = true;
+}
+
 function updateProgress() {
   if (released) return;
   const state = store.get();
@@ -45,6 +73,9 @@ function updateProgress() {
   released = true;
   window.RegionConsoleStartup.ready = true;
   releaseStartup(elements);
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(refitMapAfterStartup);
+  });
 }
 
 window.RegionConsoleStartup.begin = (session) => {
