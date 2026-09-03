@@ -16,6 +16,24 @@ async function mockAuthenticatedBackend(page) {
     });
   });
 
+  await page.route("**/rest/v1/rpc/get_current_user_rbac_access", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([{
+        profile: {
+          id: "00000000-0000-0000-0000-000000000001",
+          is_active: true,
+          email: "playwright@example.test"
+        },
+        role: { id: "playwright", name: "playwright" },
+        permissions: ["*"],
+        scopes: [],
+        regionCatalog: []
+      }])
+    });
+  });
+
   await page.route("**/rest/v1/region_console_state*", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
