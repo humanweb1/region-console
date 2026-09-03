@@ -60,9 +60,6 @@ function updateProgress() {
   setStep("data", cloudReady ? (state.cloud.status === "error" ? "warning" : "done") : "loading", cloudReady ? (state.cloud.status === "error" ? "Bulut verisi alınamadı; mevcut oturum açılıyor" : "Bölge verileri hazır") : "Bölge verileri hazırlanıyor…");
   setStep("map", mapReady && accessFitReady ? "done" : "loading", mapReady && accessFitReady ? "Harita hazır" : "Harita yetki alanına göre hazırlanıyor…");
 
-  // RBAC can finish before the Leaflet map is created. The RBAC event then has
-  // already fired, so explicitly perform the first scoped fit here before the
-  // startup gate opens. This uses the same root-aware viewport logic as map.js.
   if (cloudReady && mapReady && accessReady && !accessFitReady) {
     fitScopedMapBeforeRelease();
   }
@@ -84,6 +81,7 @@ function updateProgress() {
   released = true;
   window.RegionConsoleStartup.ready = true;
   releaseStartup(elements);
+  elements.consoleView.style.visibility = "visible";
   mapRefitAttempts = 0;
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(refitMapAfterStartup);
@@ -100,10 +98,8 @@ window.RegionConsoleStartup.begin = (session) => {
   const title = document.getElementById("startupTitle");
   if (title) title.textContent = `Hoş geldiniz, ${name}`;
   showStartup(elements);
+  elements.consoleView.style.visibility = "hidden";
 
-  // The map may have been created while consoleView was hidden. Now that the
-  // startup screen is an overlay, invalidate any stale pre-startup fit and
-  // calculate the scoped viewport against the real, measurable map container.
   const mapState = window.__regionConsoleMapState;
   if (mapState) mapState.initialAccessFitDone = false;
   window.requestAnimationFrame(() => {
