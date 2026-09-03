@@ -52,23 +52,26 @@ function updateProgress() {
   const mapState = window.__regionConsoleMapState;
   const mapReady = Boolean(mapState?.map);
   const accessReady = Boolean(access?.loaded);
-  const accessFitReady = Boolean(mapState?.initialAccessFitDone);
   const cloudReady = state.cloud?.status === "ready" || state.cloud?.status === "empty" || state.cloud?.status === "error";
+  const accessFitReady = Boolean(mapState?.initialAccessFitDone);
+  const noRegionsToFit = cloudReady && mapReady && accessReady && Array.isArray(state.regions?.custom) && state.regions.custom.length === 0;
+  const viewportReady = accessFitReady || noRegionsToFit;
 
   setStep("session", "done", "Oturum doğrulandı");
   setStep("access", accessReady ? "done" : "loading", accessReady ? "Yetkiler hazır" : "Yetkiler kontrol ediliyor…");
   setStep("data", cloudReady ? (state.cloud.status === "error" ? "warning" : "done") : "loading", cloudReady ? (state.cloud.status === "error" ? "Bulut verisi alınamadı; mevcut oturum açılıyor" : "Bölge verileri hazır") : "Bölge verileri hazırlanıyor…");
-  setStep("map", mapReady && accessFitReady ? "done" : "loading", mapReady && accessFitReady ? "Harita hazır" : "Harita yetki alanına göre hazırlanıyor…");
+  setStep("map", mapReady && viewportReady ? "done" : "loading", mapReady && viewportReady ? "Harita hazır" : "Harita yetki alanına göre hazırlanıyor…");
 
-  if (cloudReady && mapReady && accessReady && !accessFitReady) {
+  if (cloudReady && mapReady && accessReady && !viewportReady) {
     fitScopedMapBeforeRelease();
   }
 
   const nextAccessFitReady = Boolean(mapState?.initialAccessFitDone);
-  const status = `${accessReady}:${nextAccessFitReady}:${cloudReady}:${mapReady}:${state.cloud?.status}`;
+  const nextViewportReady = nextAccessFitReady || noRegionsToFit;
+  const status = `${accessReady}:${nextViewportReady}:${cloudReady}:${mapReady}:${state.cloud?.status}`;
   if (status !== lastStatus) {
     lastStatus = status;
-    const completed = [accessReady, cloudReady, mapReady && nextAccessFitReady].filter(Boolean).length;
+    const completed = [accessReady, cloudReady, mapReady && nextViewportReady].filter(Boolean).length;
     const progress = Math.round((completed / 3) * 100);
     const progressNode = document.getElementById("startupProgress");
     if (progressNode) progressNode.style.setProperty("--startup-progress", `${progress}%`);
@@ -76,7 +79,7 @@ function updateProgress() {
     if (percent) percent.textContent = `${progress}%`;
   }
 
-  if (!cloudReady || !mapReady || !accessReady || !nextAccessFitReady) return;
+  if (!cloudReady || !mapReady || !accessReady || !nextViewportReady) return;
 
   released = true;
   window.RegionConsoleStartup.ready = true;
