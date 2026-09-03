@@ -81,7 +81,11 @@ test.describe("Region Console smoke tests", () => {
       }
       await dialog.dismiss();
     });
+    const rbacModuleResponse = page.waitForResponse(
+      (response) => response.url().endsWith("/src/services/rbac.js")
+    );
     await page.goto("/", { waitUntil: "commit", timeout: 10_000 });
+    expect((await rbacModuleResponse).status()).toBe(200);
     await expect(page.locator("#consoleView")).toBeVisible({ timeout: 15_000 });
   });
 
