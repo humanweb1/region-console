@@ -58,6 +58,7 @@ export function releaseStartup(elements) {
   elements.loginView.hidden = true;
   if (elements.startupView) elements.startupView.hidden = true;
   elements.consoleView.hidden = false;
+  window.dispatchEvent(new CustomEvent("region-console:startup-ready"));
 }
 
 export function setCloudStatus(elements, text, state = "idle") { elements.cloudStatus.textContent = text; elements.cloudStatus.dataset.state = state; }
