@@ -39,7 +39,9 @@ export function showLogin(elements) {
 export function showStartup(elements) {
   elements.loginView.hidden = true;
   if (elements.startupView) elements.startupView.hidden = false;
-  elements.consoleView.hidden = true;
+  // Keep the console mounted and measurable behind the startup overlay. This
+  // lets Leaflet render at its real dimensions before the loading screen ends.
+  elements.consoleView.hidden = false;
 }
 
 export function showConsole(elements) {
