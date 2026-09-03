@@ -97,7 +97,7 @@ test.describe("Region Console smoke tests", () => {
     await expect(page.locator("#consoleView")).toBeHidden();
     await expect(page.locator("#startupTitle")).toContainText("Hoş geldiniz");
     await expect(page.locator("[data-startup-step='access']")).toBeVisible();
-    await expect(page.locator("[data-startup-step='data"])).toBeVisible();
+    await expect(page.locator("[data-startup-step='data']")).toBeVisible();
     await expect(page.locator("#consoleView")).toBeVisible({ timeout: 15_000 });
     await expect(page.locator("#startupView")).toBeHidden();
   });
