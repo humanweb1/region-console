@@ -24,60 +24,19 @@ function outerRings(geometry) {
   return [];
 }
 
-function childNodes(node) {
-  return [
-    ...(Array.isArray(node?.provinces) ? node.provinces : []),
-    ...(Array.isArray(node?.districts) ? node.districts : []),
-    ...(Array.isArray(node?.neighborhoods) ? node.neighborhoods : []),
-    ...(Array.isArray(node?.cemeteries) ? node.cemeteries : []),
-    ...(Array.isArray(node?.children) ? node.children : [])
-  ];
-}
-
-function flattenHierarchy(items) {
-  const result = [];
-  const walk = (nodes) => {
-    for (const node of nodes || []) {
-      if (!node) continue;
-      result.push(node);
-      walk(childNodes(node));
-    }
-  };
-  walk(items);
-  return result;
-}
-
-function visibleAccessCoordinates(access) {
-  const state = store.get();
-  const countries = Array.isArray(state.regions?.countries) ? state.regions.countries : [];
-  const custom = Array.isArray(state.regions?.custom) ? state.regions.custom : [];
-  const hierarchy = flattenHierarchy(countries);
-  const visibleHierarchy = hierarchy.filter((region) => isRegionVisible(access, region));
-  const visibleCustom = custom.filter((region) => isRegionVisible(access, region));
-
-  return [...visibleHierarchy, ...visibleCustom]
-    .flatMap((region) => outerRings(region?.geometry).flat());
-}
-
-function mapHasLayout(mapState) {
-  const container = mapState?.map?.getContainer?.();
-  if (!container) return false;
-  const rect = container.getBoundingClientRect();
-  const size = mapState.map.getSize?.();
-  return rect.width > 0 && rect.height > 0 && size?.x > 0 && size?.y > 0;
-}
-
 function fitWhenReady() {
-  scheduled = false;
   const mapState = window.__regionConsoleMapState;
   const access = window.RegionConsoleRBAC?.access || null;
   if (!mapState?.map || mapState.initialAccessFitDone) return true;
-  if (!access?.loaded || !mapHasLayout(mapState)) return false;
+  if (!access?.loaded) return false;
 
-  const coordinates = visibleAccessCoordinates(access);
+  const regions = store.get().regions?.custom || [];
+  const coordinates = regions
+    .filter((region) => isRegionVisible(access, region))
+    .flatMap((region) => outerRings(region?.geometry).flat());
+
   if (!coordinates.length) return false;
 
-  mapState.map.invalidateSize({ pan: false });
   mapState.map.fitBounds(L.latLngBounds(coordinates), {
     padding: [42, 42],
     maxZoom: 13,
@@ -93,19 +52,13 @@ function scheduleFit() {
   scheduled = true;
   attempts += 1;
   setTimeout(() => {
+    scheduled = false;
     if (fitWhenReady()) return;
-    if (attempts < 100) scheduleFit();
+    if (attempts < 40) scheduleFit();
   }, 50);
 }
 
 window.addEventListener("region-console:rbac-updated", () => {
-  const mapState = window.__regionConsoleMapState;
-  if (mapState) mapState.initialAccessFitDone = false;
-  attempts = 0;
-  scheduleFit();
-});
-
-window.addEventListener("region-console:startup-ready", () => {
   const mapState = window.__regionConsoleMapState;
   if (mapState) mapState.initialAccessFitDone = false;
   attempts = 0;
