@@ -141,15 +141,11 @@ test.describe("Region Console smoke tests", () => {
         { id: "province-istanbul", type: "province", parent_id: "country-tr" }
       ]
     });
-    await expect.poll(async () => page.evaluate(() => {
-      const center = window.__regionConsoleMapState?.map?.getCenter?.();
-      return { lat: center?.lat ?? 0, lng: center?.lng ?? 0 };
-    }), { timeout: 5_000 }).toSatisfy(({ lat, lng }) => lat > 39.7 && lat < 40.3 && lng > 32.3 && lng < 33.3);
+    await expect.poll(() => page.evaluate(() => window.__regionConsoleMapState?.map?.getCenter?.()?.lat ?? 0), { timeout: 5_000 }).toBeGreaterThan(39.7);
+    await expect.poll(() => page.evaluate(() => window.__regionConsoleMapState?.map?.getCenter?.()?.lat ?? 0), { timeout: 5_000 }).toBeLessThan(40.3);
+    await expect.poll(() => page.evaluate(() => window.__regionConsoleMapState?.map?.getCenter?.()?.lng ?? 0), { timeout: 5_000 }).toBeGreaterThan(32.3);
+    await expect.poll(() => page.evaluate(() => window.__regionConsoleMapState?.map?.getCenter?.()?.lng ?? 0), { timeout: 5_000 }).toBeLessThan(33.3);
     const view = await page.evaluate(() => { const map = window.__regionConsoleMapState.map; const center = map.getCenter(); return { lat: center.lat, lng: center.lng, zoom: map.getZoom() }; });
-    expect(view.lat).toBeGreaterThan(39.7);
-    expect(view.lat).toBeLessThan(40.3);
-    expect(view.lng).toBeGreaterThan(32.3);
-    expect(view.lng).toBeLessThan(33.3);
     expect(view.zoom).toBeGreaterThan(8);
     expect(view.zoom).toBeLessThanOrEqual(13);
   });
@@ -161,15 +157,11 @@ test.describe("Region Console smoke tests", () => {
       window.RegionConsoleRBAC.access.permissions = ["*"];
       window.dispatchEvent(new CustomEvent("region-console:rbac-updated"));
     });
-    await expect.poll(async () => page.evaluate(() => {
-      const center = window.__regionConsoleMapState?.map?.getCenter?.();
-      return { lat: center?.lat ?? 0, lng: center?.lng ?? 0 };
-    }), { timeout: 5_000 }).toSatisfy(({ lat, lng }) => lat > 40.0 && lat < 41.0 && lng > 29.0 && lng < 32.5);
+    await expect.poll(() => page.evaluate(() => window.__regionConsoleMapState?.map?.getCenter?.()?.lat ?? 0), { timeout: 5_000 }).toBeGreaterThan(40.0);
+    await expect.poll(() => page.evaluate(() => window.__regionConsoleMapState?.map?.getCenter?.()?.lat ?? 0), { timeout: 5_000 }).toBeLessThan(41.0);
+    await expect.poll(() => page.evaluate(() => window.__regionConsoleMapState?.map?.getCenter?.()?.lng ?? 0), { timeout: 5_000 }).toBeGreaterThan(29.0);
+    await expect.poll(() => page.evaluate(() => window.__regionConsoleMapState?.map?.getCenter?.()?.lng ?? 0), { timeout: 5_000 }).toBeLessThan(32.5);
     const view = await page.evaluate(() => { const map = window.__regionConsoleMapState.map; const center = map.getCenter(); return { lat: center.lat, lng: center.lng, zoom: map.getZoom() }; });
-    expect(view.lat).toBeGreaterThan(40.0);
-    expect(view.lat).toBeLessThan(41.0);
-    expect(view.lng).toBeGreaterThan(29.0);
-    expect(view.lng).toBeLessThan(32.5);
     expect(view.zoom).toBeGreaterThan(5);
     expect(view.zoom).toBeLessThanOrEqual(13);
   });
