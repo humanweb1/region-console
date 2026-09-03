@@ -11,7 +11,7 @@ export function createMap() {
   const mapState = { map, layers: { standard, satellite }, polygons: L.featureGroup().addTo(map), mask: L.featureGroup().addTo(map), regionLayers: [], overlayVisibility: { ...DEFAULT_OVERLAY_VISIBILITY }, initialAccessFitDone: false };
   let previousRegions = store.get().regions.custom; let previousMapSettings = store.get().mapSettings;
   store.subscribe((state) => { const regionsChanged = state.regions.custom !== previousRegions; const settingsChanged = state.mapSettings !== previousMapSettings; if (!regionsChanged && !settingsChanged) return; previousRegions = state.regions.custom; previousMapSettings = state.mapSettings; renderRegionsOnMap(mapState, state.regions.custom, state.mapSettings); fitInitialVisibleAccess(mapState); });
-  document.addEventListener("region-console:rbac-updated", () => { mapState.initialAccessFitDone = false; renderRegionsOnMap(mapState, store.get().regions.custom, store.get().mapSettings); fitInitialVisibleAccess(mapState); });
+  window.addEventListener("region-console:rbac-updated", () => { mapState.initialAccessFitDone = false; renderRegionsOnMap(mapState, store.get().regions.custom, store.get().mapSettings); fitInitialVisibleAccess(mapState); });
   window.__regionConsoleMapState = mapState; return mapState;
 }
 export function setLayer(mapState, name) { const { map, layers } = mapState; Object.values(layers).forEach((layer) => { if (map.hasLayer(layer)) map.removeLayer(layer); }); (layers[name] || layers.standard).addTo(map); }
@@ -36,7 +36,7 @@ function ringBounds(ring) { let minLat = Infinity, minLng = Infinity, maxLat = -
 function ringContainsRing(parentRing, childRing) { if (!parentRing?.length || !childRing?.length) return false; const p = childRing[Math.floor(childRing.length / 2)]; const pb = ringBounds(parentRing); const cb = ringBounds(childRing); if (cb.minLat < pb.minLat || cb.maxLat > pb.maxLat || cb.minLng < pb.minLng || cb.maxLng > pb.maxLng) return false; return pointInRing(p, parentRing); }
 function serviceChildRings(region, regions) { return regions.filter((candidate) => { if (!candidate || candidate === region) return false; if (candidate.status === "outside" || candidate.status === "closed" || isCampaignRegion(candidate)) return false; return regionHasParent(candidate, [region, ...regions]); }).flatMap((child) => geometryToOuterRings(child.geometry)); }
 function addServiceHoles(latLngs, holes) { if (!holes.length) return latLngs; if (!Array.isArray(latLngs[0])) return latLngs; if (Array.isArray(latLngs[0][0]) && Array.isArray(latLngs[0][0][0])) return latLngs.map((polygon) => { if (!polygon?.length) return polygon; const outer = polygon[0]; const matching = holes.filter((ring) => ringContainsRing(outer, ring)); return [outer, ...polygon.slice(1), ...matching]; }); const outer = latLngs[0]; const matching = holes.filter((ring) => ringContainsRing(outer, ring)); return [outer, ...latLngs.slice(1), ...matching]; }
-function fitInitialVisibleAccess(mapState) {
+export function fitInitialVisibleAccess(mapState) {
   if (mapState.initialAccessFitDone) return false;
   const access = window.RegionConsoleRBAC?.access || null;
   if (!access?.loaded) return false;
