@@ -1,5 +1,5 @@
 import { store } from "../state/store.js";
-import { isRegionVisible } from "../../services/rbac.js";
+import { isRegionVisible } from "../services/rbac.js";
 
 export function getElements() {
   const ids = [
