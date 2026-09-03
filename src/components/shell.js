@@ -3,8 +3,8 @@ import { isRegionVisible } from "../services/rbac.js";
 
 export function getElements() {
   const ids = [
-    "loginView", "consoleView", "cloudStatus", "versionLabel",
-    "logoutButton", "themeButton", "menuButton", "headerMenu", "regionTree", "sidebar", "regionsToggle", "addRegionButton", "editBar",
+    "loginView", "startupView", "consoleView", "startupTitle", "startupSubtitle", "startupProgress", "startupPercent",
+    "cloudStatus", "versionLabel", "logoutButton", "themeButton", "menuButton", "headerMenu", "regionTree", "sidebar", "regionsToggle", "addRegionButton", "editBar",
     "selectedArea", "statCountries", "statProvinces", "statDistricts",
     "statArea", "statService", "statCampaign", "statClosed", "stats", "toast", "appDialog",
     "dialogTitle", "dialogBody", "dialogClose", "campaignButton", "usersButton", "filesButton"
@@ -30,8 +30,34 @@ function bindDialogClose(elements) {
   };
 }
 
-export function showLogin(elements) { elements.loginView.hidden = false; elements.consoleView.hidden = true; }
-export function showConsole(elements) { elements.loginView.hidden = true; elements.consoleView.hidden = false; }
+export function showLogin(elements) {
+  elements.loginView.hidden = false;
+  if (elements.startupView) elements.startupView.hidden = true;
+  elements.consoleView.hidden = true;
+}
+
+export function showStartup(elements) {
+  elements.loginView.hidden = true;
+  if (elements.startupView) elements.startupView.hidden = false;
+  elements.consoleView.hidden = true;
+}
+
+export function showConsole(elements) {
+  if (window.RegionConsoleStartup && window.RegionConsoleStartup.ready !== true) {
+    showStartup(elements);
+    return;
+  }
+  elements.loginView.hidden = true;
+  if (elements.startupView) elements.startupView.hidden = true;
+  elements.consoleView.hidden = false;
+}
+
+export function releaseStartup(elements) {
+  elements.loginView.hidden = true;
+  if (elements.startupView) elements.startupView.hidden = true;
+  elements.consoleView.hidden = false;
+}
+
 export function setCloudStatus(elements, text, state = "idle") { elements.cloudStatus.textContent = text; elements.cloudStatus.dataset.state = state; }
 export function toast(elements, message) {
   if (typeof elements === "string" && message === undefined) {
