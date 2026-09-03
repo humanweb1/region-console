@@ -55,7 +55,8 @@ function installRoleUiFixes() {
   const style = document.createElement("style");
   style.dataset.regionConsoleRoleUi = "true";
   style.textContent = `
-    .app-dialog { overflow: hidden; display: flex; flex-direction: column; }
+    .app-dialog { overflow: hidden; }
+    .app-dialog[open] { display: flex; flex-direction: column; }
     .app-dialog > .dialog-header { flex: 0 0 auto; }
     .app-dialog > .dialog-body { flex: 1 1 auto; min-height: 0; max-height: none; overflow-x: hidden; overflow-y: auto; }
     .rbac-create-role-card > .rbac-role-create { display: grid; }
