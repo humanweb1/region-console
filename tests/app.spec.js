@@ -36,6 +36,7 @@ async function mockAuthenticatedBackend(page) {
 
   await page.route("**/rest/v1/region_console_state*", async (route) => {
     if (route.request().method() === "GET") {
+      await new Promise((resolve) => setTimeout(resolve, 350));
       await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
       return;
     }
@@ -86,6 +87,19 @@ test.describe("Region Console smoke tests", () => {
     });
     await page.goto("/", { waitUntil: "commit", timeout: 10_000 });
     await expect(page.locator("#consoleView")).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("shows a post-login preparation screen before revealing the console", {
+    tag: ["@smoke", "@auth", "@ui"]
+  }, async ({ page }) => {
+    await page.reload({ waitUntil: "commit" });
+    await expect(page.locator("#startupView")).toBeVisible({ timeout: 2_000 });
+    await expect(page.locator("#consoleView")).toBeHidden();
+    await expect(page.locator("#startupTitle")).toContainText("Hoş geldiniz");
+    await expect(page.locator("[data-startup-step='access']")).toBeVisible();
+    await expect(page.locator("[data-startup-step='data"])).toBeVisible();
+    await expect(page.locator("#consoleView")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("#startupView")).toBeHidden();
   });
 
   test("starts with a usable map and closed regions menu", {
