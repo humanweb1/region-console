@@ -1,5 +1,6 @@
 import { store } from "../../state/store.js";
 import { getElements, showStartup, releaseStartup } from "../../components/shell.js";
+import { fitInitialVisibleAccess } from "../map/map.js";
 
 const elements = getElements();
 let released = false;
@@ -28,26 +29,7 @@ function fitScopedMapBeforeRelease() {
   if (!rect || rect.width <= 0 || rect.height <= 0) return false;
 
   map.invalidateSize({ pan: false });
-  const layers = (mapState.regionLayers || []).filter((layer) => layer?.getBounds?.()?.isValid?.());
-
-  // A user may legitimately have no visible regions. In that case there is no
-  // scoped viewport to calculate, so the initial map state is already final.
-  if (!layers.length) {
-    mapState.initialAccessFitDone = true;
-    return true;
-  }
-
-  const bounds = L.latLngBounds([]);
-  layers.forEach((layer) => bounds.extend(layer.getBounds()));
-  if (!bounds.isValid()) return false;
-
-  map.fitBounds(bounds, {
-    padding: [42, 42],
-    maxZoom: 13,
-    animate: false
-  });
-  mapState.initialAccessFitDone = true;
-  return true;
+  return fitInitialVisibleAccess(mapState);
 }
 
 function refitMapAfterStartup() {
@@ -80,7 +62,7 @@ function updateProgress() {
 
   // RBAC can finish before the Leaflet map is created. The RBAC event then has
   // already fired, so explicitly perform the first scoped fit here before the
-  // startup gate opens. This removes the delayed zoom on subordinate users.
+  // startup gate opens. This uses the same root-aware viewport logic as map.js.
   if (cloudReady && mapReady && accessReady && !accessFitReady) {
     fitScopedMapBeforeRelease();
   }
