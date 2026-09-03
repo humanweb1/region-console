@@ -33,23 +33,7 @@ function refitMapAfterStartup() {
     return;
   }
 
-  const layers = (mapState.regionLayers || []).filter((layer) => layer?.getBounds?.()?.isValid?.());
   map.invalidateSize({ pan: false });
-  if (!layers.length) {
-    mapRefitAttempts = 0;
-    return;
-  }
-
-  const bounds = L.latLngBounds([]);
-  layers.forEach((layer) => bounds.extend(layer.getBounds()));
-  if (!bounds.isValid()) return;
-
-  map.fitBounds(bounds, {
-    padding: [42, 42],
-    maxZoom: 13,
-    animate: false
-  });
-  mapState.initialAccessFitDone = true;
   mapRefitAttempts = 0;
 }
 
@@ -57,19 +41,21 @@ function updateProgress() {
   if (released) return;
   const state = store.get();
   const access = window.RegionConsoleRBAC?.access || null;
-  const mapReady = Boolean(window.__regionConsoleMapState?.map);
-  const cloudReady = state.cloud?.status === "ready" || state.cloud?.status === "empty" || state.cloud?.status === "error";
+  const mapState = window.__regionConsoleMapState;
+  const mapReady = Boolean(mapState?.map);
   const accessReady = Boolean(access?.loaded);
+  const accessFitReady = Boolean(mapState?.initialAccessFitDone);
+  const cloudReady = state.cloud?.status === "ready" || state.cloud?.status === "empty" || state.cloud?.status === "error";
 
   setStep("session", "done", "Oturum doğrulandı");
-  setStep("access", accessReady ? "done" : "loading", accessReady ? "Yetkiler hazır" : "Yetkiler arka planda hazırlanıyor…");
+  setStep("access", accessReady ? "done" : "loading", accessReady ? "Yetkiler hazır" : "Yetkiler kontrol ediliyor…");
   setStep("data", cloudReady ? (state.cloud.status === "error" ? "warning" : "done") : "loading", cloudReady ? (state.cloud.status === "error" ? "Bulut verisi alınamadı; mevcut oturum açılıyor" : "Bölge verileri hazır") : "Bölge verileri hazırlanıyor…");
-  setStep("map", mapReady ? "done" : "loading", mapReady ? "Harita hazır" : "Harita hazırlanıyor…");
+  setStep("map", mapReady && accessFitReady ? "done" : "loading", mapReady && accessFitReady ? "Harita hazır" : "Harita yetki alanına göre hazırlanıyor…");
 
-  const status = `${accessReady}:${cloudReady}:${mapReady}:${state.cloud?.status}`;
+  const status = `${accessReady}:${accessFitReady}:${cloudReady}:${mapReady}:${state.cloud?.status}`;
   if (status !== lastStatus) {
     lastStatus = status;
-    const completed = [accessReady, cloudReady, mapReady].filter(Boolean).length;
+    const completed = [accessReady, cloudReady, mapReady && accessFitReady].filter(Boolean).length;
     const progress = Math.round((completed / 3) * 100);
     const progressNode = document.getElementById("startupProgress");
     if (progressNode) progressNode.style.setProperty("--startup-progress", `${progress}%`);
@@ -77,9 +63,10 @@ function updateProgress() {
     if (percent) percent.textContent = `${progress}%`;
   }
 
-  // Cloud data and the map instance are the hard startup requirements. RBAC continues
-  // in the background so a slow permission request cannot leave the user on a blank page.
-  if (!cloudReady || !mapReady) return;
+  // The console is released only after the user's RBAC scope has been applied
+  // to the map and the initial viewport has been fitted to that visible scope.
+  if (!cloudReady || !mapReady || !accessReady || !accessFitReady) return;
+
   released = true;
   window.RegionConsoleStartup.ready = true;
   releaseStartup(elements);
