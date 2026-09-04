@@ -62,9 +62,14 @@ async function listUsers(admin: Admin) {
   const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
   const permissionsByRole: Record<string,string[]> = {}; for (const item of permissions || []) (permissionsByRole[item.role_id] ??= []).push(item.permission);
   const regionMap = new Map((regions || []).map((r) => [r.id, r]));
+  const country = (regions || []).find((r) => r.type === "country" && String(r.name).trim().toLocaleLowerCase("tr-TR") === "turkey") || (regions || []).find((r) => r.type === "country");
   const scopesByRole: Record<string,unknown[]> = {};
   for (const item of scopes || []) { const country=regionMap.get(item.country_id), province=regionMap.get(item.province_id), district=regionMap.get(item.district_id); (scopesByRole[item.role_id] ??= []).push({id:item.id,country_id:country?.external_id||null,country_name:country?.name||null,province_id:province?.external_id||null,province_name:province?.name||null,district_id:district?.external_id||null,district_name:district?.name||null}); }
-  const regionCatalog = (regions || []).map((region) => ({ id: region.external_id || region.id, type: region.type, name: region.name, parent_id: region.parent_id ? (regionMap.get(region.parent_id)?.external_id || region.parent_id) : null }));
+  const regionCatalog = (regions || []).map((region) => {
+    let parentExternalId = region.parent_id ? (regionMap.get(region.parent_id)?.external_id || region.parent_id) : null;
+    if (region.type === "province" && !parentExternalId && country) parentExternalId = country.external_id || country.id;
+    return { id: region.external_id || region.id, type: region.type, name: region.name, parent_id: parentExternalId };
+  });
   const users = (authUsers?.users || []).map((u) => { const p=profileMap.get(u.id); return {id:u.id,email:u.email||"",full_name:p?.full_name||u.user_metadata?.full_name||"",role_id:p?.role_id||null,role:p?.roles||null,is_active:p?.is_active!==false,created_at:p?.created_at||u.created_at,last_sign_in_at:u.last_sign_in_at||null}; });
   return { users, roles: roles || [], permissionsByRole, scopesByRole, regionCatalog };
 }
