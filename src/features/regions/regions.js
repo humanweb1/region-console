@@ -15,7 +15,7 @@ function regionLabel(region) {
 }
 
 function filterNode(access, node) {
-  if (!node) return null;
+  if (!node || typeof node !== "object") return null;
   let hasVisibleDescendant = false;
   const result = { ...node };
 
@@ -32,13 +32,18 @@ function filterNode(access, node) {
 
 function filterScopedRegions(access, countries = [], custom = []) {
   if (!access?.loaded) return { countries: [], custom: [] };
-  if (access.role?.name === "super_admin" || (access.permissions || []).includes("*")) return { countries, custom };
+  if (access.role?.name === "super_admin" || (access.permissions || []).includes("*")) {
+    return {
+      countries: (countries || []).filter((region) => region && typeof region === "object"),
+      custom: (custom || []).filter((region) => region && typeof region === "object")
+    };
+  }
 
   // Keep non-visible parent countries as structural containers when one of
   // their scoped provinces/districts is visible. This is required for users
   // whose scope starts below country level.
   const filteredCountries = (countries || []).map((country) => filterNode(access, country)).filter(Boolean);
-  const filteredCustom = (custom || []).filter((region) => isRegionVisible(access, region));
+  const filteredCustom = (custom || []).filter((region) => region && typeof region === "object" && isRegionVisible(access, region));
   return { countries: filteredCountries, custom: filteredCustom };
 }
 
@@ -46,8 +51,8 @@ export function renderRegions(container, countries = [], query = "", custom = []
   const access = window.RegionConsoleRBAC?.access || null;
   const visible = filterScopedRegions(access, countries, custom);
   const normalized = query.trim().toLocaleLowerCase("tr-TR");
-  const safeCountries = Array.isArray(visible.countries) ? visible.countries : [];
-  const safeCustom = Array.isArray(visible.custom) ? visible.custom : [];
+  const safeCountries = (Array.isArray(visible.countries) ? visible.countries : []).filter((region) => region && typeof region === "object");
+  const safeCustom = (Array.isArray(visible.custom) ? visible.custom : []).filter((region) => region && typeof region === "object");
   const matches = (region) => !normalized || JSON.stringify(region).toLocaleLowerCase("tr-TR").includes(normalized);
   const entries = [
     ...safeCountries.filter(matches).map((country) => ({ type: "country", data: country })),
@@ -71,7 +76,7 @@ export function renderRegions(container, countries = [], query = "", custom = []
 }
 
 function escapeHtml(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
 window.addEventListener("region-console:rbac-updated", () => {
