@@ -48,7 +48,6 @@ function ensurePanes(map) {
   for (const config of Object.values(PANE_CONFIG)) {
     const pane = map.getPane(config.name) || map.createPane(config.name);
     pane.style.zIndex = String(config.zIndex);
-    pane.style.pointerEvents = "none";
   }
 }
 
@@ -94,8 +93,6 @@ function applyLayerPanes(mapState) {
       layer.bindTooltip(tooltipText, { sticky: true, direction: "top", opacity: 0.96, className: "region-hierarchy-tooltip" });
     }
 
-    // Leaflet resolves the SVG/Canvas pane when a layer is added. Re-add the
-    // layer after assigning the pane so an existing region moves immediately.
     if (polygons.hasLayer(layer)) {
       polygons.removeLayer(layer);
       polygons.addLayer(layer);
