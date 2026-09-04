@@ -13,11 +13,16 @@ function normalizeName(value) {
 
 function idFor(type, id) { return `catalog-${type}-${String(id)}`; }
 
-function findCanonical(type, name, parentId = null) {
-  const catalog = Array.isArray(window.RegionConsoleRBAC?.access?.regionCatalog) ? window.RegionConsoleRBAC.access.regionCatalog : [];
+function accessCatalog() {
+  return Array.isArray(window.RegionConsoleRBAC?.access?.regionCatalog) ? window.RegionConsoleRBAC.access.regionCatalog : [];
+}
+
+function findCanonical(type, name, parentId = null, externalId = null) {
+  const catalog = accessCatalog();
   const wanted = normalizeName(name);
   return catalog.find((item) => {
     if (String(item?.type || "").toLowerCase() !== type) return false;
+    if (externalId != null && String(item?.external_id ?? item?.externalId ?? "") === String(externalId)) return true;
     if (normalizeName(item?.name) !== wanted) return false;
     if (!parentId) return true;
     return String(item?.parent_id ?? item?.parentId ?? "") === String(parentId);
@@ -27,17 +32,20 @@ function findCanonical(type, name, parentId = null) {
 function turkeyId() {
   const stateCountry = store.get().regions?.countries?.find((item) => normalizeName(item?.name) === "turkey")?.id;
   if (stateCountry) return stateCountry;
-  const catalog = Array.isArray(window.RegionConsoleRBAC?.access?.regionCatalog) ? window.RegionConsoleRBAC.access.regionCatalog : [];
-  return catalog.find((item) => item?.type === "country" && normalizeName(item?.name) === "turkey")?.id || "catalog-country-turkey";
+  return accessCatalog().find((item) => item?.type === "country" && normalizeName(item?.name) === "turkey")?.id || "catalog-country-turkey";
 }
 
 function catalogRegion(type, item) {
-  const provinceId = item?.provinceId ?? item?.province_id ?? null;
-  const districtId = item?.districtId ?? item?.district_id ?? null;
-  const canonicalProvince = type === "province" ? findCanonical("province", item.name) : findCanonical("province", item.provinceName || "", null);
-  const canonicalDistrict = type === "district" ? findCanonical("district", item.name, canonicalProvince?.id) : findCanonical("district", item.districtName || "", null);
-  const resolvedProvinceId = canonicalProvince?.id || idFor("province", provinceId);
-  const resolvedDistrictId = canonicalDistrict?.id || idFor("district", districtId);
+  const provinceExternalId = item?.provinceId ?? item?.province_id ?? null;
+  const districtExternalId = item?.districtId ?? item?.district_id ?? null;
+  const canonicalProvince = type === "province"
+    ? findCanonical("province", item.name, null, item.id)
+    : findCanonical("province", item.provinceName || "", null, provinceExternalId);
+  const canonicalDistrict = type === "district"
+    ? findCanonical("district", item.name, canonicalProvince?.id, item.id)
+    : findCanonical("district", item.districtName || "", canonicalProvince?.id, districtExternalId);
+  const resolvedProvinceId = canonicalProvince?.id || idFor("province", provinceExternalId ?? item.id);
+  const resolvedDistrictId = canonicalDistrict?.id || idFor("district", districtExternalId ?? item.id);
   const countryId = turkeyId();
   return {
     id: idFor(type, item.id),
