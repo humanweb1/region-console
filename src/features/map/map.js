@@ -81,6 +81,21 @@ function normalizeName(value) {
   return String(value ?? "").trim().toLocaleLowerCase("tr-TR").replace(/ı/g, "i").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c");
 }
 
+function regionIdentityIds(region) {
+  if (!region || typeof region !== "object") return [];
+  const type = regionType(region);
+  const hierarchy = region.hierarchy || {};
+  const values = [
+    region.id,
+    region.importMeta?.sourceId,
+    region.importMeta?.properties?.id,
+    type === "country" ? hierarchy.countryId : null,
+    type === "province" ? hierarchy.provinceId : null,
+    type === "district" ? hierarchy.districtId : null
+  ];
+  return values.filter((value) => value != null && String(value)).map(String);
+}
+
 function regionHasParent(region, regions) {
   const hierarchy = region?.hierarchy || {};
   const parentId = hierarchy.parentId == null ? "" : String(hierarchy.parentId);
@@ -91,9 +106,9 @@ function regionHasParent(region, regions) {
     if (!candidate || candidate === region) return false;
     const candidateType = candidate?.hierarchy?.type || candidate?.type || null;
     if (parentType && candidateType && candidateType !== parentType) return false;
-    const candidateId = String(candidate.id ?? candidate.importMeta?.sourceId ?? "");
+    const candidateIds = regionIdentityIds(candidate);
     const candidateName = normalizeName(candidate.name);
-    return (parentId && candidateId === parentId) || (parentName && candidateName === parentName);
+    return candidateIds.includes(parentId) || (parentName && candidateName === parentName);
   });
 }
 
@@ -128,9 +143,9 @@ function findHierarchyParent(region, candidates) {
     if (!candidate || candidate === region) return false;
     const candidateType = candidate?.hierarchy?.type || candidate?.type || null;
     if (parentType && candidateType && candidateType !== parentType) return false;
-    const candidateId = String(candidate.id ?? candidate.importMeta?.sourceId ?? "");
+    const candidateIds = regionIdentityIds(candidate);
     const candidateName = normalizeName(candidate.name);
-    return (parentId && candidateId === parentId) || (parentName && candidateName === parentName);
+    return candidateIds.includes(parentId) || (parentName && candidateName === parentName);
   }) || null;
 }
 
@@ -171,8 +186,8 @@ function sameRegionIdentity(a, b) {
   const aType = regionType(a);
   const bType = regionType(b);
   if (aType && bType && aType !== bType) return false;
-  const aIds = [a.id, a.importMeta?.sourceId, a.importMeta?.properties?.id].filter((value) => value != null).map(String);
-  const bIds = [b.id, b.importMeta?.sourceId, b.importMeta?.properties?.id].filter((value) => value != null).map(String);
+  const aIds = regionIdentityIds(a);
+  const bIds = regionIdentityIds(b);
   if (aIds.some((id) => bIds.includes(id))) return true;
   return normalizeName(a.name || a.properties?.name) === normalizeName(b.name || b.properties?.name);
 }
@@ -315,18 +330,6 @@ function scopeRootTypes(access) {
     else if (scope?.country_id) types.add("country");
   }
   return types;
-}
-
-function regionType(region) {
-  return String(region?.hierarchy?.type || region?.type || "").trim().toLowerCase();
-}
-
-function isRootViewportRegion(region, rootTypes) {
-  const type = regionType(region);
-  if (rootTypes.has("province") && ["province", "provinces", "il"].includes(type)) return true;
-  if (rootTypes.has("district") && ["district", "districts", "ilce", "ilçe"].includes(type)) return true;
-  if (rootTypes.has("country") && ["country", "countries", "ülke"].includes(type)) return true;
-  return false;
 }
 
 export function fitInitialVisibleAccess(mapState) {
