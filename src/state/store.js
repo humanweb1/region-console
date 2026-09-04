@@ -96,9 +96,9 @@ function normalizeHierarchy(countries, custom) {
 
   const resolveParent = (region) => {
     const hierarchy = region?.hierarchy || {};
-    const parentId = hierarchy.parentId ?? null;
-    const parentName = normalizeName(hierarchy.parentName);
-    const parentType = String(hierarchy.parentType || "").toLowerCase();
+    const parentId = hierarchy.parentId ?? region?.parent_id ?? null;
+    const parentName = normalizeName(hierarchy.parentName || region?.parent_name);
+    const parentType = String(hierarchy.parentType || region?.parent_type || "").toLowerCase();
     if (parentId != null) {
       const direct = byId.get(String(parentId)) || byExternalId.get(String(parentId));
       if (direct) return direct;
@@ -129,12 +129,12 @@ function normalizeHierarchy(countries, custom) {
     if (!item || typeof item !== "object") return null;
     const type = regionType(item);
     const parentRegion = parent || resolveParent(item);
-    const parentId = parentRegion?.id ?? item?.hierarchy?.parentId ?? null;
-    const parentType = parentRegion ? regionType(parentRegion) : item?.hierarchy?.parentType || null;
+    const parentId = parentRegion?.id ?? item?.hierarchy?.parentId ?? item?.parent_id ?? null;
+    const parentType = parentRegion ? regionType(parentRegion) : item?.hierarchy?.parentType || item?.parent_type || null;
     const inherited = ancestry(item);
     const hierarchy = {
       ...(item.hierarchy || {}), type: type || item?.hierarchy?.type || null,
-      parentId, parentType, parentName: parentRegion?.name || item?.hierarchy?.parentName || null,
+      parentId, parentType, parentName: parentRegion?.name || item?.hierarchy?.parentName || item?.parent_name || null,
       countryId: inherited.countryId ?? item?.hierarchy?.countryId ?? null,
       countryName: inherited.countryName ?? item?.hierarchy?.countryName ?? null,
       provinceId: inherited.provinceId ?? item?.hierarchy?.provinceId ?? null,
