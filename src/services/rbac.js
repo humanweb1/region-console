@@ -114,7 +114,6 @@ export function getVisibleRegionIds(access) {
     if (country && !scope.province_id && !scope.district_id) rootIds.push(country.id);
     else if (province && !scope.district_id) rootIds.push(province.id);
     else if (district) rootIds.push(district.id);
-    else if (!scope.country_id && !scope.province_id && !scope.district_id) return null;
   }
   return descendantsOf(catalog, rootIds);
 }
@@ -133,30 +132,37 @@ function visibleCatalogMatch(catalog, visible, value, type = null, name = null) 
   return Boolean(match && visible.has(catalogRegionId(match)));
 }
 export function isRegionVisible(access, region) {
-  const visible = getVisibleRegionIds(access); if (visible === null) return true; if (!region) return false;
-  const catalog = access?.regionCatalog || []; const hierarchy = region?.hierarchy || {};
-  if (regionCandidates(region).some(([value,type]) => visibleCatalogMatch(catalog, visible, value, type))) return true;
-  const parentValues = [
-    [hierarchy.parentId, hierarchy.parentType || null, hierarchy.parentName],
-    [hierarchy.neighborhoodId, "neighborhood", hierarchy.neighborhoodName],
-    [hierarchy.districtId, "district", hierarchy.districtName],
-    [hierarchy.provinceId, "province", hierarchy.provinceName],
-    [hierarchy.countryId, "country", hierarchy.countryName]
-  ];
-  if (parentValues.some(([value,type,name]) => visibleCatalogMatch(catalog, visible, value, type, name))) return true;
-  // Final scope-level fallback: hierarchy metadata is authoritative for
-  // imported/custom geometries. A province scope must expose every nested
-  // geometry carrying the same province id/name, regardless of whether the
-  // intermediate district/neighborhood catalog row is present in the client.
-  for (const scope of access.scopes || []) {
-    if (scope.province_id && (String(scope.province_id) === String(hierarchy.provinceId) || normalizeRegionName(scope.province_name) === normalizeRegionName(hierarchy.provinceName))) return true;
-    if (scope.district_id && (String(scope.district_id) === String(hierarchy.districtId) || normalizeRegionName(scope.district_name) === normalizeRegionName(hierarchy.districtName))) return true;
-    if (scope.country_id && !scope.province_id && !scope.district_id && (String(scope.country_id) === String(hierarchy.countryId) || normalizeRegionName(scope.country_name) === normalizeRegionName(hierarchy.countryName))) return true;
+  if (!access?.loaded || !access?.profile?.is_active) return false;
+  if (access.role?.name === "super_admin" || (access.permissions || []).includes("*")) return true;
+  if (!region) return false;
+  const scopes = Array.isArray(access.scopes) ? access.scopes : [];
+  if (!scopes.length) return false;
+  const hierarchy = region.hierarchy || {};
+  const same = (a, b) => a != null && b != null && String(a) === String(b);
+  const sameName = (a, b) => Boolean(a && b && normalizeRegionName(a) === normalizeRegionName(b));
+  const ownType = String(hierarchy.type || region.type || "").trim().toLowerCase();
+  const ownId = region.id == null ? null : String(region.id);
+  const ownName = region.name || region.properties?.name || "";
+  for (const scope of scopes) {
+    const countryId = scope.country_id == null ? null : String(scope.country_id);
+    const provinceId = scope.province_id == null ? null : String(scope.province_id);
+    const districtId = scope.district_id == null ? null : String(scope.district_id);
+    if (!countryId && !provinceId && !districtId) return true;
+    if (districtId) {
+      if (same(hierarchy.districtId, districtId) || same(hierarchy.district_id, districtId) || same(ownId, districtId)) return true;
+      if (sameName(hierarchy.districtName, scope.district_name) || (sameName(ownName, scope.district_name) && ["district","districts","ilce","ilçe"].includes(ownType))) return true;
+      continue;
+    }
+    if (provinceId) {
+      if (same(hierarchy.provinceId, provinceId) || same(hierarchy.province_id, provinceId) || same(ownId, provinceId)) return true;
+      if (sameName(hierarchy.provinceName, scope.province_name) || (sameName(ownName, scope.province_name) && ["province","provinces","il"].includes(ownType))) return true;
+      continue;
+    }
+    if (countryId) {
+      if (same(hierarchy.countryId, countryId) || same(hierarchy.country_id, countryId) || same(ownId, countryId)) return true;
+      if (sameName(hierarchy.countryName, scope.country_name) || (sameName(ownName, scope.country_name) && ["country","countries","ülke"].includes(ownType))) return true;
+    }
   }
-  const ownType = String(hierarchy.type || region?.type || ""); const own = scopeCatalogMatch(catalog, region?.id ?? hierarchy.id, ownType) || catalogNameMatch(catalog, region?.name, ownType);
-  if (!own) return false;
-  let current = own; const visited = new Set();
-  while (current?.parent_id && !visited.has(String(current.id))) { visited.add(String(current.id)); if (visible.has(String(current.parent_id))) return true; current = catalog.find((item) => String(item.id) === String(current.parent_id)); }
   return false;
 }
 function scopeRootTypes(access) {
