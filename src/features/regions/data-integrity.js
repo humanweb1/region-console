@@ -10,7 +10,7 @@ function collectStateRegions(state) {
   const result = [];
   const visit = (items) => {
     for (const region of Array.isArray(items) ? items : []) {
-      if (!region || typeof region !== "object") continue;
+      if (!region || typeof region !== "object" || region.catalogOnly) continue;
       result.push(region);
       visit(region.provinces);
       visit(region.districts);
@@ -57,7 +57,7 @@ function updateFooterStats(state) {
 
   const access = window.RegionConsoleRBAC?.access || null;
   const custom = (Array.isArray(state?.regions?.custom) ? state.regions.custom : [])
-    .filter((region) => region && (!access?.loaded || isRegionVisible(access, region)));
+    .filter((region) => region && !region.catalogOnly && (!access?.loaded || isRegionVisible(access, region)));
   const service = custom.filter((region) => !["outside", "closed", "campaign"].includes(region?.status) && !isCampaignRegion(region)).length;
   const campaign = custom.filter(isCampaignRegion).length;
   const closed = custom.filter((region) => region?.status === "closed").length;
