@@ -34,6 +34,7 @@ const entries = [
   "./src/features/settings/map-settings.js",
   "./src/features/regions/region-actions.js",
   "./src/features/regions/region-info-enhancer.js",
+  "./src/features/regions/data-integrity.js",
   "./src/features/search/header-search.js",
   "./src/features/map/layers-ui.js",
   "./src/features/drawing/drawing-save-dialog.js",
