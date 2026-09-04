@@ -160,6 +160,34 @@ function regionCategory(region) {
   return "special";
 }
 
+function isOpenServiceRegion(region) {
+  if (!region || typeof region !== "object") return false;
+  if (region.status === "outside" || region.status === "closed" || isCampaignRegion(region)) return false;
+  return Boolean(region.geometry);
+}
+
+function serviceMaskRoots(regions) {
+  const openRegions = (Array.isArray(regions) ? regions : []).filter(isOpenServiceRegion);
+  if (!openRegions.length) return [];
+  const candidates = hierarchyCandidates(openRegions);
+  const roots = [];
+  for (const region of openRegions) {
+    const visited = new Set([region]);
+    let current = findHierarchyParent(region, candidates);
+    let hasOpenAncestor = false;
+    while (current && !visited.has(current)) {
+      visited.add(current);
+      if (openRegions.includes(current)) {
+        hasOpenAncestor = true;
+        break;
+      }
+      current = findHierarchyParent(current, candidates);
+    }
+    if (!hasOpenAncestor) roots.push(region);
+  }
+  return roots;
+}
+
 function renderOutsideMask(mapState, serviceRings, settings) {
   mapState.mask.clearLayers();
   const outer = [[89, -180], [89, 180], [-89, 180], [-89, -180], [89, -180]];
@@ -341,7 +369,7 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
   mapState.polygons.clearLayers();
   mapState.regionLayers = [];
   const bounds = [];
-  const serviceRings = [];
+  const serviceRings = serviceMaskRoots(visibleRegions).flatMap((region) => geometryToOuterRings(region.geometry));
 
   for (const region of orderedRegions) {
     const geometry = region?.geometry;
@@ -379,7 +407,6 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
     if (mapState.overlayVisibility[category] !== false) polygon.addTo(mapState.polygons);
     const allPoints = Array.isArray(latLngs[0]?.[0]) ? latLngs.flat(2) : latLngs.flat();
     allPoints.forEach((point) => bounds.push(point));
-    if (!outside && !regionHasParent(region, visibleRegions)) serviceRings.push(...geometryToOuterRings(geometry));
   }
 
   renderOutsideMask(mapState, serviceRings, normalized);
