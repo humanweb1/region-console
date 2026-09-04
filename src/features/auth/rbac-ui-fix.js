@@ -25,20 +25,38 @@ function ensureStyles() { if (document.getElementById("rbacUiFixStyles")) return
 function escapeHtml(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 function regionType(region) { return String(region?.hierarchy?.type || region?.type || "").toLowerCase(); }
 function regionLabel(region) { const type = regionType(region); if (type === "province" || type === "il") return "İl"; if (type === "district" || type === "ilce" || type === "ilçe") return "İlçe"; if (type === "country" || type === "ülke") return "Ülke"; return "Alan"; }
-function visibleCatalog(access) { const catalog = access?.regionCatalog || []; const ids = getVisibleRegionIds(access); if (ids === null) return catalog; return catalog.filter((region) => ids.has(String(region.id))); }
-function visibleCustom(access) { const state = store.get(); const result = filterRegionTree(access, state.regions?.countries || [], state.regions?.custom || []); return Array.isArray(result.custom) ? result.custom : []; }
+function visibleCatalog(access) { const catalog = Array.isArray(access?.regionCatalog) ? access.regionCatalog.filter((region) => region && typeof region === "object" && region.id != null) : []; const ids = getVisibleRegionIds(access); return ids === null ? catalog : catalog.filter((region) => ids.has(String(region.id))); }
+function visibleCustom(access) { const state = store.get(); const result = filterRegionTree(access, state.regions?.countries || [], state.regions?.custom || []); return Array.isArray(result.custom) ? result.custom.filter((region) => region && typeof region === "object" && region.id != null) : []; }
 function summary(access) {
   if (!access?.loaded) return { countries: 0, provinces: 0, districts: 0, custom: [], service: [], campaign: [], closed: [] };
-  const allCatalog = access.regionCatalog || []; const catalog = visibleCatalog(access); const byId = new Map(allCatalog.map((r) => [String(r.id), r])); const countryIds = new Set(); const provinceIds = new Set(); const districtIds = new Set();
-  for (const item of catalog) { let current = item; const seen = new Set(); while (current && !seen.has(String(current.id))) { const id = String(current.id); seen.add(id); const type = String(current.type || "").toLowerCase(); if (type === "country") countryIds.add(id); if (type === "province") provinceIds.add(id); if (type === "district") districtIds.add(id); current = current.parent_id ? byId.get(String(current.parent_id)) : null; } }
-  const custom = visibleCustom(access); const isCampaign = (r) => r?.status === "campaign" || r?.campaign === true || Boolean(r?.campaignId); const service = custom.filter((r) => !["outside", "closed", "campaign"].includes(r?.status) && !isCampaign(r)); const campaign = custom.filter(isCampaign); const closed = custom.filter((r) => r?.status === "closed");
+  const allCatalog = Array.isArray(access.regionCatalog) ? access.regionCatalog.filter((region) => region && typeof region === "object" && region.id != null) : [];
+  const catalog = visibleCatalog(access);
+  const byId = new Map(allCatalog.map((region) => [String(region.id), region]));
+  const countryIds = new Set(); const provinceIds = new Set(); const districtIds = new Set();
+  for (const item of catalog) {
+    let current = item; const seen = new Set();
+    while (current && !seen.has(String(current.id))) {
+      const id = String(current.id); seen.add(id); const type = String(current.type || "").toLowerCase();
+      if (type === "country") countryIds.add(id); if (type === "province") provinceIds.add(id); if (type === "district") districtIds.add(id);
+      current = current.parent_id ? byId.get(String(current.parent_id)) : null;
+    }
+  }
+  const custom = visibleCustom(access); const isCampaign = (region) => region?.status === "campaign" || region?.campaign === true || Boolean(region?.campaignId);
+  const service = custom.filter((region) => !["outside", "closed", "campaign"].includes(region.status) && !isCampaign(region));
+  const campaign = custom.filter(isCampaign); const closed = custom.filter((region) => region.status === "closed");
   return { countries: countryIds.size, provinces: provinceIds.size, districts: districtIds.size, custom, service, campaign, closed };
 }
 function setCount(id, value) { const node = document.getElementById(id); if (node) node.textContent = String(value); }
 function renderPopover(button, items, title) {
-  const popover = document.querySelector(`[data-status-popover="${button.dataset.statusFilter}"]`); if (!popover) return; const selectedId = store.get().regions?.selectedId;
-  popover.innerHTML = items.length ? `<strong>${escapeHtml(title)} (${items.length})</strong>${items.map((region) => `<button type="button" class="footer-status-item${String(region.id) === String(selectedId) ? " is-selected" : ""}" data-footer-region-id="${escapeHtml(region.id)}"><span>${escapeHtml(region.name || "İsimsiz")}</span><small>${escapeHtml(regionLabel(region))}</small></button>`).join("")}` : `<strong>${escapeHtml(title)} (0)</strong><div class="footer-status-empty">Yetkiniz dahilinde kayıt yok.</div>`;
-  popover.querySelectorAll("[data-footer-region-id]").forEach((item) => item.addEventListener("click", () => { const id = item.dataset.footerRegionId; const region = (store.get().regions?.custom || []).find((candidate) => String(candidate.id) === String(id)); if (!region || !isRegionVisible(window.RegionConsoleRBAC?.access || null, region)) return; store.update("regions", { selectedId: region.id }); document.dispatchEvent(new CustomEvent("region-console:region-selected", { detail: { region, mapState: window.__regionConsoleMapState } })); popover.hidden = true; }));
+  const popover = document.querySelector(`[data-status-popover="${button.dataset.statusFilter}"]`); if (!popover) return;
+  const selectedId = store.get().regions?.selectedId;
+  const safeItems = (Array.isArray(items) ? items : []).filter((region) => region && typeof region === "object" && region.id != null);
+  popover.innerHTML = safeItems.length ? `<strong>${escapeHtml(title)} (${safeItems.length})</strong>${safeItems.map((region) => `<button type="button" class="footer-status-item${String(region.id) === String(selectedId) ? " is-selected" : ""}" data-footer-region-id="${escapeHtml(region.id)}"><span>${escapeHtml(region.name || "İsimsiz")}</span><small>${escapeHtml(regionLabel(region))}</small></button>`).join("")}` : `<strong>${escapeHtml(title)} (0)</strong><div class="footer-status-empty">Yetkiniz dahilinde kayıt yok.</div>`;
+  popover.querySelectorAll("[data-footer-region-id]").forEach((item) => item.addEventListener("click", () => {
+    const id = item.dataset.footerRegionId; const region = (store.get().regions?.custom || []).find((candidate) => candidate && String(candidate.id) === String(id));
+    if (!region || !isRegionVisible(window.RegionConsoleRBAC?.access || null, region)) return;
+    store.update("regions", { selectedId: region.id }); document.dispatchEvent(new CustomEvent("region-console:region-selected", { detail: { region, mapState: window.__regionConsoleMapState } })); popover.hidden = true;
+  }));
 }
 function apply() {
   ensureStyles(); const access = window.RegionConsoleRBAC?.access || null; const data = summary(access);
@@ -48,8 +66,4 @@ function apply() {
   const groups = [["service", data.service, "Hizmet verilen alanlar"], ["campaign", data.campaign, "Kampanyalı alanlar"], ["closed", data.closed, "Hizmete kapalı alanlar"]];
   for (const [status, items, title] of groups) { const button = document.querySelector(`.footer-status[data-status-filter="${status}"]`); const group = button?.closest(".footer-status-group"); if (!button || !group) continue; group.dataset.rbacFilterHidden = "false"; renderPopover(button, items, title); }
 }
-ensureStyles();
-store.subscribe(() => apply());
-window.addEventListener("region-console:rbac-updated", apply);
-window.addEventListener("resize", () => document.querySelectorAll("[data-status-popover]").forEach((node) => { node.hidden = true; }), { passive: true });
-apply();
+ensureStyles(); store.subscribe(() => apply()); window.addEventListener("region-console:rbac-updated", apply); window.addEventListener("resize", () => document.querySelectorAll("[data-status-popover]").forEach((node) => { node.hidden = true; }), { passive: true }); apply();
