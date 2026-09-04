@@ -3,7 +3,7 @@ const initialState = {
   cloud: { status: "idle", version: null, error: null, updatedAt: null },
   regions: { countries: [], custom: [], selectedId: null },
   map: { drawing: false, layer: "standard" },
-  mapSettings: { boundaryColor: "#ffffff", boundaryWeight: 1.5, outsideColor: "#4b5563", outsideOpacity: 0.55, closedColor: "#7c3aed", closedOpacity: 0.55, campaignColor: "#ffd400", campaignOpacity: 0.55 },
+  mapSettings: { boundaryColor: "#ffffff", boundaryWeight: 1.5, outsideColor: "#4b5563", outsideOpacity: 0.55, campaignColor: "#ffd400", campaignOpacity: 0.55 },
   history: { entries: [], cursor: -1 },
   campaigns: [],
   importedFiles: [],
