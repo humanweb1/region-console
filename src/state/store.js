@@ -2,7 +2,7 @@ const initialState = {
   auth: { status: "unknown", session: null, user: null },
   cloud: { status: "idle", version: null, error: null, updatedAt: null },
   regions: { countries: [], custom: [], selectedId: null },
-  map: { drawing: false, layer: "standard" },
+  map: { drawing: false, layer: "draw" },
   mapSettings: { boundaryColor: "#ffffff", boundaryWeight: 1.5, outsideColor: "#4b5563", outsideOpacity: 0.55, campaignColor: "#ffd400", campaignOpacity: 0.55 },
   history: { entries: [], cursor: -1 },
   campaigns: [],
@@ -107,14 +107,14 @@ function normalizeHierarchy(countries, custom) {
     return null;
   };
 
-  const ancestry = (item, visited = new Set()) => {
+  const ancestry = (item, visited = new Set(), parentOverride = null) => {
     if (!item || typeof item !== "object") return {};
     const key = String(item.id ?? item.importMeta?.sourceId ?? "");
     if (key && visited.has(key)) return {};
     const nextVisited = new Set(visited);
     if (key) nextVisited.add(key);
     const type = regionType(item);
-    const parent = resolveParent(item);
+    const parent = parentOverride || resolveParent(item);
     const inherited = parent ? ancestry(parent, nextVisited) : {};
     const result = { ...inherited };
     const id = item.id ?? item.importMeta?.sourceId ?? null;
@@ -131,7 +131,7 @@ function normalizeHierarchy(countries, custom) {
     const parentRegion = parent || resolveParent(item);
     const parentId = parentRegion?.id ?? item?.hierarchy?.parentId ?? item?.parent_id ?? null;
     const parentType = parentRegion ? regionType(parentRegion) : item?.hierarchy?.parentType || item?.parent_type || null;
-    const inherited = ancestry(item);
+    const inherited = ancestry(item, new Set(), parentRegion);
     const hierarchy = {
       ...(item.hierarchy || {}), type: type || item?.hierarchy?.type || null,
       parentId, parentType, parentName: parentRegion?.name || item?.hierarchy?.parentName || item?.parent_name || null,
