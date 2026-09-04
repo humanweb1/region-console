@@ -8,6 +8,37 @@ function regionKey(region) { return String(region?.id ?? region?.importMeta?.sou
 function regionType(region) { return String(region?.hierarchy?.type || region?.type || "özel"); }
 function statusLabel(value) { const map = { service: "Hizmette", closed: "Hizmete kapalı", outside: "Hizmet dışı", campaign: "Kampanyalı" }; return map[String(value || "service")] || String(value || "Belirtilmemiş"); }
 
+function deriveChanges(entry) {
+  const explicit = Array.isArray(entry?.entry?.changes) ? entry.entry.changes : [];
+  if (explicit.length) return explicit;
+  const before = Array.isArray(entry?.entry?.before?.regions?.custom) ? entry.entry.before.regions.custom : [];
+  const after = Array.isArray(entry?.entry?.after?.regions?.custom) ? entry.entry.after.regions.custom : [];
+  const beforeMap = new Map(before.filter(Boolean).map((region) => [regionKey(region), region]));
+  const afterMap = new Map(after.filter(Boolean).map((region) => [regionKey(region), region]));
+  const keys = [...new Set([...beforeMap.keys(), ...afterMap.keys()])];
+  return keys.map((key) => {
+    const b = beforeMap.get(key) || null, a = afterMap.get(key) || null;
+    return {
+      id: key,
+      type: a ? regionType(a) : regionType(b),
+      name: a?.name || b?.name || "Adsız alan",
+      action: !b ? "created" : !a ? "deleted" : "updated",
+      beforeName: b?.name || null,
+      afterName: a?.name || null,
+      beforeStatus: b?.status || null,
+      afterStatus: a?.status || null,
+      beforeReason: b?.serviceCloseReason || null,
+      afterReason: a?.serviceCloseReason || null,
+      geometryChanged: stable(b?.geometry || null) !== stable(a?.geometry || null),
+      beforeHierarchy: b?.hierarchy || null,
+      afterHierarchy: a?.hierarchy || null
+    };
+  }).filter((change) => {
+    const b = beforeMap.get(change.id) || null, a = afterMap.get(change.id) || null;
+    return stable(b) !== stable(a);
+  });
+}
+
 function compactHistoryEntry(label, before, after) {
   const beforeRegions = Array.isArray(before?.regions?.custom) ? before.regions.custom : [];
   const afterRegions = Array.isArray(after?.regions?.custom) ? after.regions.custom : [];
@@ -44,18 +75,8 @@ function compactHistoryEntry(label, before, after) {
   return {
     label,
     createdAt: new Date().toISOString(),
-    before: {
-      regions: { custom: structuredClone(changedBefore) },
-      ...(mapSettingsChanged ? { mapSettings: structuredClone(beforeMapSettings) } : {}),
-      ...(campaignsChanged ? { campaigns: structuredClone(before?.campaigns || []) } : {}),
-      ...(importedFilesChanged ? { importedFiles: structuredClone(before?.importedFiles || []) } : {})
-    },
-    after: {
-      regions: { custom: structuredClone(changedAfter) },
-      ...(mapSettingsChanged ? { mapSettings: structuredClone(afterMapSettings) } : {}),
-      ...(campaignsChanged ? { campaigns: structuredClone(after?.campaigns || []) } : {}),
-      ...(importedFilesChanged ? { importedFiles: structuredClone(after?.importedFiles || []) } : {})
-    },
+    before: { regions: { custom: structuredClone(changedBefore) }, ...(mapSettingsChanged ? { mapSettings: structuredClone(beforeMapSettings) } : {}), ...(campaignsChanged ? { campaigns: structuredClone(before?.campaigns || []) } : {}), ...(importedFilesChanged ? { importedFiles: structuredClone(before?.importedFiles || []) } : {}) },
+    after: { regions: { custom: structuredClone(changedAfter) }, ...(mapSettingsChanged ? { mapSettings: structuredClone(afterMapSettings) } : {}), ...(campaignsChanged ? { campaigns: structuredClone(after?.campaigns || []) } : {}), ...(importedFilesChanged ? { importedFiles: structuredClone(after?.importedFiles || []) } : {}) },
     changedRegionCount: Math.max(changedBefore.length, changedAfter.length),
     changes,
     changedSections: { regions: changes.length > 0, mapSettings: mapSettingsChanged, campaigns: campaignsChanged, importedFiles: importedFilesChanged }
@@ -73,27 +94,27 @@ store.recordHistory = function persistedHistoryRecord(label, before, after) {
 function escapeHtml(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 function actorName(entry) { return entry?.actorName || entry?.entry?.actorName || "Bilinmeyen kullanıcı"; }
 function detailsFor(entry) {
-  const changes = Array.isArray(entry?.entry?.changes) ? entry.entry.changes : [];
+  const changes = deriveChanges(entry);
   if (!changes.length) {
     const sections = entry?.entry?.changedSections || {}, labels = [];
     if (sections.mapSettings) labels.push("Harita ayarları");
     if (sections.campaigns) labels.push("Kampanyalar");
     if (sections.importedFiles) labels.push("İçe aktarılan dosyalar");
-    return labels.length ? `${labels.join(", ")} güncellendi.` : "Detay bilgisi bu kayıt oluşturulmadan önce tutulmamış.";
+    return labels.length ? labels.join(", ") + " güncellendi." : "Detay bilgisi bulunmuyor.";
   }
   return changes.map((change) => {
     const action = change.action === "created" ? "oluşturuldu" : change.action === "deleted" ? "silindi" : "güncellendi";
-    const status = change.beforeStatus !== change.afterStatus ? ` Durum: ${statusLabel(change.beforeStatus)} → ${statusLabel(change.afterStatus)}.` : "";
-    const reason = change.afterReason && change.afterReason !== change.beforeReason ? ` Sebep: ${change.afterReason}.` : "";
-    const geometry = change.geometryChanged ? " Sınır geometrisi değişti." : "";
-    return `<div class="history-change-detail"><strong>${escapeHtml(change.name)}</strong> <span>${escapeHtml(change.type)} ${action}.</span>${escapeHtml(status)}${escapeHtml(reason)}${escapeHtml(geometry)}</div>`;
+    const status = change.beforeStatus !== change.afterStatus ? `Durum: ${statusLabel(change.beforeStatus)} → ${statusLabel(change.afterStatus)}.` : "";
+    const reason = change.afterReason && change.afterReason !== change.beforeReason ? `Sebep: ${change.afterReason}.` : "";
+    const geometry = change.geometryChanged ? "Sınır geometrisi değişti." : "";
+    return `<div class="history-change-detail"><strong>${escapeHtml(change.name)}</strong><span>${escapeHtml(change.type)} ${action}.</span>${status ? `<span>${escapeHtml(status)}</span>` : ""}${reason ? `<span>${escapeHtml(reason)}</span>` : ""}${geometry ? `<span>${escapeHtml(geometry)}</span>` : ""}</div>`;
   }).join("");
 }
 
 function canUndoEntry(entry) {
   const access = window.RegionConsoleRBAC?.access || null;
   if (!access?.loaded) return false;
-  const changes = Array.isArray(entry?.entry?.changes) ? entry.entry.changes : [];
+  const changes = deriveChanges(entry);
   if (!changes.length) return can(access, "history.undo") || can(access, "regions.save");
   return changes.every((change) => {
     const region = (store.get().regions.custom || []).find((item) => String(item?.id) === String(change.id));
@@ -105,7 +126,7 @@ function canUndoEntry(entry) {
 }
 
 function currentMatchesEntry(entry) {
-  const changes = Array.isArray(entry?.entry?.changes) ? entry.entry.changes : [];
+  const changes = deriveChanges(entry);
   const current = store.get().regions.custom || [];
   for (const change of changes) {
     const actual = current.find((item) => String(item?.id) === String(change.id)) || null;
@@ -145,11 +166,11 @@ async function renderHistoryDialog() {
   window.__regionConsoleHistory = { entries, offset: entries.length };
   const draw = () => {
     const current = window.__regionConsoleHistory?.entries || [];
-    elements.dialogTitle.textContent = "Değişiklik geçmişi";
+    elements.dialogTitle.textContent = "Geçmiş";
     elements.dialogBody.innerHTML = current.length ? `<div class="history-list">${current.map((entry, index) => {
       const details = detailsFor(entry), undo = canUndoEntry(entry);
-      return `<article class="history-item" data-history-index="${index}"><div class="history-item-head"><strong>${escapeHtml(entry.label || "Güncelleme")}</strong><span>${new Date(entry.createdAt).toLocaleString("tr-TR")}</span></div><div class="history-item-meta"><small>#${index + 1}</small><small>Değiştiren: <b>${escapeHtml(actorName(entry))}</b></small></div><div class="history-item-details">${details}</div><div class="history-item-actions"><button class="history-sim-open button" type="button">Haritada simüle et</button>${undo ? `<button class="history-undo button button-primary" type="button">Değişikliği geri al</button>` : ""}</div></article>`;
-    }).join("")}</div><div class="history-load-more"><button id="historyLoadMore" class="button" type="button">Daha eskiyi göster (${current.length + 5})</button></div>` : `<p class="dialog-muted">Henüz kaydedilmiş bir değişiklik yok.</p>`;
+      return `<article class="history-item" data-history-index="${index}"><div class="history-item-head"><div class="history-title"><strong>${escapeHtml(entry.label || "Güncelleme")}</strong><span>${escapeHtml(actorName(entry))}</span></div><time>${new Date(entry.createdAt).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</time></div><div class="history-item-details">${details}</div><div class="history-item-actions"><button class="history-sim-open button" type="button">Simüle et</button>${undo ? `<button class="history-undo button button-primary" type="button">Geri al</button>` : ""}</div></article>`;
+    }).join("")}</div><div class="history-load-more"><button id="historyLoadMore" class="button" type="button">Daha eski kayıtları göster</button></div>` : `<p class="dialog-muted">Henüz kayıt yok.</p>`;
     if (!elements.appDialog.open) elements.appDialog.showModal();
   };
   draw();
@@ -177,7 +198,7 @@ window.addEventListener("click", (event) => {
   if (!entry) return;
   if (!window.confirm(`“${entry.label || "Bu değişiklik"}” geri alınsın mı?`)) return;
   button.disabled = true;
-  undoEntry(entry).then(() => { item.remove(); window.dispatchEvent(new CustomEvent("region-console:rbac-refresh")); renderHistoryDialog(); }).catch((error) => { button.disabled = false; alert(error.message || "Geri alma başarısız."); });
+  undoEntry(entry).then(() => { renderHistoryDialog(); }).catch((error) => { button.disabled = false; alert(error.message || "Geri alma başarısız."); });
 }, true);
 window.addEventListener("click", (event) => {
   const button = event.target?.closest?.(".history-sim-open");
@@ -192,6 +213,6 @@ window.addEventListener("click", (event) => {
 
 if (typeof document !== "undefined") {
   const style = document.createElement("style");
-  style.textContent = `.history-load-more{display:flex;justify-content:center;margin-top:9px}.history-load-more .button{min-width:180px}.history-item{padding:12px;border:1px solid rgba(255,255,255,.09);border-radius:10px;background:rgba(255,255,255,.025);margin-bottom:8px}.history-item-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.history-item-head span{opacity:.7;white-space:nowrap}.history-item-meta{display:flex;gap:12px;margin-top:4px;opacity:.75}.history-item-details{margin-top:9px;display:grid;gap:4px;font-size:.92rem}.history-change-detail{line-height:1.4}.history-change-detail strong{margin-right:4px}.history-item-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.history-item-actions .button{flex:0 0 auto}@media(max-width:720px){.history-item-head{display:grid}.history-item-meta{flex-wrap:wrap}.history-item-actions .button{width:100%}}`;
+  style.textContent = `.history-list{display:grid;gap:6px}.history-item{padding:9px 11px;border:1px solid rgba(255,255,255,.07);border-radius:8px;background:rgba(255,255,255,.02)}.history-item-head{display:flex;justify-content:space-between;gap:10px;align-items:center}.history-title{display:flex;align-items:baseline;gap:8px;min-width:0}.history-title strong{font-size:.91rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-title span{font-size:.74rem;opacity:.55;white-space:nowrap}.history-item-head time{font-size:.72rem;opacity:.55;white-space:nowrap}.history-item-details{margin-top:5px;font-size:.78rem;opacity:.78}.history-change-detail{display:flex;flex-wrap:wrap;gap:3px 7px;line-height:1.35}.history-change-detail strong{font-weight:650}.history-item-actions{display:flex;gap:5px;margin-top:7px}.history-item-actions .button{min-height:28px;padding:3px 9px;font-size:.73rem}.history-item-actions .button-primary{font-weight:650}.history-load-more{display:flex;justify-content:center;margin-top:7px}.history-load-more .button{min-height:29px;padding:3px 10px;font-size:.73rem}@media(max-width:720px){.history-item-head{align-items:flex-start}.history-title{display:grid;gap:2px}.history-item-head time{font-size:.68rem}.history-item-actions .button{flex:1}}`;
   document.head.appendChild(style);
 }
