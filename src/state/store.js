@@ -83,20 +83,22 @@ function swapGeometryCoordinates(geometry) {
 }
 
 function migrateCustomRegions(custom) {
-  return (Array.isArray(custom) ? custom : []).map((region) => {
-    const meta = region?.importMeta;
-    if (!meta?.format || meta.format !== "GeoJSON" || meta.coordinateOrder) return region;
+  return (Array.isArray(custom) ? custom : [])
+    .filter((region) => region && typeof region === "object")
+    .map((region) => {
+      const meta = region.importMeta;
+      if (!meta?.format || meta.format !== "GeoJSON" || meta.coordinateOrder) return region;
 
-    return {
-      ...region,
-      geometry: swapGeometryCoordinates(region.geometry),
-      importMeta: {
-        ...meta,
-        coordinateOrder: "lonlat",
-        migratedAt: new Date().toISOString()
-      }
-    };
-  });
+      return {
+        ...region,
+        geometry: swapGeometryCoordinates(region.geometry),
+        importMeta: {
+          ...meta,
+          coordinateOrder: "lonlat",
+          migratedAt: new Date().toISOString()
+        }
+      };
+    });
 }
 
 function regionKey(region) {
@@ -122,74 +124,95 @@ function normalizeName(value) {
     .replace(/ü/g, "u")
     .replace(/ş/g, "s")
     .replace(/ö/g, "o")
-    .replace(/ç/g, "c");
+    .replace(/ç/g, "c")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-function findByHierarchy(items, hierarchy) {
-  const byId = findByKeys(items, hierarchy?.parentId);
-  if (byId) return byId;
-  const parentName = normalizeName(hierarchy?.parentName);
-  if (!parentName) return null;
-  return (items || []).find((item) => normalizeName(item?.name) === parentName) || null;
+function regionType(region) {
+  return String(region?.hierarchy?.type || region?.type || "").toLowerCase();
+}
+
+function regionParentId(region) {
+  return region?.hierarchy?.parentId ?? region?.parent_id ?? null;
+}
+
+function cloneWithHierarchy(region, hierarchy) {
+  return { ...region, hierarchy: { ...(region.hierarchy || {}), ...hierarchy } };
 }
 
 function normalizeHierarchy(countries, custom) {
-  const nextCountries = structuredClone(Array.isArray(countries) ? countries : []);
-  const safeCustom = Array.isArray(custom) ? custom : [];
+  const byId = new Map();
+  const byExternalId = new Map();
+  const byNameTypeParent = new Map();
+  const register = (region, type, parentId = null) => {
+    if (!region || typeof region !== "object") return;
+    const id = region.id != null ? String(region.id) : "";
+    const externalId = region.importMeta?.properties?.id ?? region.external_id ?? null;
+    const name = normalizeName(region.name || region.properties?.name || "");
+    if (id) byId.set(id, region);
+    if (externalId != null && String(externalId)) byExternalId.set(String(externalId), region);
+    if (name) byNameTypeParent.set(`${type}:${name}:${String(parentId || "")}`, region);
+  };
 
-  const countryFor = (region) => {
+  const visit = (items, parent = null) => {
+    for (const item of items || []) {
+      if (!item || typeof item !== "object") continue;
+      const type = regionType(item);
+      const parentId = parent?.id ?? regionParentId(item) ?? null;
+      register(item, type, parentId);
+      const children = [
+        ...(Array.isArray(item.provinces) ? item.provinces : []),
+        ...(Array.isArray(item.districts) ? item.districts : []),
+        ...(Array.isArray(item.neighborhoods) ? item.neighborhoods : []),
+        ...(Array.isArray(item.cemeteries) ? item.cemeteries : []),
+        ...(Array.isArray(item.children) ? item.children : [])
+      ];
+      visit(children, item);
+    }
+  };
+
+  visit(countries);
+  visit(custom);
+
+  const resolveParent = (region) => {
     const hierarchy = region?.hierarchy || {};
-    return nextCountries.find((country) =>
-      String(country.id ?? "") === String(hierarchy.countryId ?? "")
-      || normalizeName(country.name) === normalizeName(hierarchy.countryName)
-    );
+    const parentId = hierarchy.parentId ?? null;
+    const parentName = normalizeName(hierarchy.parentName);
+    const parentType = String(hierarchy.parentType || "").toLowerCase();
+    if (parentId != null && byId.has(String(parentId))) return byId.get(String(parentId));
+    if (parentName && parentType) return byNameTypeParent.get(`${parentType}:${parentName}:${String(hierarchy.countryId || "")}`) || null;
+    return null;
   };
 
-  const ensureUniqueChild = (list, region) => {
-    const existing = findByKeys(list, region.id, region.importMeta?.sourceId);
-    if (existing) return list;
-    return [...list, structuredClone(region)];
+  const normalizeNode = (item, parent = null) => {
+    if (!item || typeof item !== "object") return null;
+    const type = regionType(item);
+    const parentRegion = parent || resolveParent(item);
+    const parentId = parentRegion?.id ?? item?.hierarchy?.parentId ?? null;
+    const parentType = parentRegion ? regionType(parentRegion) : item?.hierarchy?.parentType || null;
+    const country = type === "country" ? item : parentRegion?.hierarchy?.countryId ? byId.get(String(parentRegion.hierarchy.countryId)) : null;
+    const hierarchy = {
+      ...(item.hierarchy || {}),
+      type: type || item?.hierarchy?.type || null,
+      parentId,
+      parentType,
+      parentName: parentRegion?.name || item?.hierarchy?.parentName || null,
+      countryId: type === "country" ? item.id : country?.id || item?.hierarchy?.countryId || null,
+      countryName: type === "country" ? item.name : country?.name || item?.hierarchy?.countryName || null
+    };
+    const result = cloneWithHierarchy(item, hierarchy);
+    for (const key of ["provinces", "districts", "neighborhoods", "cemeteries", "children"]) {
+      if (!Array.isArray(item[key])) continue;
+      result[key] = item[key].map((child) => normalizeNode(child, result)).filter(Boolean);
+    }
+    return result;
   };
 
-  safeCustom.filter((region) => (region?.hierarchy?.type || region?.type) === "province").forEach((region) => {
-    const country = countryFor(region);
-    if (!country) return;
-    const list = Array.isArray(country.provinces) ? country.provinces : (Array.isArray(country.children) ? country.children : []);
-    country.provinces = ensureUniqueChild(list, region);
-    country.count = country.provinces.length;
-  });
-
-  const allProvinces = nextCountries.flatMap((country) => Array.isArray(country.provinces) ? country.provinces : []);
-  safeCustom.filter((region) => (region?.hierarchy?.type || region?.type) === "district").forEach((region) => {
-    const province = findByHierarchy(allProvinces, region?.hierarchy || {});
-    if (!province) return;
-    const list = Array.isArray(province.districts) ? province.districts : (Array.isArray(province.children) ? province.children : []);
-    province.districts = ensureUniqueChild(list, region);
-    province.count = Array.isArray(province.districts) ? province.districts.length : 0;
-  });
-
-  const allDistricts = allProvinces.flatMap((province) => Array.isArray(province.districts) ? province.districts : []);
-  safeCustom.filter((region) => (region?.hierarchy?.type || region?.type) === "neighborhood").forEach((region) => {
-    const district = findByHierarchy(allDistricts, region?.hierarchy || {});
-    if (!district) return;
-    const list = Array.isArray(district.neighborhoods) ? district.neighborhoods : (Array.isArray(district.children) ? district.children : []);
-    district.neighborhoods = ensureUniqueChild(list, region);
-    district.count = Array.isArray(district.neighborhoods) ? district.neighborhoods.length : 0;
-  });
-
-  const allNeighborhoods = allDistricts.flatMap((district) => Array.isArray(district.neighborhoods) ? district.neighborhoods : []);
-  safeCustom.filter((region) => (region?.hierarchy?.type || region?.type) === "cemetery").forEach((region) => {
-    const neighborhood = findByHierarchy(allNeighborhoods, region?.hierarchy || {});
-    if (!neighborhood) return;
-    const list = Array.isArray(neighborhood.cemeteries) ? neighborhood.cemeteries : (Array.isArray(neighborhood.children) ? neighborhood.children : []);
-    neighborhood.cemeteries = ensureUniqueChild(list, region);
-    neighborhood.count = Array.isArray(neighborhood.cemeteries) ? neighborhood.cemeteries.length : 0;
-  });
-
-  return nextCountries;
+  return (countries || []).map((country) => normalizeNode(country)).filter(Boolean);
 }
 
-export const store = {
+const store = {
   get() {
     return state;
   },
@@ -199,83 +222,9 @@ export const store = {
     notify();
   },
 
-  update(key, patch) {
-    state = {
-      ...state,
-      [key]: {
-        ...state[key],
-        ...patch
-      }
-    };
+  update(section, patch) {
+    state = { ...state, [section]: { ...state[section], ...patch } };
     notify();
-  },
-
-  replaceData(data, { recordHistory = false, label = "Güncelleme" } = {}) {
-    const before = snapshotData();
-    const regions = structuredClone(data.regions || state.regions);
-    regions.countries = normalizeHierarchy(regions.countries, regions.custom);
-    state = {
-      ...state,
-      regions,
-      campaigns: structuredClone(data.campaigns || state.campaigns),
-      importedFiles: structuredClone(data.importedFiles || state.importedFiles),
-      mapSettings: structuredClone({ ...state.mapSettings, ...(data.mapSettings || data.regions?.mapSettings || {}) })
-    };
-    if (recordHistory) {
-      this.recordHistory(label, before, snapshotData());
-    } else {
-      notify();
-    }
-  },
-
-  recordHistory(label, before, after) {
-    const entries = state.history.entries.slice(0, state.history.cursor + 1);
-    entries.push({
-      id: crypto.randomUUID(),
-      label,
-      createdAt: new Date().toISOString(),
-      before: structuredClone(before),
-      after: structuredClone(after)
-    });
-    const trimmed = entries.slice(-50);
-    state = {
-      ...state,
-      history: {
-        entries: trimmed,
-        cursor: trimmed.length - 1
-      }
-    };
-    notify();
-  },
-
-  undo() {
-    const entry = state.history.entries[state.history.cursor];
-    if (!entry) return false;
-    state = {
-      ...state,
-      regions: structuredClone(entry.before.regions),
-      campaigns: structuredClone(entry.before.campaigns),
-      importedFiles: structuredClone(entry.before.importedFiles || []),
-      mapSettings: structuredClone({ ...initialState.mapSettings, ...(entry.before.mapSettings || entry.before.regions?.mapSettings || {}) }),
-      history: { ...state.history, cursor: state.history.cursor - 1 }
-    };
-    notify();
-    return true;
-  },
-
-  redo() {
-    const next = state.history.entries[state.history.cursor + 1];
-    if (!next) return false;
-    state = {
-      ...state,
-      regions: structuredClone(next.after.regions),
-      campaigns: structuredClone(next.after.campaigns),
-      importedFiles: structuredClone(next.after.importedFiles || []),
-      mapSettings: structuredClone({ ...initialState.mapSettings, ...(next.after.mapSettings || next.after.regions?.mapSettings || {}) }),
-      history: { ...state.history, cursor: state.history.cursor + 1 }
-    };
-    notify();
-    return true;
   },
 
   dataSnapshot() {
@@ -285,7 +234,7 @@ export const store = {
   loadPersisted(remoteState) {
     const data = remoteState || {};
     const custom = migrateCustomRegions(Array.isArray(data.custom) ? data.custom : []);
-    let importedFiles = Array.isArray(data.importedFiles) ? data.importedFiles : [];
+    let importedFiles = Array.isArray(data.importedFiles) ? data.importedFiles.filter((file) => file && typeof file === "object") : [];
 
     if (!importedFiles.length) {
       const legacyGroups = new Map();
@@ -307,7 +256,10 @@ export const store = {
       importedFiles = [...legacyGroups.values()];
     }
 
-    const countries = normalizeHierarchy(Array.isArray(data.countries) ? data.countries : [], custom);
+    const countries = normalizeHierarchy(
+      Array.isArray(data.countries) ? data.countries.filter((region) => region && typeof region === "object") : [],
+      custom
+    );
     state = {
       ...state,
       regions: {
@@ -319,11 +271,11 @@ export const store = {
         ...initialState.mapSettings,
         ...(data.mapSettings || data.regions?.mapSettings || {})
       },
-      campaigns: Array.isArray(data.campaigns) ? data.campaigns : [],
+      campaigns: Array.isArray(data.campaigns) ? data.campaigns.filter((campaign) => campaign && typeof campaign === "object") : [],
       importedFiles,
       history: {
-        entries: Array.isArray(data.history) ? data.history.slice(-50) : [],
-        cursor: Array.isArray(data.history) ? data.history.length - 1 : -1
+        entries: Array.isArray(data.history) ? data.history.filter((entry) => entry && typeof entry === "object").slice(-50) : [],
+        cursor: Array.isArray(data.history) ? Math.min(data.history.length - 1, 49) : -1
       }
     };
     notify();
@@ -339,3 +291,5 @@ export const store = {
     return () => listeners.delete(listener);
   }
 };
+
+export { store };
