@@ -39,6 +39,7 @@ const entries = [
   "./src/features/regions/data-integrity.js",
   "./src/features/search/header-search.js",
   "./src/features/map/layers-ui.js",
+  "./src/features/regions/region-catalog.js",
   "./src/features/drawing/drawing-save-dialog.js",
   "./src/features/history/history-map-simulation.js",
   "./src/features/history/history-cloud.js"
