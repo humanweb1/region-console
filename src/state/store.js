@@ -1,50 +1,19 @@
 const initialState = {
-  auth: {
-    status: "unknown",
-    session: null,
-    user: null
-  },
-  cloud: {
-    status: "idle",
-    version: null,
-    error: null,
-    updatedAt: null
-  },
-  regions: {
-    countries: [],
-    custom: [],
-    selectedId: null
-  },
-  map: {
-    drawing: false,
-    layer: "standard"
-  },
-  mapSettings: {
-    boundaryColor: "#ffffff",
-    boundaryWeight: 1.5,
-    outsideColor: "#4b5563",
-    outsideOpacity: 0.55,
-    campaignColor: "#ffd400",
-    campaignOpacity: 0.55
-  },
-  history: {
-    entries: [],
-    cursor: -1
-  },
+  auth: { status: "unknown", session: null, user: null },
+  cloud: { status: "idle", version: null, error: null, updatedAt: null },
+  regions: { countries: [], custom: [], selectedId: null },
+  map: { drawing: false, layer: "standard" },
+  mapSettings: { boundaryColor: "#ffffff", boundaryWeight: 1.5, outsideColor: "#4b5563", outsideOpacity: 0.55, campaignColor: "#ffd400", campaignOpacity: 0.55 },
+  history: { entries: [], cursor: -1 },
   campaigns: [],
   importedFiles: [],
-  ui: {
-    theme: "dark",
-    activeTool: "draw"
-  }
+  ui: { theme: "dark", activeTool: "draw" }
 };
 
 let state = structuredClone(initialState);
 const listeners = new Set();
 
-function notify() {
-  listeners.forEach((listener) => listener(state));
-}
+function notify() { listeners.forEach((listener) => listener(state)); }
 
 function snapshotData() {
   return structuredClone({
@@ -55,30 +24,12 @@ function snapshotData() {
   });
 }
 
-function swapPair([first, second]) {
-  return [second, first];
-}
+function swapPair([first, second]) { return [second, first]; }
 
 function swapGeometryCoordinates(geometry) {
   if (!geometry) return geometry;
-  if (geometry.type === "Polygon") {
-    return {
-      ...geometry,
-      coordinates: (geometry.coordinates || []).map((ring) =>
-        (ring || []).map((point) => Array.isArray(point) ? swapPair(point) : point)
-      )
-    };
-  }
-  if (geometry.type === "MultiPolygon") {
-    return {
-      ...geometry,
-      coordinates: (geometry.coordinates || []).map((polygon) =>
-        (polygon || []).map((ring) =>
-          (ring || []).map((point) => Array.isArray(point) ? swapPair(point) : point)
-        )
-      )
-    };
-  }
+  if (geometry.type === "Polygon") return { ...geometry, coordinates: (geometry.coordinates || []).map((ring) => (ring || []).map((point) => Array.isArray(point) ? swapPair(point) : point)) };
+  if (geometry.type === "MultiPolygon") return { ...geometry, coordinates: (geometry.coordinates || []).map((polygon) => (polygon || []).map((ring) => (ring || []).map((point) => Array.isArray(point) ? swapPair(point) : point))) };
   return geometry;
 }
 
@@ -88,58 +39,28 @@ function migrateCustomRegions(custom) {
     .map((region) => {
       const meta = region.importMeta;
       if (!meta?.format || meta.format !== "GeoJSON" || meta.coordinateOrder) return region;
-
-      return {
-        ...region,
-        geometry: swapGeometryCoordinates(region.geometry),
-        importMeta: {
-          ...meta,
-          coordinateOrder: "lonlat",
-          migratedAt: new Date().toISOString()
-        }
-      };
+      return { ...region, geometry: swapGeometryCoordinates(region.geometry), importMeta: { ...meta, coordinateOrder: "lonlat", migratedAt: new Date().toISOString() } };
     });
 }
 
-function regionKey(region) {
-  return String(region?.id ?? region?.importMeta?.sourceId ?? "");
-}
-
-function sourceKey(region) {
-  return String(region?.importMeta?.sourceId ?? region?.id ?? "");
-}
+function regionKey(region) { return String(region?.id ?? region?.importMeta?.sourceId ?? ""); }
+function sourceKey(region) { return String(region?.importMeta?.sourceId ?? region?.id ?? ""); }
 
 function findByKeys(items, ...keys) {
   const wanted = keys.filter((value) => value !== null && value !== undefined && String(value) !== "").map(String);
   if (!wanted.length) return null;
-  return (items || []).find((item) => wanted.includes(regionKey(item)) || wanted.includes(sourceKey(item))) || null;
+  return (items || []).find((item) => item && (wanted.includes(regionKey(item)) || wanted.includes(sourceKey(item)))) || null;
 }
 
 function normalizeName(value) {
-  return String(value ?? "")
-    .trim()
-    .toLocaleLowerCase("tr-TR")
-    .replace(/ı/g, "i")
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ş/g, "s")
-    .replace(/ö/g, "o")
-    .replace(/ç/g, "c")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  return String(value ?? "").trim().toLocaleLowerCase("tr-TR")
+    .replace(/ı/g, "i").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-function regionType(region) {
-  return String(region?.hierarchy?.type || region?.type || "").toLowerCase();
-}
-
-function regionParentId(region) {
-  return region?.hierarchy?.parentId ?? region?.parent_id ?? null;
-}
-
-function cloneWithHierarchy(region, hierarchy) {
-  return { ...region, hierarchy: { ...(region.hierarchy || {}), ...hierarchy } };
-}
+function regionType(region) { return String(region?.hierarchy?.type || region?.type || "").toLowerCase(); }
+function regionParentId(region) { return region?.hierarchy?.parentId ?? region?.parent_id ?? null; }
+function cloneWithHierarchy(region, hierarchy) { return { ...region, hierarchy: { ...(region.hierarchy || {}), ...hierarchy } }; }
 
 function normalizeHierarchy(countries, custom) {
   const byId = new Map();
@@ -154,7 +75,6 @@ function normalizeHierarchy(countries, custom) {
     if (externalId != null && String(externalId)) byExternalId.set(String(externalId), region);
     if (name) byNameTypeParent.set(`${type}:${name}:${String(parentId || "")}`, region);
   };
-
   const visit = (items, parent = null) => {
     for (const item of items || []) {
       if (!item || typeof item !== "object") continue;
@@ -171,7 +91,6 @@ function normalizeHierarchy(countries, custom) {
       visit(children, item);
     }
   };
-
   visit(countries);
   visit(custom);
 
@@ -193,11 +112,8 @@ function normalizeHierarchy(countries, custom) {
     const parentType = parentRegion ? regionType(parentRegion) : item?.hierarchy?.parentType || null;
     const country = type === "country" ? item : parentRegion?.hierarchy?.countryId ? byId.get(String(parentRegion.hierarchy.countryId)) : null;
     const hierarchy = {
-      ...(item.hierarchy || {}),
-      type: type || item?.hierarchy?.type || null,
-      parentId,
-      parentType,
-      parentName: parentRegion?.name || item?.hierarchy?.parentName || null,
+      ...(item.hierarchy || {}), type: type || item?.hierarchy?.type || null,
+      parentId, parentType, parentName: parentRegion?.name || item?.hierarchy?.parentName || null,
       countryId: type === "country" ? item.id : country?.id || item?.hierarchy?.countryId || null,
       countryName: type === "country" ? item.name : country?.name || item?.hierarchy?.countryName || null
     };
@@ -208,88 +124,106 @@ function normalizeHierarchy(countries, custom) {
     }
     return result;
   };
-
   return (countries || []).map((country) => normalizeNode(country)).filter(Boolean);
 }
 
 const store = {
-  get() {
-    return state;
+  get() { return state; },
+
+  set(patch) { state = { ...state, ...patch }; notify(); },
+
+  update(section, patch) { state = { ...state, [section]: { ...state[section], ...patch } }; notify(); },
+
+  replaceData(data, { recordHistory = false, label = "Güncelleme" } = {}) {
+    const before = snapshotData();
+    const regions = structuredClone(data?.regions || state.regions);
+    regions.countries = normalizeHierarchy(regions.countries, regions.custom);
+    state = {
+      ...state,
+      regions,
+      campaigns: structuredClone(data?.campaigns || state.campaigns),
+      importedFiles: structuredClone(data?.importedFiles || state.importedFiles),
+      mapSettings: structuredClone({ ...state.mapSettings, ...(data?.mapSettings || data?.regions?.mapSettings || {}) })
+    };
+    if (recordHistory) this.recordHistory(label, before, snapshotData());
+    else notify();
   },
 
-  set(patch) {
-    state = { ...state, ...patch };
+  recordHistory(label, before, after) {
+    const currentEntries = Array.isArray(state.history?.entries) ? state.history.entries : [];
+    const cursor = Number.isInteger(state.history?.cursor) ? state.history.cursor : currentEntries.length - 1;
+    const entries = currentEntries.slice(0, cursor + 1);
+    entries.push({ id: crypto.randomUUID(), label, createdAt: new Date().toISOString(), before: structuredClone(before), after: structuredClone(after) });
+    const trimmed = entries.slice(-50);
+    state = { ...state, history: { entries: trimmed, cursor: trimmed.length - 1 } };
     notify();
   },
 
-  update(section, patch) {
-    state = { ...state, [section]: { ...state[section], ...patch } };
+  undo() {
+    const entry = state.history?.entries?.[state.history?.cursor];
+    if (!entry) return false;
+    state = {
+      ...state,
+      regions: structuredClone(entry.before.regions),
+      campaigns: structuredClone(entry.before.campaigns || []),
+      importedFiles: structuredClone(entry.before.importedFiles || []),
+      mapSettings: structuredClone({ ...initialState.mapSettings, ...(entry.before.mapSettings || entry.before.regions?.mapSettings || {}) }),
+      history: { ...state.history, cursor: state.history.cursor - 1 }
+    };
     notify();
+    return true;
   },
 
-  dataSnapshot() {
-    return snapshotData();
+  redo() {
+    const next = state.history?.entries?.[state.history?.cursor + 1];
+    if (!next) return false;
+    state = {
+      ...state,
+      regions: structuredClone(next.after.regions),
+      campaigns: structuredClone(next.after.campaigns || []),
+      importedFiles: structuredClone(next.after.importedFiles || []),
+      mapSettings: structuredClone({ ...initialState.mapSettings, ...(next.after.mapSettings || next.after.regions?.mapSettings || {}) }),
+      history: { ...state.history, cursor: state.history.cursor + 1 }
+    };
+    notify();
+    return true;
   },
+
+  dataSnapshot() { return snapshotData(); },
 
   loadPersisted(remoteState) {
     const data = remoteState || {};
     const custom = migrateCustomRegions(Array.isArray(data.custom) ? data.custom : []);
     let importedFiles = Array.isArray(data.importedFiles) ? data.importedFiles.filter((file) => file && typeof file === "object") : [];
-
     if (!importedFiles.length) {
       const legacyGroups = new Map();
       custom.forEach((region) => {
         const fileName = region?.importMeta?.sourceFile;
         if (!fileName) return;
         const key = String(fileName);
-        if (!legacyGroups.has(key)) {
-          legacyGroups.set(key, {
-            id: `legacy-file-${key}`,
-            name: key,
-            size: null,
-            importedAt: region.importMeta.importedAt || region.createdAt || new Date().toISOString(),
-            regionCount: 0
-          });
-        }
+        if (!legacyGroups.has(key)) legacyGroups.set(key, { id: `legacy-file-${key}`, name: key, size: null, importedAt: region.importMeta.importedAt || region.createdAt || new Date().toISOString(), regionCount: 0 });
         legacyGroups.get(key).regionCount += 1;
       });
       importedFiles = [...legacyGroups.values()];
     }
-
     const countries = normalizeHierarchy(
       Array.isArray(data.countries) ? data.countries.filter((region) => region && typeof region === "object") : [],
       custom
     );
     state = {
       ...state,
-      regions: {
-        countries,
-        custom,
-        selectedId: null
-      },
-      mapSettings: {
-        ...initialState.mapSettings,
-        ...(data.mapSettings || data.regions?.mapSettings || {})
-      },
+      regions: { countries, custom, selectedId: null },
+      mapSettings: { ...initialState.mapSettings, ...(data.mapSettings || data.regions?.mapSettings || {}) },
       campaigns: Array.isArray(data.campaigns) ? data.campaigns.filter((campaign) => campaign && typeof campaign === "object") : [],
       importedFiles,
-      history: {
-        entries: Array.isArray(data.history) ? data.history.filter((entry) => entry && typeof entry === "object").slice(-50) : [],
-        cursor: Array.isArray(data.history) ? Math.min(data.history.length - 1, 49) : -1
-      }
+      history: { entries: Array.isArray(data.history) ? data.history.filter((entry) => entry && typeof entry === "object").slice(-50) : [], cursor: Array.isArray(data.history) ? Math.min(data.history.length - 1, 49) : -1 }
     };
     notify();
   },
 
-  reset() {
-    state = structuredClone(initialState);
-    notify();
-  },
+  reset() { state = structuredClone(initialState); notify(); },
 
-  subscribe(listener) {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  }
+  subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); }
 };
 
 export { store };
