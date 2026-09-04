@@ -183,18 +183,18 @@ function serviceMaskRoots(regions) {
   const candidates = hierarchyCandidates(openRegions);
   const roots = [];
   for (const region of openRegions) {
-    const visited = new Set([region]);
-    let current = findHierarchyParent(region, candidates);
-    let hasOpenChild = false;
-    while (current && !visited.has(current)) {
-      visited.add(current);
-      if (openRegions.some((candidate) => sameRegionIdentity(candidate, current))) {
-        hasOpenChild = true;
-        break;
+    const hasOpenDescendant = openRegions.some((candidate) => {
+      if (!candidate || candidate === region) return false;
+      const visited = new Set([candidate]);
+      let parent = findHierarchyParent(candidate, candidates);
+      while (parent && !visited.has(parent)) {
+        if (sameRegionIdentity(parent, region)) return true;
+        visited.add(parent);
+        parent = findHierarchyParent(parent, candidates);
       }
-      current = findHierarchyParent(current, candidates);
-    }
-    if (!hasOpenChild) roots.push(region);
+      return false;
+    });
+    if (!hasOpenDescendant) roots.push(region);
   }
   return roots;
 }
