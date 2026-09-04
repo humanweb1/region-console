@@ -42,6 +42,7 @@ const entries = [
   "./src/features/regions/region-catalog.js",
   "./src/features/drawing/drawing-hierarchy-save.js",
   "./src/features/drawing/manual-hierarchy-input-fix.js",
+  "./src/features/drawing/province-select-completeness-fix.js",
   "./src/features/drawing/drawing-save-dialog.js",
   "./src/features/history/history-map-simulation.js",
   "./src/features/history/history-cloud.js"
