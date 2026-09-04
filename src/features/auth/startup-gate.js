@@ -54,8 +54,10 @@ function updateProgress() {
   const accessReady = Boolean(access?.loaded);
   const cloudReady = state.cloud?.status === "ready" || state.cloud?.status === "empty" || state.cloud?.status === "error";
   const accessFitReady = Boolean(mapState?.initialAccessFitDone);
-  const noRegionsToFit = cloudReady && mapReady && accessReady && Array.isArray(state.regions?.custom) && state.regions.custom.length === 0;
-  const viewportReady = accessFitReady || noRegionsToFit;
+  const customRegions = Array.isArray(state.regions?.custom) ? state.regions.custom : [];
+  const hasVisibleGeometry = customRegions.some((region) => isRenderableGeometry(region?.geometry));
+  const noGeometryToFit = cloudReady && mapReady && accessReady && !hasVisibleGeometry;
+  const viewportReady = accessFitReady || noGeometryToFit;
 
   setStep("session", "done", "Oturum doğrulandı");
   setStep("access", accessReady ? "done" : "loading", accessReady ? "Yetkiler hazır" : "Yetkiler kontrol ediliyor…");
@@ -67,8 +69,8 @@ function updateProgress() {
   }
 
   const nextAccessFitReady = Boolean(mapState?.initialAccessFitDone);
-  const nextViewportReady = nextAccessFitReady || noRegionsToFit;
-  const status = `${accessReady}:${nextViewportReady}:${cloudReady}:${mapReady}:${state.cloud?.status}`;
+  const nextViewportReady = nextAccessFitReady || noGeometryToFit;
+  const status = `${accessReady}:${nextViewportReady}:${cloudReady}:${mapReady}:${state.cloud?.status}:${hasVisibleGeometry}`;
   if (status !== lastStatus) {
     lastStatus = status;
     const completed = [accessReady, cloudReady, mapReady && nextViewportReady].filter(Boolean).length;
@@ -89,6 +91,13 @@ function updateProgress() {
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(refitMapAfterStartup);
   });
+}
+
+function isRenderableGeometry(geometry) {
+  if (!geometry || typeof geometry !== "object") return false;
+  if (geometry.type === "Polygon") return Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0;
+  if (geometry.type === "MultiPolygon") return Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0;
+  return false;
 }
 
 window.RegionConsoleStartup.begin = (session) => {
