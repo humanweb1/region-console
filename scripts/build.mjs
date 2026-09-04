@@ -58,7 +58,7 @@ async function main() {
   const entry = join(temp, "entry.mjs");
   try {
     await writeFile(entry, `${entries.map((path) => `import ${JSON.stringify(join(root, path.slice(2)))};`).join("\n")}\n`, "utf8");
-    await run("npx", ["--yes", "esbuild@0.25.9", entry, "--bundle", "--format=esm", "--minify", "--legal-comments=none", "--sourcemap=false", "--outfile=dist/assets/app.js"]);
+    await run("npx", ["--yes", "esbuild@0.25.9", entry, "--bundle", "--format=esm", "--minify", "--legal-comments=none", "--outfile=dist/assets/app.js"]);
   } finally {
     await rm(temp, { recursive: true, force: true });
   }
