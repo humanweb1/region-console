@@ -1,6 +1,7 @@
 import { store } from "../../state/store.js";
 import { getElements, showStartup, releaseStartup } from "../../components/shell.js";
 import { fitInitialVisibleAccess } from "../map/map.js";
+import { isRegionVisible } from "../../services/rbac.js";
 
 const elements = getElements();
 let released = false;
@@ -45,6 +46,17 @@ function refitMapAfterStartup() {
   mapRefitAttempts = 0;
 }
 
+function isRenderableGeometry(geometry) {
+  if (!geometry || typeof geometry !== "object") return false;
+  if (geometry.type === "Polygon") return Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0;
+  if (geometry.type === "MultiPolygon") return Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0;
+  return false;
+}
+
+function hasVisibleGeometry(access, customRegions) {
+  return customRegions.some((region) => isRenderableGeometry(region?.geometry) && isRegionVisible(access, region));
+}
+
 function updateProgress() {
   if (released) return;
   const state = store.get();
@@ -55,9 +67,9 @@ function updateProgress() {
   const cloudReady = state.cloud?.status === "ready" || state.cloud?.status === "empty" || state.cloud?.status === "error";
   const accessFitReady = Boolean(mapState?.initialAccessFitDone);
   const customRegions = Array.isArray(state.regions?.custom) ? state.regions.custom : [];
-  const hasVisibleGeometry = customRegions.some((region) => isRenderableGeometry(region?.geometry));
-  const noGeometryToFit = cloudReady && mapReady && accessReady && !hasVisibleGeometry;
-  const viewportReady = accessFitReady || noGeometryToFit;
+  const visibleGeometry = hasVisibleGeometry(access, customRegions);
+  const noVisibleGeometryToFit = cloudReady && mapReady && accessReady && !visibleGeometry;
+  const viewportReady = accessFitReady || noVisibleGeometryToFit;
 
   setStep("session", "done", "Oturum doğrulandı");
   setStep("access", accessReady ? "done" : "loading", accessReady ? "Yetkiler hazır" : "Yetkiler kontrol ediliyor…");
@@ -69,8 +81,8 @@ function updateProgress() {
   }
 
   const nextAccessFitReady = Boolean(mapState?.initialAccessFitDone);
-  const nextViewportReady = nextAccessFitReady || noGeometryToFit;
-  const status = `${accessReady}:${nextViewportReady}:${cloudReady}:${mapReady}:${state.cloud?.status}:${hasVisibleGeometry}`;
+  const nextViewportReady = nextAccessFitReady || noVisibleGeometryToFit;
+  const status = `${accessReady}:${nextViewportReady}:${cloudReady}:${mapReady}:${state.cloud?.status}:${visibleGeometry}`;
   if (status !== lastStatus) {
     lastStatus = status;
     const completed = [accessReady, cloudReady, mapReady && nextViewportReady].filter(Boolean).length;
@@ -91,13 +103,6 @@ function updateProgress() {
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(refitMapAfterStartup);
   });
-}
-
-function isRenderableGeometry(geometry) {
-  if (!geometry || typeof geometry !== "object") return false;
-  if (geometry.type === "Polygon") return Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0;
-  if (geometry.type === "MultiPolygon") return Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0;
-  return false;
 }
 
 window.RegionConsoleStartup.begin = (session) => {
