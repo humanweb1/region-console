@@ -35,6 +35,7 @@ const testFiles = new Set();
 for (const file of files) {
   if (file === "tests/app.spec.js") testFiles.add("tests/app.spec.js");
   if (file === "tests/importer.spec.js") testFiles.add("tests/importer.spec.js");
+  if (file === "tests/rbac-hierarchy.spec.js") testFiles.add("tests/rbac-hierarchy.spec.js");
 
   if (file === "tests/affected-tests.mjs" || file === "tests/check-affected.mjs") {
     tags.add("@smoke");
@@ -54,6 +55,7 @@ for (const file of files) {
   if (file.startsWith("src/features/drawing/")) tags.add("@drawing");
   if (file === "src/services/cloud.js") tags.add("@cloud");
   if (file === "src/services/auth.js") tags.add("@auth");
+  if (file === "src/state/store.js") testFiles.add("tests/rbac-hierarchy.spec.js");
 
   if (file === "src/core/app.js") {
     tags.add("@smoke");
