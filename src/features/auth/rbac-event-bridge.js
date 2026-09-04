@@ -1,4 +1,5 @@
 import "../cemeteries/cemetery-ui.js";
+import "./rbac-descendants-fix.js";
 
 // Some feature modules still listen on document while the canonical RBAC
 // service dispatches on window. Keep both event targets synchronized so a
