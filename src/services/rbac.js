@@ -10,247 +10,65 @@ async function request(path, accessToken, options = {}) {
   return data;
 }
 
-// Every clickable console control is represented separately. These are the
-// permissions shown in the role editor. Legacy domain permissions remain
-// below for compatibility with existing data and handler-level checks.
 export const BUTTON_PERMISSIONS = [
-  ["button.menu.open", "Menü — aç"],
-  ["button.auth.logout", "Oturum — çıkış yap"],
-  ["button.theme.toggle", "Tema — değiştir"],
-  ["button.regions.toggle", "Bölgeler paneli — aç / kapat"],
-  ["button.region.create", "Bölge — yeni alan ekle"],
-  ["button.tool.draw", "Araç — Çizim"],
-  ["button.tool.edit", "Araç — Düzenle"],
-  ["button.tool.delete", "Araç — Sil"],
-  ["button.tool.import", "Araç — İçe aktar"],
-  ["button.tool.export", "Araç — Dışa aktar"],
-  ["button.tool.history", "Araç — Geçmiş"],
-  ["button.map.reset", "Harita — sıfırla"],
-  ["button.map.layer.standard", "Harita — standart katman"],
-  ["button.map.layer.satellite", "Harita — uydu katmanı"],
-  ["button.map.zoom_out", "Harita — uzaklaştır"],
-  ["button.map.zoom_in", "Harita — yakınlaştır"],
-  ["button.undo", "Değişiklik — geri al"],
-  ["button.redo", "Değişiklik — ileri al"],
-  ["button.save", "Değişiklik — kaydet"],
-  ["button.footer.service_filter", "Alt bilgi — hizmet verilen filtresi"],
-  ["button.footer.campaign_filter", "Alt bilgi — kampanyalı alan filtresi"],
-  ["button.footer.closed_filter", "Alt bilgi — hizmete kapalı filtresi"],
-  ["button.dialog.close", "Pencere — kapat"],
-  ["button.region.panel.close", "Bölge bilgi ekranı — kapat"],
-  ["button.region.service.open", "Bölge bilgi ekranı — Hizmete aç"],
-  ["button.region.service.close", "Bölge bilgi ekranı — Hizmete kapat"],
-  ["button.region.campaign.manage", "Bölge bilgi ekranı — Kampanya"],
-  ["button.region.boundary.edit", "Bölge bilgi ekranı — Sınırları düzenle"],
-  ["button.region.delete", "Bölge bilgi ekranı — Alanı sil"],
-  ["button.region.panel.cancel", "Bölge bilgi ekranı — İptal / Kapat"],
-  ["button.region.save", "Bölge bilgi ekranı — Kaydet"],
-  ["button.region.info.campaign_end", "Bölge bilgi ekranı — Kampanyayı sonlandır"],
-  ["button.service_dialog.cancel", "Hizmete kapat penceresi — Vazgeç"],
-  ["button.service_dialog.confirm", "Hizmete kapat penceresi — Hizmete kapat"],
-  ["button.campaign_dialog.cancel", "Kampanya penceresi — Vazgeç"],
-  ["button.campaign_dialog.apply", "Kampanya penceresi — Uygula"],
-  ["button.campaigns.open", "Kampanyalar — aç"],
-  ["button.campaigns.bulk_apply", "Kampanyalar — Toplu kampanya"],
-  ["button.campaigns.bulk_close", "Kampanyalar — Toplu kapat"],
-  ["button.campaigns.create", "Kampanyalar — Yeni kampanya"],
-  ["button.campaigns.tab.upcoming", "Kampanyalar — Yaklaşan sekmesi"],
-  ["button.campaigns.tab.expired", "Kampanyalar — Süresi dolan sekmesi"],
-  ["button.campaigns.tab.limit", "Kampanyalar — Limiti dolan sekmesi"],
-  ["button.campaigns.tab.active", "Kampanyalar — Aktif sekmesi"],
-  ["button.campaigns.tab.regions", "Kampanyalar — Kampanyalı bölgeler sekmesi"],
-  ["button.campaigns.edit", "Kampanyalar — Düzenle"],
-  ["button.campaigns.delete", "Kampanyalar — Sil"],
-  ["button.bulk.select_all", "Toplu kampanya — Tümünü seç"],
-  ["button.bulk.clear_all", "Toplu kampanya — Temizle"],
-  ["button.bulk.cancel", "Toplu kampanya — İptal"],
-  ["button.bulk.confirm_apply", "Toplu kampanya — Kampanyayı uygula"],
-  ["button.bulk.confirm_close", "Toplu kampanya — Kampanyaları kapat"],
-  ["button.campaign_delete.cancel", "Kampanya silme — İptal"],
-  ["button.campaign_delete.confirm", "Kampanya silme — Kampanyayı sil"],
-  ["button.campaign_form.cancel", "Kampanya formu — İptal"],
-  ["button.campaign_form.create", "Kampanya formu — Kampanyayı oluştur"],
-  ["button.campaign_form.edit", "Kampanya formu — Değişiklikleri kaydet"],
-  ["button.files.open", "Dosyalar — aç"],
-  ["button.files.view_list", "Dosyalar — Liste görünümü"],
-  ["button.files.view_icons", "Dosyalar — Simge görünümü"],
-  ["button.files.delete", "Dosyalar — Sil"],
-  ["button.draw.cancel", "Çizim kaydetme — İptal"],
-  ["button.draw.submit", "Çizim kaydetme — Alanı kaydet"],
-  ["button.import.cancel", "İçe aktarma — İptal"],
-  ["button.import.continue", "İçe aktarma — Devam et"],
-  ["button.history.simulate", "Geçmiş — Haritada simüle et"],
-  ["button.history.back", "Harita simülasyonu — Geçmişe dön"],
-  ["button.history.load_more", "Geçmiş — Daha eskiyi göster"],
-  ["button.settings.open", "Ayarlar — aç"],
-  ["button.settings.reset", "Harita ayarları — Varsayılanlar"],
-  ["button.settings.apply", "Harita ayarları — Uygula"],
-  ["button.rbac.tab_users", "Rol yönetimi — Kullanıcılar sekmesi"],
-  ["button.rbac.tab_roles", "Rol yönetimi — Roller sekmesi"],
-  ["button.rbac.create_user", "Rol yönetimi — Kullanıcı oluştur"],
-  ["button.rbac.save_user", "Rol yönetimi — Kullanıcı Kaydet"],
-  ["button.rbac.create_role", "Rol yönetimi — Rol oluştur"],
-  ["button.rbac.save_role", "Rol yönetimi — Rolü ve yetkileri kaydet"],
-  ["button.rbac.permission_toggle", "Rol yönetimi — İzin seçimi"],
-  ["button.rbac.add_scope", "Rol yönetimi — Yetki alanı ekle"],
-  ["button.rbac.remove_scope", "Rol yönetimi — Yetki alanı kaldır"]
+  ["button.menu.open", "Menü — aç"], ["button.auth.logout", "Oturum — çıkış yap"], ["button.theme.toggle", "Tema — değiştir"],
+  ["button.regions.toggle", "Bölgeler paneli — aç / kapat"], ["button.region.create", "Bölge — yeni alan ekle"], ["button.tool.draw", "Araç — Çizim"],
+  ["button.tool.edit", "Araç — Düzenle"], ["button.tool.delete", "Araç — Sil"], ["button.tool.import", "Araç — İçe aktar"],
+  ["button.tool.export", "Araç — Dışa aktar"], ["button.tool.history", "Araç — Geçmiş"], ["button.map.reset", "Harita — sıfırla"],
+  ["button.map.layer.standard", "Harita — standart katman"], ["button.map.layer.satellite", "Harita — uydu katmanı"], ["button.map.zoom_out", "Harita — uzaklaştır"],
+  ["button.map.zoom_in", "Harita — yakınlaştır"], ["button.undo", "Değişiklik — geri al"], ["button.redo", "Değişiklik — ileri al"], ["button.save", "Değişiklik — kaydet"],
+  ["button.footer.service_filter", "Alt bilgi — hizmet verilen filtresi"], ["button.footer.campaign_filter", "Alt bilgi — kampanyalı alan filtresi"], ["button.footer.closed_filter", "Alt bilgi — hizmete kapalı filtresi"],
+  ["button.dialog.close", "Pencere — kapat"], ["button.region.panel.close", "Bölge bilgi ekranı — kapat"], ["button.region.service.open", "Bölge bilgi ekranı — Hizmete aç"],
+  ["button.region.service.close", "Bölge bilgi ekranı — Hizmete kapat"], ["button.region.campaign.manage", "Bölge bilgi ekranı — Kampanya"], ["button.region.boundary.edit", "Bölge bilgi ekranı — Sınırları düzenle"],
+  ["button.region.delete", "Bölge bilgi ekranı — Alanı sil"], ["button.region.panel.cancel", "Bölge bilgi ekranı — İptal / Kapat"], ["button.region.save", "Bölge bilgi ekranı — Kaydet"],
+  ["button.region.info.campaign_end", "Bölge bilgi ekranı — Kampanyayı sonlandır"], ["button.service_dialog.cancel", "Hizmete kapat penceresi — Vazgeç"],
+  ["button.service_dialog.confirm", "Hizmete kapat penceresi — Hizmete kapat"], ["button.campaign_dialog.cancel", "Kampanya penceresi — Vazgeç"],
+  ["button.campaign_dialog.apply", "Kampanya penceresi — Uygula"], ["button.campaigns.open", "Kampanyalar — aç"], ["button.campaigns.bulk_apply", "Kampanyalar — Toplu kampanya"],
+  ["button.campaigns.bulk_close", "Kampanyalar — Toplu kapat"], ["button.campaigns.create", "Kampanyalar — Yeni kampanya"], ["button.campaigns.tab.upcoming", "Kampanyalar — Yaklaşan sekmesi"],
+  ["button.campaigns.tab.expired", "Kampanyalar — Süresi dolan sekmesi"], ["button.campaigns.tab.limit", "Kampanyalar — Limiti dolan sekmesi"], ["button.campaigns.tab.active", "Kampanyalar — Aktif sekmesi"],
+  ["button.campaigns.tab.regions", "Kampanyalar — Kampanyalı bölgeler sekmesi"], ["button.campaigns.edit", "Kampanyalar — Düzenle"], ["button.campaigns.delete", "Kampanyalar — Sil"],
+  ["button.bulk.select_all", "Toplu kampanya — Tümünü seç"], ["button.bulk.clear_all", "Toplu kampanya — Temizle"], ["button.bulk.cancel", "Toplu kampanya — İptal"],
+  ["button.bulk.confirm_apply", "Toplu kampanya — Kampanyayı uygula"], ["button.bulk.confirm_close", "Toplu kampanya — Kampanyaları kapat"], ["button.campaign_delete.cancel", "Kampanya silme — İptal"],
+  ["button.campaign_delete.confirm", "Kampanya silme — Kampanyayı sil"], ["button.campaign_form.cancel", "Kampanya formu — İptal"], ["button.campaign_form.create", "Kampanya formu — Kampanyayı oluştur"],
+  ["button.campaign_form.edit", "Kampanya formu — Değişiklikleri kaydet"], ["button.files.open", "Dosyalar — aç"], ["button.files.view_list", "Dosyalar — Liste görünümü"],
+  ["button.files.view_icons", "Dosyalar — Simge görünümü"], ["button.files.delete", "Dosyalar — Sil"], ["button.draw.cancel", "Çizim kaydetme — İptal"],
+  ["button.draw.submit", "Çizim kaydetme — Alanı kaydet"], ["button.import.cancel", "İçe aktarma — İptal"], ["button.import.continue", "İçe aktarma — Devam et"],
+  ["button.history.simulate", "Geçmiş — Haritada simüle et"], ["button.history.back", "Harita simülasyonu — Geçmişe dön"], ["button.history.load_more", "Geçmiş — Daha eskiyi göster"],
+  ["button.settings.open", "Ayarlar — aç"], ["button.settings.reset", "Harita ayarları — Varsayılanlar"], ["button.settings.apply", "Harita ayarları — Uygula"],
+  ["button.rbac.tab_users", "Rol yönetimi — Kullanıcılar sekmesi"], ["button.rbac.tab_roles", "Rol yönetimi — Roller sekmesi"], ["button.rbac.create_user", "Rol yönetimi — Kullanıcı oluştur"],
+  ["button.rbac.save_user", "Rol yönetimi — Kullanıcı Kaydet"], ["button.rbac.create_role", "Rol yönetimi — Rol oluştur"], ["button.rbac.save_role", "Rol yönetimi — Rolü ve yetkileri kaydet"],
+  ["button.rbac.permission_toggle", "Rol yönetimi — İzin seçimi"], ["button.rbac.add_scope", "Rol yönetimi — Yetki alanı ekle"], ["button.rbac.remove_scope", "Rol yönetimi — Yetki alanı kaldır"]
 ];
-
 export const LEGACY_PERMISSIONS = [
-  ["regions.view", "Bölgeleri görüntüle"],
-  ["regions.create", "Bölge ekle / çiz"],
-  ["regions.edit", "Alanı düzenle"],
-  ["regions.delete", "Alanı sil"],
-  ["regions.import", "Bölge içe aktar"],
-  ["regions.save", "Bölge değişikliklerini kaydet"],
-  ["service_areas.view", "Hizmet alanlarını görüntüle"],
-  ["service_areas.open", "Hizmete aç"],
-  ["service_areas.close", "Hizmete kapat"],
-  ["service_areas.manage", "Hizmet alanlarını yönet (üst yetki)"],
-  ["campaigns.view", "Kampanyaları görüntüle"],
-  ["campaigns.create", "Kampanya oluştur"],
-  ["campaigns.edit", "Kampanya düzenle"],
-  ["campaigns.delete", "Kampanya sil"],
-  ["campaigns.assign", "Kampanyayı alana uygula"],
-  ["campaigns.remove", "Kampanyayı alandan kaldır"],
-  ["campaigns.bulk_apply", "Toplu kampanya uygula"],
-  ["campaigns.bulk_close", "Toplu kampanya kapat"],
-  ["campaigns.end", "Bölge kampanyasını sonlandır"],
-  ["history.view", "Değişiklik geçmişini görüntüle"],
-  ["history.undo", "Geri al"],
-  ["history.redo", "İleri al"],
-  ["files.view", "Dosyaları görüntüle"],
-  ["files.delete", "İçe aktarılan dosyayı sil"],
-  ["files.manage", "Dosyaları yönet (üst yetki)"],
-  ["users.manage", "Kullanıcı ve rol yönetimine eriş"],
-  ["users.create", "Kullanıcı oluştur"],
-  ["users.edit", "Kullanıcı düzenle"],
-  ["roles.create", "Rol oluştur"],
-  ["roles.edit", "Rol düzenle"],
-  ["roles.permissions", "Rol izinlerini düzenle"],
-  ["roles.scopes", "Rol kapsamlarını düzenle"],
-  ["data.export", "Veri dışa aktarımı"],
-  ["map.view", "Haritayı görüntüle"],
-  ["map.zoom", "Haritayı yakınlaştır / uzaklaştır"],
-  ["map.reset", "Haritayı sıfırla"],
-  ["map.layer", "Harita / uydu katmanı"],
-  ["map.theme", "Harita temasını değiştir"],
-  ["stats.view", "Durum özetini görüntüle"],
-  ["stats.filter", "Durum özetini filtrele"]
+  ["regions.view", "Bölgeleri görüntüle"], ["regions.create", "Bölge ekle / çiz"], ["regions.edit", "Alanı düzenle"], ["regions.delete", "Alanı sil"], ["regions.import", "Bölge içe aktar"], ["regions.save", "Bölge değişikliklerini kaydet"],
+  ["service_areas.view", "Hizmet alanlarını görüntüle"], ["service_areas.open", "Hizmete aç"], ["service_areas.close", "Hizmete kapat"], ["service_areas.manage", "Hizmet alanlarını yönet (üst yetki)"],
+  ["campaigns.view", "Kampanyaları görüntüle"], ["campaigns.create", "Kampanya oluştur"], ["campaigns.edit", "Kampanya düzenle"], ["campaigns.delete", "Kampanya sil"], ["campaigns.assign", "Kampanyayı alana uygula"], ["campaigns.remove", "Kampanyayı alandan kaldır"],
+  ["campaigns.bulk_apply", "Toplu kampanya uygula"], ["campaigns.bulk_close", "Toplu kampanya kapat"], ["campaigns.end", "Bölge kampanyasını sonlandır"], ["history.view", "Değişiklik geçmişini görüntüle"], ["history.undo", "Geri al"], ["history.redo", "İleri al"],
+  ["files.view", "Dosyaları görüntüle"], ["files.delete", "İçe aktarılan dosyayı sil"], ["files.manage", "Dosyaları yönet (üst yetki)"], ["users.manage", "Kullanıcı ve rol yönetimine eriş"], ["users.create", "Kullanıcı oluştur"], ["users.edit", "Kullanıcı düzenle"],
+  ["roles.create", "Rol oluştur"], ["roles.edit", "Rol düzenle"], ["roles.permissions", "Rol izinlerini düzenle"], ["roles.scopes", "Rol kapsamlarını düzenle"], ["data.export", "Veri dışa aktarımı"], ["map.view", "Haritayı görüntüle"], ["map.zoom", "Haritayı yakınlaştır / uzaklaştır"], ["map.reset", "Haritayı sıfırla"], ["map.layer", "Harita / uydu katmanı"], ["map.theme", "Harita temasını değiştir"], ["stats.view", "Durum özetini görüntüle"], ["stats.filter", "Durum özetini filtrele"]
 ];
-
 export const PERMISSIONS = [...BUTTON_PERMISSIONS, ...LEGACY_PERMISSIONS];
-
-const BUTTON_TO_LEGACY = {
-  "button.region.create": "regions.create",
-  "button.tool.draw": "regions.create",
-  "button.tool.edit": "regions.edit",
-  "button.tool.delete": "regions.delete",
-  "button.tool.import": "regions.import",
-  "button.tool.export": "data.export",
-  "button.tool.history": "history.view",
-  "button.map.reset": "map.reset",
-  "button.map.layer.standard": "map.layer",
-  "button.map.layer.satellite": "map.layer",
-  "button.map.zoom_out": "map.zoom",
-  "button.map.zoom_in": "map.zoom",
-  "button.undo": "history.undo",
-  "button.redo": "history.redo",
-  "button.save": "regions.save",
-  "button.footer.service_filter": "service_areas.view",
-  "button.footer.campaign_filter": "campaigns.view",
-  "button.footer.closed_filter": "service_areas.view",
-  "button.region.panel.close": "regions.view",
-  "button.region.service.open": "service_areas.open",
-  "button.region.service.close": "service_areas.close",
-  "button.region.campaign.manage": "campaigns.assign",
-  "button.region.boundary.edit": "regions.edit",
-  "button.region.delete": "regions.delete",
-  "button.region.panel.cancel": "regions.view",
-  "button.region.save": "regions.save",
-  "button.region.info.campaign_end": "campaigns.end",
-  "button.service_dialog.confirm": "service_areas.close",
-  "button.campaign_dialog.apply": "campaigns.assign",
-  "button.campaigns.open": "campaigns.view",
-  "button.campaigns.bulk_apply": "campaigns.bulk_apply",
-  "button.campaigns.bulk_close": "campaigns.bulk_close",
-  "button.campaigns.create": "campaigns.create",
-  "button.campaigns.tab.upcoming": "campaigns.view",
-  "button.campaigns.tab.expired": "campaigns.view",
-  "button.campaigns.tab.limit": "campaigns.view",
-  "button.campaigns.tab.active": "campaigns.view",
-  "button.campaigns.tab.regions": "campaigns.view",
-  "button.campaigns.edit": "campaigns.edit",
-  "button.campaigns.delete": "campaigns.delete",
-  "button.bulk.confirm_apply": "campaigns.bulk_apply",
-  "button.bulk.confirm_close": "campaigns.bulk_close",
-  "button.campaign_delete.confirm": "campaigns.delete",
-  "button.campaign_form.create": "campaigns.create",
-  "button.campaign_form.edit": "campaigns.edit",
-  "button.files.open": "files.view",
-  "button.files.view_list": "files.view",
-  "button.files.view_icons": "files.view",
-  "button.files.delete": "files.delete",
-  "button.draw.submit": "regions.create",
-  "button.import.continue": "regions.import",
-  "button.history.simulate": "history.view",
-  "button.history.back": "history.view",
-  "button.history.load_more": "history.view",
-  "button.settings.open": "map.theme",
-  "button.settings.reset": "map.theme",
-  "button.settings.apply": "map.theme",
-  "button.rbac.tab_users": "users.manage",
-  "button.rbac.tab_roles": "users.manage",
-  "button.rbac.create_user": "users.create",
-  "button.rbac.save_user": "users.edit",
-  "button.rbac.create_role": "roles.create",
-  "button.rbac.save_role": "roles.edit",
-  "button.rbac.permission_toggle": "roles.permissions",
-  "button.rbac.add_scope": "roles.scopes",
-  "button.rbac.remove_scope": "roles.scopes"
-};
-
-function headersForButtonPermission(permission) {
-  return BUTTON_TO_LEGACY[permission] || null;
-}
-
+const BUTTON_TO_LEGACY = Object.fromEntries([
+  ["button.region.create","regions.create"],["button.tool.draw","regions.create"],["button.tool.edit","regions.edit"],["button.tool.delete","regions.delete"],["button.tool.import","regions.import"],["button.tool.export","data.export"],["button.tool.history","history.view"],["button.map.reset","map.reset"],["button.map.layer.standard","map.layer"],["button.map.layer.satellite","map.layer"],["button.map.zoom_out","map.zoom"],["button.map.zoom_in","map.zoom"],["button.undo","history.undo"],["button.redo","history.redo"],["button.save","regions.save"],["button.footer.service_filter","service_areas.view"],["button.footer.campaign_filter","campaigns.view"],["button.footer.closed_filter","service_areas.view"],["button.region.panel.close","regions.view"],["button.region.service.open","service_areas.open"],["button.region.service.close","service_areas.close"],["button.region.campaign.manage","campaigns.assign"],["button.region.boundary.edit","regions.edit"],["button.region.delete","regions.delete"],["button.region.panel.cancel","regions.view"],["button.region.save","regions.save"],["button.region.info.campaign_end","campaigns.end"],["button.service_dialog.confirm","service_areas.close"],["button.campaign_dialog.apply","campaigns.assign"],["button.campaigns.open","campaigns.view"],["button.campaigns.bulk_apply","campaigns.bulk_apply"],["button.campaigns.bulk_close","campaigns.bulk_close"],["button.campaigns.create","campaigns.create"],["button.campaigns.tab.upcoming","campaigns.view"],["button.campaigns.tab.expired","campaigns.view"],["button.campaigns.tab.limit","campaigns.view"],["button.campaigns.tab.active","campaigns.view"],["button.campaigns.tab.regions","campaigns.view"],["button.campaigns.edit","campaigns.edit"],["button.campaigns.delete","campaigns.delete"],["button.bulk.confirm_apply","campaigns.bulk_apply"],["button.bulk.confirm_close","campaigns.bulk_close"],["button.campaign_delete.confirm","campaigns.delete"],["button.campaign_form.create","campaigns.create"],["button.campaign_form.edit","campaigns.edit"],["button.files.open","files.view"],["button.files.view_list","files.view"],["button.files.view_icons","files.view"],["button.files.delete","files.delete"],["button.draw.submit","regions.create"],["button.import.continue","regions.import"],["button.history.simulate","history.view"],["button.history.back","history.view"],["button.history.load_more","history.view"],["button.settings.open","map.theme"],["button.settings.reset","map.theme"],["button.settings.apply","map.theme"],["button.rbac.tab_users","users.manage"],["button.rbac.tab_roles","users.manage"],["button.rbac.create_user","users.create"],["button.rbac.save_user","users.edit"],["button.rbac.create_role","roles.create"],["button.rbac.save_role","roles.edit"],["button.rbac.permission_toggle","roles.permissions"],["button.rbac.add_scope","roles.scopes"],["button.rbac.remove_scope","roles.scopes"]
+]);
+function headersForButtonPermission(permission) { return BUTTON_TO_LEGACY[permission] || null; }
 export async function getAccess(accessToken, userId) {
   if (!accessToken || !userId) return null;
   const result = await request("/rest/v1/rpc/get_current_user_rbac_access", accessToken, { method: "POST", body: "{}" });
   const payload = Array.isArray(result) ? result[0] : result;
   if (!payload?.profile?.id) throw new Error("Kullanıcı profili bulunamadı.");
-  const access = {
-    profile: payload.profile,
-    role: payload.role || null,
-    permissions: [...new Set(Array.isArray(payload.permissions) ? payload.permissions.map(String) : [])],
-    scopes: Array.isArray(payload.scopes) ? payload.scopes : [],
-    regionCatalog: Array.isArray(payload.regionCatalog) ? payload.regionCatalog : [],
-    loaded: true
-  };
-  if (typeof window !== "undefined") {
-    window.RegionConsoleRBAC = window.RegionConsoleRBAC || {};
-    window.RegionConsoleRBAC.access = access;
-    window.RegionConsoleRBAC.error = null;
-    window.dispatchEvent(new CustomEvent("region-console:rbac-updated"));
-  }
+  const access = { profile: payload.profile, role: payload.role || null, permissions: [...new Set(Array.isArray(payload.permissions) ? payload.permissions.map(String) : [])], scopes: Array.isArray(payload.scopes) ? payload.scopes : [], regionCatalog: Array.isArray(payload.regionCatalog) ? payload.regionCatalog : [], loaded: true };
+  if (typeof window !== "undefined") { window.RegionConsoleRBAC = window.RegionConsoleRBAC || {}; window.RegionConsoleRBAC.access = access; window.RegionConsoleRBAC.error = null; window.dispatchEvent(new CustomEvent("region-console:rbac-updated")); }
   return access;
 }
-
 export function can(access, permission) {
   if (!access?.loaded || !access?.profile?.is_active) return false;
   const permissions = access.permissions || [];
   if (access.role?.name === "super_admin" || permissions.includes("*") || permissions.includes(permission)) return true;
-  // Existing handlers still ask for domain permissions. A concrete button
-  // grant is therefore allowed to satisfy its own legacy handler check, but
-  // the inverse is intentionally not true: a broad legacy permission alone
-  // cannot make a button visible.
-  if (permission && !String(permission).startsWith("button.")) {
-    return BUTTON_PERMISSIONS.some(([buttonPermission]) => headersForButtonPermission(buttonPermission) === permission && permissions.includes(buttonPermission));
-  }
+  if (permission && !String(permission).startsWith("button.")) return BUTTON_PERMISSIONS.some(([buttonPermission]) => headersForButtonPermission(buttonPermission) === permission && permissions.includes(buttonPermission));
   return false;
 }
 export function canAny(access, permissions) { return permissions.some((permission) => can(access, permission)); }
-
 export function hasScope(access, target = {}) {
   if (!access?.loaded || !access?.profile?.is_active) return false;
   if (access.role?.name === "super_admin" || (access.permissions || []).includes("*")) return true;
@@ -269,36 +87,30 @@ export function hasScope(access, target = {}) {
     return false;
   });
 }
-
 function catalogRegionId(region) { return region?.id == null ? null : String(region.id); }
 function catalogExternalId(region) { return region?.external_id == null ? null : String(region.external_id); }
+function normalizeRegionName(value) { return String(value ?? "").trim().toLocaleLowerCase("tr-TR").replace(/ı/g,"i").replace(/ğ/g,"g").replace(/ü/g,"u").replace(/ş/g,"s").replace(/ö/g,"o").replace(/ç/g,"c"); }
 function scopeCatalogMatch(catalog, value, type) {
   const normalized = value == null ? "" : String(value); if (!normalized) return null;
   return catalog.find((region) => String(region.type) === String(type) && (catalogRegionId(region) === normalized || catalogExternalId(region) === normalized)) || null;
 }
+function catalogNameMatch(catalog, value, type) {
+  const name = normalizeRegionName(value); if (!name) return null;
+  return catalog.find((region) => String(region.type) === String(type) && normalizeRegionName(region.name) === name) || null;
+}
 function descendantsOf(catalog, rootIds) {
-  const allowed = new Set(rootIds.filter(Boolean).map(String));
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const region of catalog) {
-      const id = catalogRegionId(region);
-      const parent = region?.parent_id == null ? null : String(region.parent_id);
-      if (id && parent && allowed.has(parent) && !allowed.has(id)) { allowed.add(id); changed = true; }
-    }
-  }
+  const allowed = new Set(rootIds.filter(Boolean).map(String)); let changed = true;
+  while (changed) { changed = false; for (const region of catalog) { const id = catalogRegionId(region); const parent = region?.parent_id == null ? null : String(region.parent_id); if (id && parent && allowed.has(parent) && !allowed.has(id)) { allowed.add(id); changed = true; } } }
   return allowed;
 }
-
 export function getVisibleRegionIds(access) {
   if (!access?.loaded || !access?.profile?.is_active) return new Set();
   if (access.role?.name === "super_admin" || (access.permissions || []).includes("*")) return null;
-  const catalog = access.regionCatalog || [];
-  const rootIds = [];
+  const catalog = access.regionCatalog || []; const rootIds = [];
   for (const scope of access.scopes || []) {
-    const country = scopeCatalogMatch(catalog, scope.country_id, "country");
-    const province = scopeCatalogMatch(catalog, scope.province_id, "province");
-    const district = scopeCatalogMatch(catalog, scope.district_id, "district");
+    const country = scopeCatalogMatch(catalog, scope.country_id, "country") || catalogNameMatch(catalog, scope.country_name, "country");
+    const province = scopeCatalogMatch(catalog, scope.province_id, "province") || catalogNameMatch(catalog, scope.province_name, "province");
+    const district = scopeCatalogMatch(catalog, scope.district_id, "district") || catalogNameMatch(catalog, scope.district_name, "district");
     if (country && !scope.province_id && !scope.district_id) rootIds.push(country.id);
     else if (province && !scope.district_id) rootIds.push(province.id);
     else if (district) rootIds.push(district.id);
@@ -306,104 +118,61 @@ export function getVisibleRegionIds(access) {
   }
   return descendantsOf(catalog, rootIds);
 }
-
 function regionCandidates(region, explicitType = null) {
-  const hierarchy = region?.hierarchy || {};
-  const type = explicitType || String(hierarchy.type || region?.type || "");
-  return [[region?.id, type], [hierarchy.countryId, "country"], [hierarchy.provinceId, "province"], [hierarchy.districtId, "district"]];
+  const hierarchy = region?.hierarchy || {}; const type = explicitType || String(hierarchy.type || region?.type || "");
+  return [[region?.id, type],[hierarchy.countryId,"country"],[hierarchy.provinceId,"province"],[hierarchy.districtId,"district"],[hierarchy.neighborhoodId,"neighborhood"]];
 }
-
-function visibleCatalogMatch(catalog, visible, value, type = null) {
-  if (value == null || !String(value)) return false;
-  const normalized = String(value);
+function visibleCatalogMatch(catalog, visible, value, type = null, name = null) {
+  const normalized = value == null ? "" : String(value); const normalizedName = normalizeRegionName(name);
+  if (!normalized && !normalizedName) return false;
   const match = catalog.find((item) => {
     if (type && String(item.type) !== String(type)) return false;
-    return catalogRegionId(item) === normalized || catalogExternalId(item) === normalized;
+    if (normalized && (catalogRegionId(item) === normalized || catalogExternalId(item) === normalized)) return true;
+    return Boolean(normalizedName && normalizeRegionName(item.name) === normalizedName);
   });
   return Boolean(match && visible.has(catalogRegionId(match)));
 }
-
 export function isRegionVisible(access, region) {
-  const visible = getVisibleRegionIds(access);
-  if (visible === null) return true;
-  if (!region) return false;
-  const catalog = access?.regionCatalog || [];
-
-  if (regionCandidates(region).some(([value, type]) => visibleCatalogMatch(catalog, visible, value, type))) return true;
-
-  // A scoped province grants visibility to its complete descendant
-  // hierarchy even when the child node itself has no catalog entry.
-  // This covers nested district/neighborhood data coming from the
-  // region tree and keeps RBAC independent from catalog timing.
-  const hierarchy = region?.hierarchy || {};
+  const visible = getVisibleRegionIds(access); if (visible === null) return true; if (!region) return false;
+  const catalog = access?.regionCatalog || []; const hierarchy = region?.hierarchy || {};
+  if (regionCandidates(region).some(([value,type]) => visibleCatalogMatch(catalog, visible, value, type))) return true;
   const parentValues = [
-    [hierarchy.parentId, hierarchy.parentType || null],
-    [hierarchy.provinceId, "province"],
-    [hierarchy.districtId, "district"],
-    [hierarchy.countryId, "country"]
+    [hierarchy.parentId, hierarchy.parentType || null, hierarchy.parentName],
+    [hierarchy.neighborhoodId, "neighborhood", hierarchy.neighborhoodName],
+    [hierarchy.districtId, "district", hierarchy.districtName],
+    [hierarchy.provinceId, "province", hierarchy.provinceName],
+    [hierarchy.countryId, "country", hierarchy.countryName]
   ];
-  if (parentValues.some(([value, type]) => visibleCatalogMatch(catalog, visible, value, type))) return true;
-
-  // Walk catalog parents when the region exposes only its own id.
-  const ownType = String(hierarchy.type || region?.type || "");
-  const own = scopeCatalogMatch(catalog, region?.id ?? hierarchy.id, ownType);
-  if (!own) return false;
-  let current = own;
-  const visited = new Set();
-  while (current?.parent_id && !visited.has(String(current.id))) {
-    visited.add(String(current.id));
-    if (visible.has(String(current.parent_id))) return true;
-    current = catalog.find((item) => String(item.id) === String(current.parent_id));
+  if (parentValues.some(([value,type,name]) => visibleCatalogMatch(catalog, visible, value, type, name))) return true;
+  // Final scope-level fallback: hierarchy metadata is authoritative for
+  // imported/custom geometries. A province scope must expose every nested
+  // geometry carrying the same province id/name, regardless of whether the
+  // intermediate district/neighborhood catalog row is present in the client.
+  for (const scope of access.scopes || []) {
+    if (scope.province_id && (String(scope.province_id) === String(hierarchy.provinceId) || normalizeRegionName(scope.province_name) === normalizeRegionName(hierarchy.provinceName))) return true;
+    if (scope.district_id && (String(scope.district_id) === String(hierarchy.districtId) || normalizeRegionName(scope.district_name) === normalizeRegionName(hierarchy.districtName))) return true;
+    if (scope.country_id && !scope.province_id && !scope.district_id && (String(scope.country_id) === String(hierarchy.countryId) || normalizeRegionName(scope.country_name) === normalizeRegionName(hierarchy.countryName))) return true;
   }
+  const ownType = String(hierarchy.type || region?.type || ""); const own = scopeCatalogMatch(catalog, region?.id ?? hierarchy.id, ownType) || catalogNameMatch(catalog, region?.name, ownType);
+  if (!own) return false;
+  let current = own; const visited = new Set();
+  while (current?.parent_id && !visited.has(String(current.id))) { visited.add(String(current.id)); if (visible.has(String(current.parent_id))) return true; current = catalog.find((item) => String(item.id) === String(current.parent_id)); }
   return false;
 }
-
 function scopeRootTypes(access) {
-  if (!access?.loaded) return new Set();
-  if (access.role?.name === "super_admin" || (access.permissions || []).includes("*")) return new Set(["country"]);
-  const types = new Set();
-  for (const scope of access.scopes || []) {
-    if (scope.district_id) types.add("district");
-    else if (scope.province_id) types.add("province");
-    else if (scope.country_id) types.add("country");
-  }
-  return types;
+  if (!access?.loaded) return new Set(); if (access.role?.name === "super_admin" || (access.permissions || []).includes("*")) return new Set(["country"]);
+  const types = new Set(); for (const scope of access.scopes || []) { if (scope.district_id) types.add("district"); else if (scope.province_id) types.add("province"); else if (scope.country_id) types.add("country"); } return types;
 }
-
 export function filterRegionTree(access, countries = [], custom = []) {
-  const visible = getVisibleRegionIds(access);
-  if (visible === null) return { countries, custom };
-  if (!access?.loaded) return { countries: [], custom: [] };
-  const catalog = access?.regionCatalog || [];
-  const roots = scopeRootTypes(access);
-  const isVisible = (region, explicitType = null) => regionCandidates(region, explicitType).some(([value, type]) => {
-    if (value == null || !String(value) || !type) return false;
-    const match = scopeCatalogMatch(catalog, value, type);
-    return Boolean(match && visible.has(catalogRegionId(match)));
-  });
-  const filterNode = (node, childKeys, explicitType = null) => {
-    if (!isVisible(node, explicitType)) return null;
-    const childrenKey = childKeys.find((key) => Array.isArray(node?.[key]));
-    if (!childrenKey) return node;
-    const children = node[childrenKey].map((child) => filterNode(child, childKeys)).filter(Boolean);
-    return { ...node, [childrenKey]: children };
-  };
-  if (roots.has("country")) {
-    return {
-      countries: (countries || []).map((country) => filterNode(country, ["provinces", "districts", "neighborhoods", "children"], "country")).filter(Boolean),
-      custom: (custom || []).filter((region) => isVisible(region))
-    };
-  }
-  const scopedCustom = (custom || []).filter((region) => isVisible(region));
-  const promoted = scopedCustom.filter((region) => {
-    const type = String(region?.hierarchy?.type || region?.type || "").toLowerCase();
-    if (roots.has("province") && type === "province") return true;
-    if (roots.has("district") && type === "district") return true;
-    return false;
-  });
+  const visible = getVisibleRegionIds(access); if (visible === null) return { countries, custom }; if (!access?.loaded) return { countries: [], custom: [] };
+  const catalog = access?.regionCatalog || []; const roots = scopeRootTypes(access);
+  const isVisible = (region, explicitType = null) => isRegionVisible(access, region) && (explicitType ? regionCandidates(region, explicitType).some(([value,type]) => visibleCatalogMatch(catalog, visible, value, type)) : true);
+  const filterNode = (node, childKeys, explicitType = null) => { if (!isVisible(node, explicitType)) return null; const childrenKey = childKeys.find((key) => Array.isArray(node?.[key])); if (!childrenKey) return node; const children = node[childrenKey].map((child) => filterNode(child, childKeys)).filter(Boolean); return { ...node, [childrenKey]: children }; };
+  if (roots.has("country")) return { countries: (countries || []).map((country) => filterNode(country,["provinces","districts","neighborhoods","children"],"country")).filter(Boolean), custom: (custom || []).filter((region) => isRegionVisible(access, region)) };
+  const scopedCustom = (custom || []).filter((region) => isRegionVisible(access, region));
+  const promoted = scopedCustom.filter((region) => { const type = String(region?.hierarchy?.type || region?.type || "").toLowerCase(); if (roots.has("province") && type === "province") return true; if (roots.has("district") && type === "district") return true; return false; });
   return { countries: [], custom: promoted.length ? promoted : scopedCustom };
 }
-
 export function canManageInScope(access, permission, target) { return can(access, permission) && hasScope(access, target); }
 export async function listUsers(accessToken) { return request("/functions/v1/admin-rbac", accessToken, { method: "POST", body: JSON.stringify({ action: "list" }) }); }
 export async function createUser(accessToken, payload) { return request("/functions/v1/admin-create-user", accessToken, { method: "POST", body: JSON.stringify(payload) }); }
