@@ -13,9 +13,32 @@ function normalizeName(value) {
 
 function idFor(type, id) { return `catalog-${type}-${String(id)}`; }
 
+function findCanonical(type, name, parentId = null) {
+  const catalog = Array.isArray(window.RegionConsoleRBAC?.access?.regionCatalog) ? window.RegionConsoleRBAC.access.regionCatalog : [];
+  const wanted = normalizeName(name);
+  return catalog.find((item) => {
+    if (String(item?.type || "").toLowerCase() !== type) return false;
+    if (normalizeName(item?.name) !== wanted) return false;
+    if (!parentId) return true;
+    return String(item?.parent_id ?? item?.parentId ?? "") === String(parentId);
+  }) || null;
+}
+
+function turkeyId() {
+  return store.get().regions?.countries?.find((item) => normalizeName(item?.name) === "turkey")?.id
+    || Array.isArray(window.RegionConsoleRBAC?.access?.regionCatalog)
+      ? (window.RegionConsoleRBAC.access.regionCatalog.find((item) => item?.type === "country" && normalizeName(item?.name) === "turkey")?.id || "catalog-country-turkey")
+      : "catalog-country-turkey";
+}
+
 function catalogRegion(type, item) {
   const provinceId = item?.provinceId ?? item?.province_id ?? null;
   const districtId = item?.districtId ?? item?.district_id ?? null;
+  const canonicalProvince = type === "province" ? findCanonical("province", item.name) : findCanonical("province", item.provinceName || "", null);
+  const canonicalDistrict = type === "district" ? findCanonical("district", item.name, canonicalProvince?.id) : findCanonical("district", item.districtName || "", null);
+  const resolvedProvinceId = canonicalProvince?.id || idFor("province", provinceId);
+  const resolvedDistrictId = canonicalDistrict?.id || idFor("district", districtId);
+  const countryId = turkeyId();
   return {
     id: idFor(type, item.id),
     name: String(item.name || "").trim(),
@@ -33,14 +56,14 @@ function catalogRegion(type, item) {
       label: type === "province" ? "İl" : type === "district" ? "İlçe" : "Mahalle",
       level: type === "province" ? 1 : type === "district" ? 2 : 3,
       parentType: type === "province" ? "country" : type === "district" ? "province" : "district",
-      parentId: type === "province" ? "eded09b2-8966-4b24-8f89-a4ec4a9338a1" : type === "district" ? idFor("province", provinceId) : idFor("district", districtId),
+      parentId: type === "province" ? countryId : type === "district" ? resolvedProvinceId : resolvedDistrictId,
       parentName: null,
-      countryId: type === "province" || type === "district" || type === "neighborhood" ? "eded09b2-8966-4b24-8f89-a4ec4a9338a1" : null,
+      countryId,
       countryName: "Turkey",
-      provinceId: type === "province" ? idFor("province", item.id) : idFor("province", provinceId),
-      provinceName: null,
-      districtId: type === "district" ? idFor("district", item.id) : type === "neighborhood" ? idFor("district", districtId) : null,
-      districtName: null,
+      provinceId: type === "province" ? resolvedProvinceId : resolvedProvinceId,
+      provinceName: item?.provinceName || null,
+      districtId: type === "district" ? resolvedDistrictId : type === "neighborhood" ? resolvedDistrictId : null,
+      districtName: item?.districtName || null,
       externalCatalogId: String(item.id)
     },
     importMeta: { source: "catalog", sourceId: String(item.id), format: "Catalog" }
@@ -55,7 +78,7 @@ function readCache() {
 }
 
 function writeCache(value) {
-  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(value)); } catch { /* cache is optional */ }
+  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(value)); } catch { /* optional cache */ }
 }
 
 async function fetchDataset(name) {
@@ -63,6 +86,25 @@ async function fetchDataset(name) {
   if (!response.ok) throw new Error(`Katalog verisi alınamadı: ${name} (${response.status})`);
   const data = await response.json();
   return Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+}
+
+function stripCatalogOnly(value) {
+  if (Array.isArray(value)) return value.filter((item) => !item?.catalogOnly).map(stripCatalogOnly);
+  if (!value || typeof value !== "object") return value;
+  const result = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "catalogOnly") continue;
+    result[key] = stripCatalogOnly(child);
+  }
+  return result;
+}
+
+function installSnapshotFilter() {
+  if (store.dataSnapshot.__catalogFiltered) return;
+  const original = store.dataSnapshot.bind(store);
+  const filtered = () => stripCatalogOnly(original());
+  filtered.__catalogFiltered = true;
+  store.dataSnapshot = filtered;
 }
 
 function mergeCatalog(provinces, districts, neighborhoods) {
@@ -73,13 +115,13 @@ function mergeCatalog(provinces, districts, neighborhoods) {
   for (const item of provinces) if (item?.id != null && item?.name && !existing.has(idFor("province", item.id))) additions.push(catalogRegion("province", item));
   for (const item of districts) if (item?.id != null && item?.name && !existing.has(idFor("district", item.id))) additions.push(catalogRegion("district", item));
   for (const item of neighborhoods) if (item?.id != null && item?.name && !existing.has(idFor("neighborhood", item.id))) additions.push(catalogRegion("neighborhood", item));
-  if (!additions.length) return;
-  store.update("regions", { custom: [...custom, ...additions] });
+  if (additions.length) store.update("regions", { custom: [...custom, ...additions] });
 }
 
 export async function ensureAdministrativeCatalog() {
   if (ready) return true;
   if (loading) return loading;
+  installSnapshotFilter();
   loading = (async () => {
     const cached = readCache();
     if (cached?.provinces?.length && cached?.districts?.length && cached?.neighborhoods?.length) {
@@ -92,8 +134,7 @@ export async function ensureAdministrativeCatalog() {
       fetchDataset("districts"),
       fetchDataset("neighborhoods")
     ]);
-    const payload = { provinces, districts, neighborhoods, fetchedAt: new Date().toISOString() };
-    writeCache(payload);
+    writeCache({ provinces, districts, neighborhoods, fetchedAt: new Date().toISOString() });
     mergeCatalog(provinces, districts, neighborhoods);
     ready = true;
     return true;
@@ -104,9 +145,7 @@ export async function ensureAdministrativeCatalog() {
   return loading;
 }
 
-export function catalogStatus() {
-  return { ready, loading: Boolean(loading) };
-}
+export function catalogStatus() { return { ready, loading: Boolean(loading) }; }
 
 if (typeof document !== "undefined") {
   document.addEventListener("click", async (event) => {
