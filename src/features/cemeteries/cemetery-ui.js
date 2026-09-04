@@ -1,10 +1,9 @@
 import { store } from "../../state/store.js";
 import { getElements, openDialog, closeDialog, toast } from "../../components/shell.js";
-import { listCemeteries, createCemetery, updateCemetery, archiveCemetery } from "./cemetery-service.js";
+import { listCemeteries, createCemetery, updateCemetery } from "./cemetery-service.js";
 import { canManageInScope, can, isRegionVisible } from "../../services/rbac.js";
 
 const elements = getElements();
-const TYPE_LABELS = { neighborhood: "Mahalle", cemetery: "Mezarlık" };
 let cache = [];
 let loaded = false;
 
@@ -12,21 +11,39 @@ function access() { return window.RegionConsoleRBAC?.access || null; }
 function token() { return store.get().auth.session?.access_token || null; }
 function esc(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 function scope(region) { const h = region?.hierarchy || {}; return { countryId: h.countryId || null, provinceId: h.provinceId || null, districtId: h.districtId || null }; }
-function visibleNeighborhoods() { return (store.get().regions?.custom || []).filter((r) => r && String(r.hierarchy?.type || r.type || "").toLowerCase() === "neighborhood" && r.geometry && isRegionVisible(access(), r)); }
+function visibleNeighborhoods() { return (store.get().regions?.custom || []).filter((r) => r && String(r.hierarchy?.type || r.type || "").toLowerCase() === "neighborhood" && isRegionVisible(access(), r)); }
 function neighborhoodLabel(id) { return visibleNeighborhoods().find((r) => String(r.id) === String(id))?.name || id || "Mahalle seçilmedi"; }
 function hasView() { return can(access(), "cemeteries.view"); }
 function hasManage() { return can(access(), "cemeteries.manage"); }
 
+function ensureButton() {
+  const menu = document.getElementById("headerMenu");
+  if (!menu) return null;
+  let button = document.getElementById("cemeteriesButton");
+  if (!button) {
+    button = document.createElement("button");
+    button.id = "cemeteriesButton";
+    button.className = "header-menu-item";
+    button.type = "button";
+    button.innerHTML = "<span>Mezarlıklar</span>";
+    menu.appendChild(button);
+  }
+  return button;
+}
+
 async function load() {
   if (!hasView() || loaded || !token()) return cache;
-  try { cache = await listCemeteries(token()) || []; loaded = true; } catch (error) { toast(elements, error.message); }
+  try { cache = await listCemeteries(token()) || []; loaded = true; }
+  catch (error) { toast(elements, error.message); }
   return cache;
 }
 
 function renderList() {
   const body = elements.dialogBody.querySelector("#cemeteryList");
   if (!body) return;
-  body.innerHTML = cache.length ? cache.map((item) => `<button class="cemetery-row" type="button" data-cemetery-id="${esc(item.id)}"><strong>${esc(item.name)}</strong><span>${esc(neighborhoodLabel(item.region_id))}</span><small>${item.geometry ? "Harita mevcut" : "Harita bekliyor"}</small></button>`).join("") : `<div class="dialog-muted">Henüz kayıtlı mezarlık yok.</div>`;
+  body.innerHTML = cache.length
+    ? cache.map((item) => `<button class="cemetery-row" type="button" data-cemetery-id="${esc(item.id)}"><strong>${esc(item.name)}</strong><span>${esc(neighborhoodLabel(item.region_id))}</span><small>${item.geometry ? "Harita mevcut" : "Harita bekliyor"}</small></button>`).join("")
+    : `<div class="dialog-muted">Henüz kayıtlı mezarlık yok.</div>`;
 }
 
 function form(item = null) {
@@ -59,10 +76,11 @@ async function openManager() {
 }
 
 function install() {
-  const button = document.getElementById("cemeteriesButton");
+  const button = ensureButton();
   if (!button || button.dataset.cemeteryUiInstalled) return;
   button.dataset.cemeteryUiInstalled = "true";
   button.addEventListener("click", openManager);
   window.RegionConsoleCemeteries = { open: openManager, reload: () => { loaded = false; return load(); } };
 }
+
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install, { once: true }); else install();
