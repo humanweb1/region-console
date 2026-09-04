@@ -16,6 +16,20 @@ async function parseResponse(response) {
   return data;
 }
 
+async function refreshSession(refreshToken) {
+  if (!refreshToken) return null;
+  const response = await fetch(`${config.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ refresh_token: refreshToken })
+  });
+  if (!response.ok) return null;
+  const data = await response.json().catch(() => null);
+  if (!data?.access_token) return null;
+  sessionStorage.setItem("region-console-session", JSON.stringify(data));
+  return data;
+}
+
 export async function signIn(email, password) {
   assertConfig();
   const response = await fetch(`${config.supabaseUrl}/auth/v1/token?grant_type=password`, {
@@ -33,9 +47,18 @@ export async function restoreSession() {
   const raw = sessionStorage.getItem("region-console-session");
   if (!raw) return null;
   try {
-    const session = JSON.parse(raw);
+    let session = JSON.parse(raw);
     if (!session?.access_token) return null;
-    const response = await fetch(`${config.supabaseUrl}/auth/v1/user`, { headers: headers(session.access_token) });
+
+    let response = await fetch(`${config.supabaseUrl}/auth/v1/user`, { headers: headers(session.access_token) });
+    if (response.status === 401 || response.status === 403) {
+      const refreshed = await refreshSession(session.refresh_token);
+      if (refreshed) {
+        session = refreshed;
+        response = await fetch(`${config.supabaseUrl}/auth/v1/user`, { headers: headers(session.access_token) });
+      }
+    }
+
     if (!response.ok) {
       sessionStorage.removeItem("region-console-session");
       return null;
