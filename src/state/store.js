@@ -99,9 +99,30 @@ function normalizeHierarchy(countries, custom) {
     const parentId = hierarchy.parentId ?? null;
     const parentName = normalizeName(hierarchy.parentName);
     const parentType = String(hierarchy.parentType || "").toLowerCase();
-    if (parentId != null && byId.has(String(parentId))) return byId.get(String(parentId));
+    if (parentId != null) {
+      const direct = byId.get(String(parentId)) || byExternalId.get(String(parentId));
+      if (direct) return direct;
+    }
     if (parentName && parentType) return byNameTypeParent.get(`${parentType}:${parentName}:${String(hierarchy.countryId || "")}`) || null;
     return null;
+  };
+
+  const ancestry = (item, visited = new Set()) => {
+    if (!item || typeof item !== "object") return {};
+    const key = String(item.id ?? item.importMeta?.sourceId ?? "");
+    if (key && visited.has(key)) return {};
+    const nextVisited = new Set(visited);
+    if (key) nextVisited.add(key);
+    const type = regionType(item);
+    const parent = resolveParent(item);
+    const inherited = parent ? ancestry(parent, nextVisited) : {};
+    const result = { ...inherited };
+    const id = item.id ?? item.importMeta?.sourceId ?? null;
+    const name = item.name || item.properties?.name || null;
+    if (type === "country") { result.countryId = id; result.countryName = name; }
+    if (type === "province") { result.provinceId = id; result.provinceName = name; }
+    if (type === "district") { result.districtId = id; result.districtName = name; }
+    return result;
   };
 
   const normalizeNode = (item, parent = null) => {
@@ -110,12 +131,16 @@ function normalizeHierarchy(countries, custom) {
     const parentRegion = parent || resolveParent(item);
     const parentId = parentRegion?.id ?? item?.hierarchy?.parentId ?? null;
     const parentType = parentRegion ? regionType(parentRegion) : item?.hierarchy?.parentType || null;
-    const country = type === "country" ? item : parentRegion?.hierarchy?.countryId ? byId.get(String(parentRegion.hierarchy.countryId)) : null;
+    const inherited = ancestry(item);
     const hierarchy = {
       ...(item.hierarchy || {}), type: type || item?.hierarchy?.type || null,
       parentId, parentType, parentName: parentRegion?.name || item?.hierarchy?.parentName || null,
-      countryId: type === "country" ? item.id : country?.id || item?.hierarchy?.countryId || null,
-      countryName: type === "country" ? item.name : country?.name || item?.hierarchy?.countryName || null
+      countryId: inherited.countryId ?? item?.hierarchy?.countryId ?? null,
+      countryName: inherited.countryName ?? item?.hierarchy?.countryName ?? null,
+      provinceId: inherited.provinceId ?? item?.hierarchy?.provinceId ?? null,
+      provinceName: inherited.provinceName ?? item?.hierarchy?.provinceName ?? null,
+      districtId: inherited.districtId ?? item?.hierarchy?.districtId ?? null,
+      districtName: inherited.districtName ?? item?.hierarchy?.districtName ?? null
     };
     const result = cloneWithHierarchy(item, hierarchy);
     for (const key of ["provinces", "districts", "neighborhoods", "cemeteries", "children"]) {
@@ -124,7 +149,11 @@ function normalizeHierarchy(countries, custom) {
     }
     return result;
   };
-  return (countries || []).map((country) => normalizeNode(country)).filter(Boolean);
+
+  return {
+    countries: (countries || []).map((country) => normalizeNode(country)).filter(Boolean),
+    custom: (custom || []).map((region) => normalizeNode(region)).filter(Boolean)
+  };
 }
 
 const store = {
@@ -137,7 +166,9 @@ const store = {
   replaceData(data, { recordHistory = false, label = "Güncelleme" } = {}) {
     const before = snapshotData();
     const regions = structuredClone(data?.regions || state.regions);
-    regions.countries = normalizeHierarchy(regions.countries, regions.custom);
+    const normalized = normalizeHierarchy(regions.countries, regions.custom);
+    regions.countries = normalized.countries;
+    regions.custom = normalized.custom;
     state = {
       ...state,
       regions,
@@ -170,7 +201,6 @@ const store = {
       mapSettings: structuredClone({ ...initialState.mapSettings, ...(entry.before.mapSettings || entry.before.regions?.mapSettings || {}) }),
       history: { ...state.history, cursor: state.history.cursor - 1 }
     };
-    notify();
     return true;
   },
 
@@ -185,7 +215,6 @@ const store = {
       mapSettings: structuredClone({ ...initialState.mapSettings, ...(next.after.mapSettings || next.after.regions?.mapSettings || {}) }),
       history: { ...state.history, cursor: state.history.cursor + 1 }
     };
-    notify();
     return true;
   },
 
@@ -206,13 +235,11 @@ const store = {
       });
       importedFiles = [...legacyGroups.values()];
     }
-    const countries = normalizeHierarchy(
-      Array.isArray(data.countries) ? data.countries.filter((region) => region && typeof region === "object") : [],
-      custom
-    );
+    const sourceCountries = Array.isArray(data.countries) ? data.countries.filter((region) => region && typeof region === "object") : [];
+    const normalized = normalizeHierarchy(sourceCountries, custom);
     state = {
       ...state,
-      regions: { countries, custom, selectedId: null },
+      regions: { countries: normalized.countries, custom: normalized.custom, selectedId: null },
       mapSettings: { ...initialState.mapSettings, ...(data.mapSettings || data.regions?.mapSettings || {}) },
       campaigns: Array.isArray(data.campaigns) ? data.campaigns.filter((campaign) => campaign && typeof campaign === "object") : [],
       importedFiles,
