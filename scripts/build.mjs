@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile, cp, readdir } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, relative, posix } from "node:path";
+import { join } from "node:path";
 import { spawn } from "node:child_process";
 
 const root = process.cwd();
@@ -71,9 +71,8 @@ async function main() {
     .replace(/\s*<link rel="stylesheet" href="\.\/src\/styles\/[^>]+>/g, "")
     .replace(/<link rel="stylesheet" href="https:\/\/unpkg\.com\/leaflet@1\.9\.4\/dist\/leaflet\.css"[^>]*>/, '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin>')
     .replace(/<script[^>]+src="\.\/src\/[^>]+><\/script>/g, "")
-    .replace(/<script[^>]+src="\.\/src\/core\/runtime-config\.js"[^>]*><\/script>/g, "")
+    .replace(/<\/head>/, '<link rel="stylesheet" href="/assets/app.css"></head>')
     .replace(/<\/body>/, '<script type="module" src="/assets/app.js"></script></body>');
-  html = html.replace(/href="\.\/src\/styles\/[^\"]+"/g, 'href="/assets/app.css"');
   await writeFile(join(dist, "index.html"), html, "utf8");
 
   await writeFile(join(dist, "_headers"), `/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Strict-Transport-Security: max-age=31536000; includeSubDomains\n\n/index.html\n  Cache-Control: no-store\n`, "utf8");
