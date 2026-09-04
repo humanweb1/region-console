@@ -60,12 +60,20 @@ export async function loadState(accessToken) {
   return rows?.[0] || null;
 }
 
+function stripCatalogOnly(value) {
+  if (Array.isArray(value)) return value.filter((item) => !item?.catalogOnly).map(stripCatalogOnly);
+  if (!value || typeof value !== "object") return value;
+  const result = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "catalogOnly") continue;
+    result[key] = stripCatalogOnly(child);
+  }
+  return result;
+}
+
 export async function saveState(accessToken, state, version = null) {
-  // History contains full before/after geometry snapshots and must remain
-  // client-side. Persisting it with the cloud state multiplies GeoJSON size
-  // and can turn a sub-megabyte state into many megabytes.
   const cloudState = state && typeof state === "object"
-    ? { ...state, history: [] }
+    ? stripCatalogOnly({ ...state, history: [] })
     : state;
 
   const payload = {
