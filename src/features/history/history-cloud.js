@@ -1,21 +1,13 @@
 import { store } from "../../state/store.js";
 import { loadHistoryEntries, saveHistoryEntry } from "../../services/history-service.js";
 import { saveState } from "../../services/cloud.js";
-import { canManageInScope, isRegionVisible } from "../../services/rbac.js";
+import { can, canManageInScope, isRegionVisible } from "../../services/rbac.js";
 
-function stable(value) {
-  try { return JSON.stringify(value ?? null); } catch { return String(value); }
-}
+function stable(value) { try { return JSON.stringify(value ?? null); } catch { return String(value); } }
 function regionKey(region) { return String(region?.id ?? region?.importMeta?.sourceId ?? region?.name ?? ""); }
 function regionType(region) { return String(region?.hierarchy?.type || region?.type || "özel"); }
-function regionScope(region) {
-  const h = region?.hierarchy || {};
-  return { countryId: h.countryId || null, provinceId: h.provinceId || null, districtId: h.districtId || null };
-}
-function statusLabel(value) {
-  const map = { service: "Hizmette", closed: "Hizmete kapalı", outside: "Hizmet dışı", campaign: "Kampanyalı" };
-  return map[String(value || "service")] || String(value || "Belirtilmemiş");
-}
+function statusLabel(value) { const map = { service: "Hizmette", closed: "Hizmete kapalı", outside: "Hizmet dışı", campaign: "Kampanyalı" }; return map[String(value || "service")] || String(value || "Belirtilmemiş"); }
+
 function compactHistoryEntry(label, before, after) {
   const beforeRegions = Array.isArray(before?.regions?.custom) ? before.regions.custom : [];
   const afterRegions = Array.isArray(after?.regions?.custom) ? after.regions.custom : [];
@@ -24,8 +16,7 @@ function compactHistoryEntry(label, before, after) {
   const keys = [...new Set([...beforeMap.keys(), ...afterMap.keys()])];
   const changedBefore = [], changedAfter = [], changes = [];
   for (const key of keys) {
-    const b = beforeMap.get(key) || null;
-    const a = afterMap.get(key) || null;
+    const b = beforeMap.get(key) || null, a = afterMap.get(key) || null;
     if (stable(b) === stable(a)) continue;
     if (b) changedBefore.push(b);
     if (a) changedAfter.push(a);
@@ -79,25 +70,20 @@ store.recordHistory = function persistedHistoryRecord(label, before, after) {
   if (accessToken) saveHistoryEntry(accessToken, compact).catch((error) => console.error("[Region Console] History cloud save failed:", error));
 };
 
-function escapeHtml(value) {
-  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
-}
+function escapeHtml(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 function actorName(entry) { return entry?.actorName || entry?.entry?.actorName || "Bilinmeyen kullanıcı"; }
 function detailsFor(entry) {
   const changes = Array.isArray(entry?.entry?.changes) ? entry.entry.changes : [];
   if (!changes.length) {
-    const sections = entry?.entry?.changedSections || {};
-    const labels = [];
+    const sections = entry?.entry?.changedSections || {}, labels = [];
     if (sections.mapSettings) labels.push("Harita ayarları");
     if (sections.campaigns) labels.push("Kampanyalar");
     if (sections.importedFiles) labels.push("İçe aktarılan dosyalar");
-    return labels.length ? labels.join(", ") + " güncellendi." : "Detay bilgisi bu kayıt oluşturulmadan önce tutulmamış.";
+    return labels.length ? `${labels.join(", ")} güncellendi.` : "Detay bilgisi bu kayıt oluşturulmadan önce tutulmamış.";
   }
   return changes.map((change) => {
     const action = change.action === "created" ? "oluşturuldu" : change.action === "deleted" ? "silindi" : "güncellendi";
-    const status = change.beforeStatus !== change.afterStatus
-      ? ` Durum: ${statusLabel(change.beforeStatus)} → ${statusLabel(change.afterStatus)}.`
-      : "";
+    const status = change.beforeStatus !== change.afterStatus ? ` Durum: ${statusLabel(change.beforeStatus)} → ${statusLabel(change.afterStatus)}.` : "";
     const reason = change.afterReason && change.afterReason !== change.beforeReason ? ` Sebep: ${change.afterReason}.` : "";
     const geometry = change.geometryChanged ? " Sınır geometrisi değişti." : "";
     return `<div class="history-change-detail"><strong>${escapeHtml(change.name)}</strong> <span>${escapeHtml(change.type)} ${action}.</span>${escapeHtml(status)}${escapeHtml(reason)}${escapeHtml(geometry)}</div>`;
@@ -106,17 +92,15 @@ function detailsFor(entry) {
 
 function canUndoEntry(entry) {
   const access = window.RegionConsoleRBAC?.access || null;
-  if (!access?.loaded || !canManageInScope(access, "regions.save", { countryId: null, provinceId: null, districtId: null })) return false;
+  if (!access?.loaded) return false;
   const changes = Array.isArray(entry?.entry?.changes) ? entry.entry.changes : [];
-  if (!changes.length) return Boolean(entry?.entry?.changedSections?.mapSettings || entry?.entry?.changedSections?.campaigns || entry?.entry?.changedSections?.importedFiles) && canManageInScope(access, "regions.save", {});
+  if (!changes.length) return can(access, "history.undo") || can(access, "regions.save");
   return changes.every((change) => {
     const region = (store.get().regions.custom || []).find((item) => String(item?.id) === String(change.id));
-    const target = region || change.afterHierarchy || change.beforeHierarchy || {};
-    return isRegionVisible(access, region || { hierarchy: target }) && canManageInScope(access, "regions.save", {
-      countryId: target.countryId || null,
-      provinceId: target.provinceId || null,
-      districtId: target.districtId || null
-    });
+    const target = region?.hierarchy || change.afterHierarchy || change.beforeHierarchy || {};
+    const scope = { countryId: target.countryId || null, provinceId: target.provinceId || null, districtId: target.districtId || null };
+    const permission = can(access, "history.undo") || can(access, "regions.save");
+    return permission && isRegionVisible(access, region || { hierarchy: target }) && canManageInScope(access, can(access, "history.undo") ? "history.undo" : "regions.save", scope);
   });
 }
 
@@ -163,8 +147,7 @@ async function renderHistoryDialog() {
     const current = window.__regionConsoleHistory?.entries || [];
     elements.dialogTitle.textContent = "Değişiklik geçmişi";
     elements.dialogBody.innerHTML = current.length ? `<div class="history-list">${current.map((entry, index) => {
-      const details = detailsFor(entry);
-      const undo = canUndoEntry(entry);
+      const details = detailsFor(entry), undo = canUndoEntry(entry);
       return `<article class="history-item" data-history-index="${index}"><div class="history-item-head"><strong>${escapeHtml(entry.label || "Güncelleme")}</strong><span>${new Date(entry.createdAt).toLocaleString("tr-TR")}</span></div><div class="history-item-meta"><small>#${index + 1}</small><small>Değiştiren: <b>${escapeHtml(actorName(entry))}</b></small></div><div class="history-item-details">${details}</div><div class="history-item-actions"><button class="history-sim-open button" type="button">Haritada simüle et</button>${undo ? `<button class="history-undo button button-primary" type="button">Değişikliği geri al</button>` : ""}</div></article>`;
     }).join("")}</div><div class="history-load-more"><button id="historyLoadMore" class="button" type="button">Daha eskiyi göster (${current.length + 5})</button></div>` : `<p class="dialog-muted">Henüz kaydedilmiş bir değişiklik yok.</p>`;
     if (!elements.appDialog.open) elements.appDialog.showModal();
@@ -186,27 +169,21 @@ window.addEventListener("click", (event) => {
   event.preventDefault(); event.stopImmediatePropagation();
   renderHistoryDialog().catch((error) => console.error("[Region Console] History load failed:", error));
 }, true);
-
 window.addEventListener("click", (event) => {
   const button = event.target?.closest?.(".history-undo");
   if (!button) return;
   event.preventDefault(); event.stopImmediatePropagation();
-  const item = button.closest(".history-item");
-  const index = Number(item?.dataset.historyIndex);
-  const entry = window.__regionConsoleHistory?.entries?.[index];
+  const item = button.closest(".history-item"), index = Number(item?.dataset.historyIndex), entry = window.__regionConsoleHistory?.entries?.[index];
   if (!entry) return;
   if (!window.confirm(`“${entry.label || "Bu değişiklik"}” geri alınsın mı?`)) return;
   button.disabled = true;
   undoEntry(entry).then(() => { item.remove(); window.dispatchEvent(new CustomEvent("region-console:rbac-refresh")); renderHistoryDialog(); }).catch((error) => { button.disabled = false; alert(error.message || "Geri alma başarısız."); });
 }, true);
-
 window.addEventListener("click", (event) => {
   const button = event.target?.closest?.(".history-sim-open");
   if (!button || forwardingSimulation) return;
   event.preventDefault(); event.stopImmediatePropagation();
-  const item = button.closest(".history-item");
-  const index = Number(item?.dataset.historyIndex);
-  const entry = window.__regionConsoleHistory?.entries?.[index];
+  const item = button.closest(".history-item"), index = Number(item?.dataset.historyIndex), entry = window.__regionConsoleHistory?.entries?.[index];
   if (!entry) return;
   const historyEntries = window.__regionConsoleHistory.entries.map((item) => item.entry || item).reverse();
   store.set({ history: { ...store.get().history, entries: historyEntries, cursor: historyEntries.length - 1 } });
