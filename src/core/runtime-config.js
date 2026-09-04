@@ -5,8 +5,7 @@ window.REGION_CONSOLE_CONFIG = {
   }
 };
 
-// Shared map-region type resolver used by the bundled map module.
-// Keep this global until map.js can own the helper directly without a generated-bundle compatibility layer.
+// Temporary bundle-level compatibility helpers used by the map module.
 globalThis.regionType = (region) => {
   const value = String(region?.hierarchy?.type || region?.type || "").trim().toLowerCase();
   if (["country", "countries", "ülke"].includes(value)) return "country";
@@ -14,4 +13,13 @@ globalThis.regionType = (region) => {
   if (["district", "districts", "ilce", "ilçe"].includes(value)) return "district";
   if (["neighborhood", "neighbourhood", "mahalle"].includes(value)) return "neighborhood";
   return value;
+};
+
+globalThis.isRootViewportRegion = (region, rootTypes) => {
+  if (!region || !(rootTypes instanceof Set)) return false;
+  const type = globalThis.regionType(region);
+  if (rootTypes.has("province") && type === "province") return true;
+  if (rootTypes.has("district") && type === "district") return true;
+  if (rootTypes.has("country") && type === "country") return true;
+  return false;
 };
