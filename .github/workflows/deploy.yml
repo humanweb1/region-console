@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "src/**"
+      - "scripts/**"
       - "tests/**"
       - "supabase/**"
       - "index.html"
@@ -40,6 +41,9 @@ jobs:
 
       - name: Run application tests
         run: npm test
+
+      - name: Build production assets
+        run: npm run build
 
       - name: Deploy to Cloudflare
         run: npx wrangler@4.125.0 deploy
