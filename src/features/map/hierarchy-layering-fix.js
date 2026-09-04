@@ -76,21 +76,30 @@ function hierarchyTooltipText(region) {
   return chain[0] || "Alan";
 }
 
+function isDrawingActive() {
+  try {
+    return Boolean(window.__regionConsoleDrawing?.isActive?.());
+  } catch {
+    return false;
+  }
+}
+
 function applyLayerPanes(mapState) {
   const { map, polygons, regionLayers = [] } = mapState;
   ensurePanes(map);
+  const drawingActive = isDrawingActive();
 
   for (const layer of regionLayers) {
     const region = regionByLayer(layer);
     const kind = region ? regionCategory(region) : (layer?._regionLayerKind || "special");
     const pane = PANE_CONFIG[kind]?.name || PANE_CONFIG.special.name;
     layer.options.pane = pane;
-    layer.options.interactive = true;
+    layer.options.interactive = !drawingActive;
 
     const tooltipText = hierarchyTooltipText(region);
     if (tooltipText) {
       layer.unbindTooltip();
-      layer.bindTooltip(tooltipText, { sticky: true, direction: "top", opacity: 0.96, className: "region-hierarchy-tooltip" });
+      layer.bindTooltip(tooltipText, { sticky: true, direction: "top", opacity: 0.96, className: "region-hierarchy-tooltip", interactive: false });
     }
 
     if (polygons.hasLayer(layer)) {
