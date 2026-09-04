@@ -29,7 +29,9 @@ function pathOf(region) {
   return chain.join(" / ");
 }
 function candidates() {
-  return customFiles().filter((region) => region?.id && TYPE_LABELS[typeOf(region)]);
+  // Hedef olarak gerçek mevcut dosyaların tamamını göster.
+  // Hiyerarşi tipi tanınmasa bile dosya listeden düşürülmez.
+  return customFiles().filter((region) => region?.id);
 }
 function geometryOf(input) {
   const result = importRegionData(input, "", null);
@@ -64,7 +66,10 @@ function selectDialog() {
     return Promise.resolve(null);
   }
   return new Promise((resolve) => {
-    const options = files.sort((a, b) => pathOf(a).localeCompare(pathOf(b), "tr")).map((region) => `<option value="${esc(region.id)}">${esc(pathOf(region))} — ${esc(TYPE_LABELS[typeOf(region)])}</option>`).join("");
+    const options = files.sort((a, b) => pathOf(a).localeCompare(pathOf(b), "tr")).map((region) => {
+      const label = TYPE_LABELS[typeOf(region)] || "Dosya";
+      return `<option value="${esc(region.id)}">${esc(pathOf(region))} — ${esc(label)}</option>`;
+    }).join("");
     openDialog(elements, "Mevcut dosyaya içe aktar", `<form id="existingFileImportForm" class="dialog-form"><p class="dialog-muted">Seçtiğiniz mevcut dosyanın geometrisi güncellenecek. Yeni dosya, ülke veya hiyerarşi kaydı oluşturulmaz.</p><label>Hedef dosya<select id="existingFileTarget" required><option value="">Dosya seçin</option>${options}</select></label><div class="dialog-actions"><button type="button" class="button" id="existingFileCancel">İptal</button><button type="submit" class="button button-primary">Dosyaya kaydet</button></div></form>`);
     const form = elements.dialogBody.querySelector("#existingFileImportForm");
     const finish = (value) => { if (elements.appDialog.open) elements.appDialog.close(); resolve(value); };
