@@ -313,16 +313,49 @@ function regionCandidates(region, explicitType = null) {
   return [[region?.id, type], [hierarchy.countryId, "country"], [hierarchy.provinceId, "province"], [hierarchy.districtId, "district"]];
 }
 
+function visibleCatalogMatch(catalog, visible, value, type = null) {
+  if (value == null || !String(value)) return false;
+  const normalized = String(value);
+  const match = catalog.find((item) => {
+    if (type && String(item.type) !== String(type)) return false;
+    return catalogRegionId(item) === normalized || catalogExternalId(item) === normalized;
+  });
+  return Boolean(match && visible.has(catalogRegionId(match)));
+}
+
 export function isRegionVisible(access, region) {
   const visible = getVisibleRegionIds(access);
   if (visible === null) return true;
   if (!region) return false;
   const catalog = access?.regionCatalog || [];
-  return regionCandidates(region).some(([value, type]) => {
-    if (value == null || !String(value) || !type) return false;
-    const match = scopeCatalogMatch(catalog, value, type);
-    return Boolean(match && visible.has(catalogRegionId(match)));
-  });
+
+  if (regionCandidates(region).some(([value, type]) => visibleCatalogMatch(catalog, visible, value, type))) return true;
+
+  // A scoped province grants visibility to its complete descendant
+  // hierarchy even when the child node itself has no catalog entry.
+  // This covers nested district/neighborhood data coming from the
+  // region tree and keeps RBAC independent from catalog timing.
+  const hierarchy = region?.hierarchy || {};
+  const parentValues = [
+    [hierarchy.parentId, hierarchy.parentType || null],
+    [hierarchy.provinceId, "province"],
+    [hierarchy.districtId, "district"],
+    [hierarchy.countryId, "country"]
+  ];
+  if (parentValues.some(([value, type]) => visibleCatalogMatch(catalog, visible, value, type))) return true;
+
+  // Walk catalog parents when the region exposes only its own id.
+  const ownType = String(hierarchy.type || region?.type || "");
+  const own = scopeCatalogMatch(catalog, region?.id ?? hierarchy.id, ownType);
+  if (!own) return false;
+  let current = own;
+  const visited = new Set();
+  while (current?.parent_id && !visited.has(String(current.id))) {
+    visited.add(String(current.id));
+    if (visible.has(String(current.parent_id))) return true;
+    current = catalog.find((item) => String(item.id) === String(current.parent_id));
+  }
+  return false;
 }
 
 function scopeRootTypes(access) {
