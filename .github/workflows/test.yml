@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "src/**"
+      - "scripts/**"
       - "tests/**"
       - "supabase/**"
       - "index.html"
@@ -17,6 +18,7 @@ on:
     branches: [main]
     paths:
       - "src/**"
+      - "scripts/**"
       - "tests/**"
       - "supabase/**"
       - "index.html"
@@ -58,6 +60,16 @@ jobs:
 
       - name: Run affected tests only
         run: npm test
+
+      - name: Build production assets
+        run: npm run build
+
+      - name: Verify production output
+        run: |
+          test -f dist/index.html
+          test -f dist/assets/app.js
+          test -f dist/assets/app.css
+          ! grep -R "src/core/\|src/features/\|src/services/\|src/state/" dist/index.html dist/assets/app.js
 
       - name: Upload Playwright report
         if: always()
