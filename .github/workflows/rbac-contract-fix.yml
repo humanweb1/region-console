@@ -1,12 +1,11 @@
 name: RBAC Contract Fix
 on:
   push:
-    paths:
-      - '.github/workflows/rbac-contract-fix.yml'
 permissions:
   contents: write
 jobs:
   fix:
+    if: ${{ github.event.head_commit.message != 'fix: normalize RBAC service payload contract' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
