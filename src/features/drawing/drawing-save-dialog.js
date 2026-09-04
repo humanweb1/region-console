@@ -4,6 +4,7 @@ import { getRegionTypeOptions } from "../regions/importer.js";
 import { renderRegions } from "../regions/regions.js";
 import { renderRegionsOnMap, fitToCoordinates } from "../map/map.js";
 import { upsertState } from "../../services/cloud.js";
+import { ensureAdministrativeCatalog, getAdministrativeCatalogData } from "../regions/region-catalog.js";
 
 const elements = getElements();
 const DRAW_SAVE_SELECTOR = "#saveButton";
@@ -46,9 +47,10 @@ function childList(node, keys) {
   return [];
 }
 
-function hierarchyOptions() {
-  const countries = Array.isArray(store.get().regions?.countries) ? store.get().regions.countries : [];
-  const custom = Array.isArray(store.get().regions?.custom) ? store.get().regions.custom : [];
+function hierarchyOptions(catalog = {}) {
+  const state = store.get();
+  const countries = Array.isArray(state.regions?.countries) ? state.regions.countries : [];
+  const custom = Array.isArray(state.regions?.custom) ? state.regions.custom : [];
   const provinces = [];
   const districts = [];
   const neighborhoods = [];
@@ -68,6 +70,60 @@ function hierarchyOptions() {
   custom.filter((region) => (region?.hierarchy?.type || region?.type) === "province").forEach((region) => provinces.push({ ...region, _countryId: region?.hierarchy?.countryId, _countryName: region?.hierarchy?.countryName }));
   custom.filter((region) => (region?.hierarchy?.type || region?.type) === "district").forEach((region) => districts.push({ ...region, _countryId: region?.hierarchy?.countryId, _countryName: region?.hierarchy?.countryName, _provinceId: region?.hierarchy?.parentId, _provinceName: region?.hierarchy?.parentName }));
   custom.filter((region) => (region?.hierarchy?.type || region?.type) === "neighborhood").forEach((region) => neighborhoods.push({ ...region, _countryId: region?.hierarchy?.countryId, _countryName: region?.hierarchy?.countryName, _provinceId: region?.hierarchy?.provinceId, _provinceName: region?.hierarchy?.provinceName, _districtId: region?.hierarchy?.parentId, _districtName: region?.hierarchy?.parentName }));
+
+  const turkey = countries.find((country) => normalizeName(country?.name) === "turkey") || null;
+  const turkeyId = turkey?.id || "catalog-country-turkey";
+  const stateProvinces = new Map(provinces.map((item) => [normalizeName(item?.name), item]));
+  const catalogProvinces = Array.isArray(catalog.provinces) ? catalog.provinces : [];
+  const catalogDistricts = Array.isArray(catalog.districts) ? catalog.districts : [];
+  const catalogNeighborhoods = Array.isArray(catalog.neighborhoods) ? catalog.neighborhoods : [];
+
+  for (const item of catalogProvinces) {
+    if (!item?.id || !item?.name) continue;
+    const existing = stateProvinces.get(normalizeName(item.name));
+    provinces.push({
+      ...item,
+      id: existing?.id || `catalog-province-${item.id}`,
+      _countryId: existing?._countryId || turkeyId,
+      _countryName: existing?._countryName || turkey?.name || "Turkey",
+      _catalogSource: true
+    });
+  }
+
+  const provinceByCatalogId = new Map(catalogProvinces.map((item) => [String(item?.id), item]));
+  for (const item of catalogDistricts) {
+    if (!item?.id || !item?.name) continue;
+    const province = provinceByCatalogId.get(String(item.provinceId));
+    const stateProvince = province ? stateProvinces.get(normalizeName(province.name)) : null;
+    districts.push({
+      ...item,
+      id: `catalog-district-${item.id}`,
+      _countryId: stateProvince?._countryId || turkeyId,
+      _countryName: stateProvince?._countryName || turkey?.name || "Turkey",
+      _provinceId: stateProvince?.id || `catalog-province-${item.provinceId}`,
+      _provinceName: province?.name || null,
+      _catalogSource: true
+    });
+  }
+
+  const districtByCatalogId = new Map(catalogDistricts.map((item) => [String(item?.id), item]));
+  for (const item of catalogNeighborhoods) {
+    if (!item?.id || !item?.name) continue;
+    const district = districtByCatalogId.get(String(item.districtId));
+    const province = district ? provinceByCatalogId.get(String(district.provinceId)) : null;
+    const stateProvince = province ? stateProvinces.get(normalizeName(province.name)) : null;
+    neighborhoods.push({
+      ...item,
+      id: `catalog-neighborhood-${item.id}`,
+      _countryId: stateProvince?._countryId || turkeyId,
+      _countryName: stateProvince?._countryName || turkey?.name || "Turkey",
+      _provinceId: stateProvince?.id || `catalog-province-${province?.id || "unknown"}`,
+      _provinceName: province?.name || null,
+      _districtId: `catalog-district-${item.districtId}`,
+      _districtName: district?.name || null,
+      _catalogSource: true
+    });
+  }
 
   return { countries, provinces: uniqueById(provinces), districts: uniqueById(districts), neighborhoods: uniqueById(neighborhoods) };
 }
@@ -109,16 +165,22 @@ function syncForm(form, data) {
   const provinceId = provinceSelect.value;
   const districtId = districtSelect.value;
 
-  const provinces = data.provinces.filter((item) => !countryId || countryId === "__new__" || String(item._countryId ?? item.hierarchy?.countryId ?? "") === String(countryId));
-  const districts = data.districts.filter((item) => !provinceId || String(item._provinceId ?? item.hierarchy?.parentId ?? "") === String(provinceId));
-  const neighborhoods = data.neighborhoods.filter((item) => !districtId || String(item._districtId ?? item.hierarchy?.parentId ?? "") === String(districtId));
+  const provinces = needsProvince
+    ? data.provinces.filter((item) => !countryId || countryId === "__new__" || String(item._countryId ?? item.hierarchy?.countryId ?? "") === String(countryId))
+    : [];
+  const districts = needsDistrict
+    ? data.districts.filter((item) => !provinceId || String(item._provinceId ?? item.hierarchy?.parentId ?? "") === String(provinceId))
+    : [];
+  const neighborhoods = needsNeighborhood
+    ? data.neighborhoods.filter((item) => !districtId || String(item._districtId ?? item.hierarchy?.parentId ?? "") === String(districtId))
+    : [];
 
   const currentProvince = provinceId;
   const currentDistrict = districtId;
   const currentNeighborhood = neighborhoodSelect.value;
   provinceSelect.innerHTML = optionMarkup(provinces, "İl seçin");
-  districtSelect.innerHTML = optionMarkup(districts, "İlçe seçin");
-  neighborhoodSelect.innerHTML = optionMarkup(neighborhoods, "Mahalle seçin");
+  districtSelect.innerHTML = needsDistrict ? optionMarkup(districts, "İlçe seçin") : "<option value=\"\">İlçe seçin</option>";
+  neighborhoodSelect.innerHTML = needsNeighborhood ? optionMarkup(neighborhoods, "Mahalle seçin") : "<option value=\"\">Mahalle seçin</option>";
   if (provinces.some((item) => String(item.id ?? item.name) === String(currentProvince))) provinceSelect.value = currentProvince;
   if (districts.some((item) => String(item.id ?? item.name) === String(currentDistrict))) districtSelect.value = currentDistrict;
   if (neighborhoods.some((item) => String(item.id ?? item.name) === String(currentNeighborhood))) neighborhoodSelect.value = currentNeighborhood;
@@ -132,8 +194,16 @@ function syncForm(form, data) {
   neighborhoodSelect.required = needsNeighborhood;
 }
 
-function buildDialog(draft) {
-  const data = hierarchyOptions();
+async function buildDialog(draft) {
+  let catalog = {};
+  try {
+    await ensureAdministrativeCatalog({ includeNeighborhoods: false });
+    catalog = getAdministrativeCatalogData();
+  } catch (error) {
+    console.warn("[Region Console] Administrative catalog unavailable:", error);
+  }
+
+  const data = hierarchyOptions(catalog);
   const typeOptions = getRegionTypeOptions().map(({ value, label }) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join("");
   openDialog(elements, "Yeni alan bilgileri", `<form id="drawRegionForm" class="dialog-form draw-region-form">
     <p class="dialog-muted">Çizilen alanı kaydetmeden önce içe aktarma ile aynı hiyerarşi bilgilerini tanımlayın.</p>
@@ -158,13 +228,23 @@ function buildDialog(draft) {
   const reasonWrap = form.querySelector("#drawClosedReasonWrap");
 
   typeSelect.value = "independent";
-  const refresh = () => syncForm(form, data);
+  const refresh = async () => {
+    if (typeSelect.value === "cemetery" && !data.neighborhoods.length) {
+      try {
+        await ensureAdministrativeCatalog({ includeNeighborhoods: true });
+        Object.assign(data, hierarchyOptions(getAdministrativeCatalogData()));
+      } catch (error) {
+        console.warn("[Region Console] Neighborhood catalog unavailable:", error);
+      }
+    }
+    syncForm(form, data);
+  };
   typeSelect.addEventListener("change", refresh);
   countrySelect.addEventListener("change", refresh);
   provinceSelect.addEventListener("change", refresh);
   districtSelect.addEventListener("change", refresh);
   statusSelect.addEventListener("change", () => { reasonWrap.hidden = statusSelect.value !== "closed"; });
-  refresh();
+  await refresh();
 
   return new Promise((resolve) => {
     let settled = false;
@@ -206,7 +286,7 @@ function buildDialog(draft) {
         districtName: district?.name || null,
         neighborhoodId: neighborhood?.id || null,
         neighborhoodName: neighborhood?.name || null,
-        rootType: type === "country" ? "country" : "country"
+        rootType: "country"
       };
       const result = {
         ...draft,
