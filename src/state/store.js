@@ -201,6 +201,7 @@ const store = {
       mapSettings: structuredClone({ ...initialState.mapSettings, ...(entry.before.mapSettings || entry.before.regions?.mapSettings || {}) }),
       history: { ...state.history, cursor: state.history.cursor - 1 }
     };
+    notify();
     return true;
   },
 
@@ -215,6 +216,7 @@ const store = {
       mapSettings: structuredClone({ ...initialState.mapSettings, ...(next.after.mapSettings || next.after.regions?.mapSettings || {}) }),
       history: { ...state.history, cursor: state.history.cursor + 1 }
     };
+    notify();
     return true;
   },
 
