@@ -36,12 +36,12 @@ async function resolveProvinceApiId(select) {
   const numeric = value.match(/^catalog-province-(\d+)$/);
   if (numeric) return numeric[1];
   if (/^\d+$/.test(value)) return value;
-
   const name = select?.selectedOptions?.[0]?.textContent?.trim();
   if (!name) return null;
   try {
     const rows = await fetchJson(`${API_BASE}/provinces?search=${encodeURIComponent(name)}&fields=id,name&limit=20`);
-    const exact = rows.find((row) => String(row?.name || "").trim().toLocaleLowerCase("tr-TR") === name.toLocaleLowerCase("tr-TR"));
+    const normalized = name.toLocaleLowerCase("tr-TR");
+    const exact = rows.find((row) => String(row?.name || "").trim().toLocaleLowerCase("tr-TR") === normalized);
     return String(exact?.id ?? rows[0]?.id ?? "") || null;
   } catch (error) {
     console.warn("[Region Console] Province catalog lookup failed:", error);
@@ -54,12 +54,12 @@ async function resolveDistrictApiId(select, provinceApiId) {
   const numeric = value.match(/^catalog-district-(\d+)$/);
   if (numeric) return numeric[1];
   if (/^\d+$/.test(value)) return value;
-
   const name = select?.selectedOptions?.[0]?.textContent?.trim();
   if (!name || !provinceApiId) return null;
   try {
     const rows = await fetchJson(`${API_BASE}/districts?provinceId=${encodeURIComponent(provinceApiId)}&search=${encodeURIComponent(name)}&fields=id,name,provinceId&limit=20`);
-    const exact = rows.find((row) => String(row?.name || "").trim().toLocaleLowerCase("tr-TR") === name.toLocaleLowerCase("tr-TR"));
+    const normalized = name.toLocaleLowerCase("tr-TR");
+    const exact = rows.find((row) => String(row?.name || "").trim().toLocaleLowerCase("tr-TR") === normalized);
     return String(exact?.id ?? rows[0]?.id ?? "") || null;
   } catch (error) {
     console.warn("[Region Console] District catalog lookup failed:", error);
@@ -76,7 +76,6 @@ async function loadDistrictOptions(provinceSelect, districtSelect) {
     districtSelect.disabled = false;
     return;
   }
-
   try {
     const rows = uniqueById(await fetchJson(`${API_BASE}/provinces/${encodeURIComponent(provinceApiId)}/districts?fields=id,name,provinceId&limit=1000`));
     districtSelect.innerHTML = optionMarkup(rows.map((row) => ({ ...row, value: `catalog-district-${row.id}` })), "İlçe seçin", "Yeni ilçe ekle");
@@ -98,7 +97,6 @@ async function loadNeighborhoodOptions(provinceSelect, districtSelect, neighborh
     neighborhoodSelect.disabled = false;
     return;
   }
-
   try {
     const rows = uniqueById(await fetchJson(`${API_BASE}/districts/${encodeURIComponent(districtApiId)}/neighborhoods?fields=id,name,districtId,provinceId&limit=1000`));
     neighborhoodSelect.innerHTML = optionMarkup(rows.map((row) => ({ ...row, value: `catalog-neighborhood-${row.id}` })), "Mahalle seçin", "Yeni mahalle ekle");
@@ -114,28 +112,32 @@ function init() {
   const dialog = document.querySelector("#drawRegionForm");
   if (!dialog || dialog.dataset.hierarchyApiFix === "1") return;
   dialog.dataset.hierarchyApiFix = "1";
-
   const country = dialog.querySelector("#drawCountry");
   const province = dialog.querySelector("#drawProvince");
   const district = dialog.querySelector("#drawDistrict");
   const neighborhood = dialog.querySelector("#drawNeighborhood");
   if (!province || !district) return;
 
-  province.addEventListener("change", async () => {
+  province.addEventListener("change", async (event) => {
     if (province.value === "__manual__") return;
+    event.stopImmediatePropagation();
     district.value = "";
     if (neighborhood) neighborhood.innerHTML = optionMarkup([], "Önce ilçe seçin", "Yeni mahalle ekle");
     await loadDistrictOptions(province, district);
   }, true);
 
-  district.addEventListener("change", async () => {
+  district.addEventListener("change", async (event) => {
     if (district.value === "__manual__" || !neighborhood) return;
+    event.stopImmediatePropagation();
     neighborhood.value = "";
     await loadNeighborhoodOptions(province, district, neighborhood);
   }, true);
 
-  if (country) country.addEventListener("change", () => {
+  if (country) country.addEventListener("change", (event) => {
     if (country.value !== "__manual__") return;
+    event.stopImmediatePropagation();
+    province.value = "";
+    district.value = "";
     province.innerHTML = optionMarkup([], "İl seçin", "Yeni il ekle");
     district.innerHTML = optionMarkup([], "İlçe seçin", "Yeni ilçe ekle");
     if (neighborhood) neighborhood.innerHTML = optionMarkup([], "Mahalle seçin", "Yeni mahalle ekle");
