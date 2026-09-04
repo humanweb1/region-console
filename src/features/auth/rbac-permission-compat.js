@@ -1,3 +1,5 @@
+import { store } from "../../state/store.js";
+
 // The role editor stores the new button-level permissions, while some older
 // feature handlers still check the legacy domain permissions. Keep the two
 // permission vocabularies equivalent in the in-memory access object so a
@@ -70,4 +72,5 @@ function syncLegacyPermissions() {
 window.addEventListener("region-console:rbac-updated", syncLegacyPermissions);
 window.addEventListener("region-console:rbac-refresh", () => setTimeout(syncLegacyPermissions, 0));
 window.addEventListener("pageshow", syncLegacyPermissions, { passive: true });
+store.subscribe(syncLegacyPermissions);
 setTimeout(syncLegacyPermissions, 0);
