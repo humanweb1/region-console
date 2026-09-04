@@ -182,19 +182,24 @@ function serviceMaskRoots(regions) {
   if (!openRegions.length) return [];
   const candidates = hierarchyCandidates(openRegions);
   const roots = [];
+
+  // Prefer the most specific open service geometry. If a province/district is
+  // explicitly available, it becomes the mask hole instead of the country
+  // geometry. This avoids overlapping country + province holes, which can
+  // toggle back to a filled state with Leaflet's even-odd polygon rule.
   for (const region of openRegions) {
     const visited = new Set([region]);
     let current = findHierarchyParent(region, candidates);
-    let hasOpenAncestor = false;
+    let hasOpenChild = false;
     while (current && !visited.has(current)) {
       visited.add(current);
       if (openRegions.some((candidate) => sameRegionIdentity(candidate, current))) {
-        hasOpenAncestor = true;
+        hasOpenChild = true;
         break;
       }
       current = findHierarchyParent(current, candidates);
     }
-    if (!hasOpenAncestor) roots.push(region);
+    if (!hasOpenChild) roots.push(region);
   }
   return roots;
 }
@@ -203,7 +208,7 @@ function renderOutsideMask(mapState, serviceRings, settings) {
   mapState.mask.clearLayers();
   const outer = [[89, -180], [89, 180], [-89, 180], [-89, -180], [89, -180]];
   const holes = serviceRings.filter((ring) => ring.length >= 3).map((ring) => ring.slice().reverse());
-  L.polygon([outer, ...holes], { stroke: false, fillColor: settings.outsideColor, fillOpacity: settings.outsideOpacity, interactive: false }).addTo(mapState.mask);
+  L.polygon([outer, ...holes], { stroke: false, fill: true, fillRule: "evenodd", fillColor: settings.outsideColor, fillOpacity: settings.outsideOpacity, interactive: false }).addTo(mapState.mask);
   if (mapState.overlayVisibility.mask) {
     if (!mapState.map.hasLayer(mapState.mask)) mapState.mask.addTo(mapState.map);
   } else if (mapState.map.hasLayer(mapState.mask)) {
@@ -254,7 +259,7 @@ function pointInRing(point, ring) {
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const [xi, yi] = ring[i];
     const [xj, yj] = ring[j];
-    const intersects = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+    const intersects = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yj)) / ((yj - yi) || Number.EPSILON) + xi);
     if (intersects) inside = !inside;
   }
   return inside;
