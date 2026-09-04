@@ -13,6 +13,10 @@ const PANE_CONFIG = {
 let installedMap = null;
 let previousRegions = null;
 
+function normalizeName(value) {
+  return String(value ?? "").trim().toLocaleLowerCase("tr-TR").replace(/ı/g, "i").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c");
+}
+
 function regionType(region) {
   return String(region?.hierarchy?.type || region?.type || "").trim().toLowerCase();
 }
@@ -60,6 +64,27 @@ function moveMaskToPane(mapState) {
   Object.values(mapState.mask._layers).forEach((layer) => movePathToPane(layer, pane));
 }
 
+function hierarchyTooltipText(region) {
+  if (!region) return "Alan";
+  const hierarchy = region.hierarchy || {};
+  const names = [hierarchy.countryName, hierarchy.provinceName, hierarchy.districtName, hierarchy.neighborhoodName, region.name || region.properties?.name]
+    .map((value) => String(value ?? "").trim()).filter(Boolean);
+  const seen = new Set();
+  return names.filter((name) => {
+    const key = normalizeName(name);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).join("-") || "Alan";
+}
+
+function applyDrawnAreaStyle(layer, region) {
+  if (!region || region.importMeta?.source !== "drawing") return;
+  if (typeof layer.setStyle === "function") layer.setStyle({ fill: false, fillOpacity: 0 });
+  layer.options.fill = false;
+  layer.options.fillOpacity = 0;
+}
+
 function applyLayerPanes(mapState) {
   const { map, polygons, regionLayers = [] } = mapState;
   ensurePanes(map);
@@ -73,9 +98,21 @@ function applyLayerPanes(mapState) {
     layer.options.pane = paneName;
     layer.options.interactive = !drawingActive;
     movePathToPane(layer, pane);
+    applyDrawnAreaStyle(layer, region);
 
-    // map.js owns the canonical cursor tooltip. Do not replace it here.
-    // The hierarchy panel has its own normalization fix for the selected region.
+    // The cursor tooltip is deliberately generated here from the saved hierarchy.
+    // This avoids losing Adana/Ceyhan/Cumhuriyet when parent geometries are absent.
+    const tooltipText = hierarchyTooltipText(region);
+    if (tooltipText) {
+      layer.unbindTooltip();
+      layer.bindTooltip(tooltipText, {
+        sticky: true,
+        direction: "top",
+        opacity: 0.96,
+        className: "region-hierarchy-tooltip",
+        interactive: false
+      });
+    }
 
     if (polygons.hasLayer(layer)) {
       polygons.removeLayer(layer);
