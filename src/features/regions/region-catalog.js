@@ -25,10 +25,10 @@ function findCanonical(type, name, parentId = null) {
 }
 
 function turkeyId() {
-  return store.get().regions?.countries?.find((item) => normalizeName(item?.name) === "turkey")?.id
-    || Array.isArray(window.RegionConsoleRBAC?.access?.regionCatalog)
-      ? (window.RegionConsoleRBAC.access.regionCatalog.find((item) => item?.type === "country" && normalizeName(item?.name) === "turkey")?.id || "catalog-country-turkey")
-      : "catalog-country-turkey";
+  const stateCountry = store.get().regions?.countries?.find((item) => normalizeName(item?.name) === "turkey")?.id;
+  if (stateCountry) return stateCountry;
+  const catalog = Array.isArray(window.RegionConsoleRBAC?.access?.regionCatalog) ? window.RegionConsoleRBAC.access.regionCatalog : [];
+  return catalog.find((item) => item?.type === "country" && normalizeName(item?.name) === "turkey")?.id || "catalog-country-turkey";
 }
 
 function catalogRegion(type, item) {
@@ -60,7 +60,7 @@ function catalogRegion(type, item) {
       parentName: null,
       countryId,
       countryName: "Turkey",
-      provinceId: type === "province" ? resolvedProvinceId : resolvedProvinceId,
+      provinceId: resolvedProvinceId,
       provinceName: item?.provinceName || null,
       districtId: type === "district" ? resolvedDistrictId : type === "neighborhood" ? resolvedDistrictId : null,
       districtName: item?.districtName || null,
