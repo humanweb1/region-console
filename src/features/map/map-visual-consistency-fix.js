@@ -44,34 +44,14 @@ function patchTooltips(mapState) {
   }
 }
 
-function repairMaskHole(mapState) {
-  const mask = mapState?.mask;
-  const layer = mask?._layers ? Object.values(mask._layers)[0] : null;
-  if (!layer?.getLatLngs || !layer?.setLatLngs) return;
-  const rings = layer.getLatLngs();
-  if (!Array.isArray(rings) || rings.length < 2) return;
-
-  // renderOutsideMask() currently supplies hole coordinates in [lng, lat]
-  // order to Leaflet, which expects [lat, lng]. Swap the hole coordinates
-  // back so the transparent hole exactly matches the service polygon.
-  const repaired = rings.map((ring, index) => {
-    if (index === 0) return ring;
-    return ring.map((point) => [point.lng, point.lat]);
-  });
-  layer.setLatLngs(repaired);
-  layer.redraw?.();
-}
-
 function apply() {
   const mapState = window.__regionConsoleMapState;
   if (!mapState) return;
   patchTooltips(mapState);
-  repairMaskHole(mapState);
 }
 
 function schedule() {
   requestAnimationFrame(apply);
-  requestAnimationFrame(() => requestAnimationFrame(apply));
 }
 
 function install() {
