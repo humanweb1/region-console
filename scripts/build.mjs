@@ -20,6 +20,7 @@ const entries = [
   "./src/core/runtime-config.js",
   "./src/core/app.js",
   "./src/features/auth/rbac-event-bridge.js",
+  "./src/features/auth/rbac-button-dom-bridge.js",
   "./src/features/auth/rbac-bootstrap.js",
   "./src/features/auth/rbac-permission-compat.js",
   "./src/features/auth/startup-gate.js",
