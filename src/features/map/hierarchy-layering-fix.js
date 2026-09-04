@@ -1,6 +1,7 @@
 import { store } from "../../state/store.js";
 
 const PANE_CONFIG = {
+  mask: { name: "region-mask", zIndex: 350 },
   country: { name: "region-country", zIndex: 400 },
   province: { name: "region-province", zIndex: 410 },
   district: { name: "region-district", zIndex: 420 },
@@ -13,15 +14,7 @@ let installedMap = null;
 let previousRegions = null;
 
 function normalizeName(value) {
-  return String(value ?? "")
-    .trim()
-    .toLocaleLowerCase("tr-TR")
-    .replace(/ı/g, "i")
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ş/g, "s")
-    .replace(/ö/g, "o")
-    .replace(/ç/g, "c");
+  return String(value ?? "").trim().toLocaleLowerCase("tr-TR").replace(/ı/g, "i").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c");
 }
 
 function regionType(region) {
@@ -44,44 +37,45 @@ function regionByLayer(layer) {
   return (store.get().regions?.custom || []).find((region) => region && String(region.id) === String(id)) || null;
 }
 
-function ensurePanes(map) {
-  for (const config of Object.values(PANE_CONFIG)) {
-    const pane = map.getPane(config.name) || map.createPane(config.name);
-    pane.style.zIndex = String(config.zIndex);
-  }
-}
-
-function hierarchyTooltipText(region) {
-  if (!region) return "Alan";
-  const hierarchy = region.hierarchy || {};
-  const names = [
-    hierarchy.countryName,
-    hierarchy.provinceName,
-    hierarchy.districtName,
-    hierarchy.neighborhoodName,
-    region.name || region.properties?.name
-  ]
-    .map((value) => String(value ?? "").trim())
-    .filter(Boolean);
-
-  const seen = new Set();
-  const chain = names.filter((name) => {
-    const key = normalizeName(name);
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  if (chain.length > 1) return chain.join("-");
-  return chain[0] || "Alan";
-}
-
 function isDrawingActive() {
   try {
     return Boolean(window.__regionConsoleDrawing?.isActive?.());
   } catch {
     return false;
   }
+}
+
+function ensurePanes(map) {
+  for (const config of Object.values(PANE_CONFIG)) {
+    const pane = map.getPane(config.name) || map.createPane(config.name);
+    pane.style.zIndex = String(config.zIndex);
+    if (config.name === "region-mask") pane.style.pointerEvents = "none";
+  }
+}
+
+function movePathToPane(layer, paneElement) {
+  if (!layer?._path || !paneElement) return;
+  if (layer._path.parentNode !== paneElement) paneElement.appendChild(layer._path);
+}
+
+function moveMaskToPane(mapState) {
+  const pane = mapState?.map?.getPane?.(PANE_CONFIG.mask.name);
+  if (!pane || !mapState?.mask?._layers) return;
+  Object.values(mapState.mask._layers).forEach((layer) => movePathToPane(layer, pane));
+}
+
+function hierarchyTooltipText(region) {
+  if (!region) return "Alan";
+  const hierarchy = region.hierarchy || {};
+  const names = [hierarchy.countryName, hierarchy.provinceName, hierarchy.districtName, hierarchy.neighborhoodName, region.name || region.properties?.name]
+    .map((value) => String(value ?? "").trim()).filter(Boolean);
+  const seen = new Set();
+  return names.filter((name) => {
+    const key = normalizeName(name);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).join("-") || "Alan";
 }
 
 function applyLayerPanes(mapState) {
@@ -92,9 +86,11 @@ function applyLayerPanes(mapState) {
   for (const layer of regionLayers) {
     const region = regionByLayer(layer);
     const kind = region ? regionCategory(region) : (layer?._regionLayerKind || "special");
-    const pane = PANE_CONFIG[kind]?.name || PANE_CONFIG.special.name;
-    layer.options.pane = pane;
+    const paneName = PANE_CONFIG[kind]?.name || PANE_CONFIG.special.name;
+    const pane = map.getPane(paneName);
+    layer.options.pane = paneName;
     layer.options.interactive = !drawingActive;
+    movePathToPane(layer, pane);
 
     const tooltipText = hierarchyTooltipText(region);
     if (tooltipText) {
@@ -107,6 +103,8 @@ function applyLayerPanes(mapState) {
       polygons.addLayer(layer);
     }
   }
+
+  moveMaskToPane(mapState);
 }
 
 export function enableHierarchyLayering(mapState) {
