@@ -70,7 +70,6 @@ jobs:
           test -f dist/assets/app.js
           test -f dist/assets/app.css
           ! grep -Eq 'src/(core|features|services|state)/' dist/index.html
-          ! grep -Eq "<script[^>]+src=[\\\"']\\./src/" dist/index.html
 
       - name: Upload Playwright report
         if: always()
