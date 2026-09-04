@@ -1,0 +1,56 @@
+name: Fix RBAC API Contract
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/services/rbac.js"
+      - "src/features/auth/rbac-management.js"
+      - ".github/workflows/fix-rbac-api-contract.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, 'fix(rbac): align management service signatures') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Align RBAC service API with management callers
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/services/rbac.js')
+          s = p.read_text()
+          old_user = '''export async function updateUser(accessToken, payload) { return request("/functions/v1/admin-rbac", accessToken, { method: "POST", body: JSON.stringify({ action: "update-user", ...payload }) }); }'''
+          new_user = '''export async function updateUser(accessToken, userIdOrPayload, maybePayload) {\n  const payload = maybePayload === undefined ? userIdOrPayload : { user_id: userIdOrPayload, ...(maybePayload || {}) };\n  return request("/functions/v1/admin-rbac", accessToken, { method: "POST", body: JSON.stringify({ action: "update-user", ...(payload || {}) }) });\n}'''
+          old_role = '''export async function updateRole(accessToken, payload) { return request("/functions/v1/admin-rbac", accessToken, { method: "POST", body: JSON.stringify({ action: "update-role", ...payload }) }); }'''
+          new_role = '''export async function updateRole(accessToken, roleIdOrPayload, maybePayload) {\n  const payload = maybePayload === undefined ? roleIdOrPayload : { role_id: roleIdOrPayload, ...(maybePayload || {}) };\n  return request("/functions/v1/admin-rbac", accessToken, { method: "POST", body: JSON.stringify({ action: "update-role", ...(payload || {}) }) });\n}'''
+          if old_user not in s:
+              raise SystemExit('updateUser signature target not found')
+          if old_role not in s:
+              raise SystemExit('updateRole signature target not found')
+          s = s.replace(old_user, new_user).replace(old_role, new_role)
+          p.write_text(s)
+          PY
+
+      - name: Commit RBAC API contract fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/services/rbac.js
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(rbac): align management service signatures"
+          git push
+
+      - name: Remove temporary fixer
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-rbac-api-contract.yml
+          git commit -m "chore: remove temporary rbac fixer"
+          git push
