@@ -71,6 +71,8 @@ function setText(id, value) {
 }
 
 function clearStaleRbacCatalog(state) {
+  if (state?.cloud?.status !== "ready") return;
+
   const countries = Array.isArray(state?.regions?.countries) ? state.regions.countries : [];
   const custom = Array.isArray(state?.regions?.custom) ? state.regions.custom : [];
   const importedFiles = Array.isArray(state?.importedFiles) ? state.importedFiles : [];
@@ -79,6 +81,9 @@ function clearStaleRbacCatalog(state) {
   const access = window.RegionConsoleRBAC?.access;
   if (!access || !Array.isArray(access.regionCatalog) || access.regionCatalog.length === 0) return;
 
+  // regionCatalog is a derived index of the persisted imported state. Once
+  // the persisted state is confirmed empty, an old catalog must not survive
+  // in the browser and feed footer/RBAC statistics.
   access.regionCatalog = [];
   access.scopes = [];
 }
