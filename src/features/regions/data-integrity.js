@@ -70,6 +70,19 @@ function setText(id, value) {
   if (element) element.textContent = String(value);
 }
 
+function clearStaleRbacCatalog(state) {
+  const countries = Array.isArray(state?.regions?.countries) ? state.regions.countries : [];
+  const custom = Array.isArray(state?.regions?.custom) ? state.regions.custom : [];
+  const importedFiles = Array.isArray(state?.importedFiles) ? state.importedFiles : [];
+  if (countries.length || custom.length || importedFiles.length) return;
+
+  const access = window.RegionConsoleRBAC?.access;
+  if (!access || !Array.isArray(access.regionCatalog) || access.regionCatalog.length === 0) return;
+
+  access.regionCatalog = [];
+  access.scopes = [];
+}
+
 let cleanupInProgress = false;
 let cleanupCompleted = false;
 
@@ -79,8 +92,6 @@ async function removeOrphanedCountryTree(state) {
   const custom = Array.isArray(state?.regions?.custom) ? state.regions.custom : [];
   const importedFiles = Array.isArray(state?.importedFiles) ? state.importedFiles : [];
 
-  // countries is a denormalized import hierarchy. It must never survive after
-  // the user has removed every imported file and every custom region.
   if (!countries.length || importedFiles.length || custom.length) return;
 
   cleanupInProgress = true;
@@ -107,6 +118,7 @@ async function removeOrphanedCountryTree(state) {
 
 function sync() {
   const state = store.get();
+  clearStaleRbacCatalog(state);
   updateFooterStats(state);
   void removeOrphanedCountryTree(state);
 }
