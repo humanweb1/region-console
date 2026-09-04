@@ -36,6 +36,15 @@ function uniqueVisibleRegions(state) {
   });
 }
 
+function isCampaignRegion(region) {
+  return region?.status === "campaign" || region?.campaign === true || Boolean(region?.campaignId);
+}
+
+function setText(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = String(value);
+}
+
 function updateFooterStats(state) {
   const regions = uniqueVisibleRegions(state);
   const counts = { country: 0, province: 0, district: 0 };
@@ -46,8 +55,9 @@ function updateFooterStats(state) {
     else if (type === "district") counts.district += 1;
   }
 
+  const access = window.RegionConsoleRBAC?.access || null;
   const custom = (Array.isArray(state?.regions?.custom) ? state.regions.custom : [])
-    .filter((region) => region && (!window.RegionConsoleRBAC?.access?.loaded || isRegionVisible(window.RegionConsoleRBAC.access, region)));
+    .filter((region) => region && (!access?.loaded || isRegionVisible(access, region)));
   const service = custom.filter((region) => !["outside", "closed", "campaign"].includes(region?.status) && !isCampaignRegion(region)).length;
   const campaign = custom.filter(isCampaignRegion).length;
   const closed = custom.filter((region) => region?.status === "closed").length;
@@ -61,42 +71,16 @@ function updateFooterStats(state) {
   setText("statClosed", closed);
 }
 
-function isCampaignRegion(region) {
-  return region?.status === "campaign" || region?.campaign === true || Boolean(region?.campaignId);
-}
-
-function setText(id, value) {
-  const element = document.getElementById(id);
-  if (element) element.textContent = String(value);
-}
-
-function clearStaleRbacCatalog(state) {
-  if (state?.cloud?.status !== "ready") return;
-
-  const countries = Array.isArray(state?.regions?.countries) ? state.regions.countries : [];
-  const custom = Array.isArray(state?.regions?.custom) ? state.regions.custom : [];
-  const importedFiles = Array.isArray(state?.importedFiles) ? state.importedFiles : [];
-  if (countries.length || custom.length || importedFiles.length) return;
-
-  const access = window.RegionConsoleRBAC?.access;
-  if (!access || !Array.isArray(access.regionCatalog) || access.regionCatalog.length === 0) return;
-
-  // regionCatalog is a derived index of the persisted imported state. Once
-  // the persisted state is confirmed empty, an old catalog must not survive
-  // in the browser and feed footer/RBAC statistics.
-  access.regionCatalog = [];
-  access.scopes = [];
-}
-
 let cleanupInProgress = false;
 let cleanupCompleted = false;
 
 async function removeOrphanedCountryTree(state) {
   if (cleanupInProgress || cleanupCompleted) return;
+  if (state?.cloud?.status !== "ready") return;
+
   const countries = Array.isArray(state?.regions?.countries) ? state.regions.countries : [];
   const custom = Array.isArray(state?.regions?.custom) ? state.regions.custom : [];
   const importedFiles = Array.isArray(state?.importedFiles) ? state.importedFiles : [];
-
   if (!countries.length || importedFiles.length || custom.length) return;
 
   cleanupInProgress = true;
@@ -115,7 +99,7 @@ async function removeOrphanedCountryTree(state) {
     }
     cleanupCompleted = true;
   } catch (error) {
-    console.error("[Region Console] Stale imported catalog cleanup failed:", error);
+    console.error("[Region Console] Stale imported country tree cleanup failed:", error);
   } finally {
     cleanupInProgress = false;
   }
@@ -123,7 +107,6 @@ async function removeOrphanedCountryTree(state) {
 
 function sync() {
   const state = store.get();
-  clearStaleRbacCatalog(state);
   updateFooterStats(state);
   void removeOrphanedCountryTree(state);
 }
