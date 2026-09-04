@@ -66,12 +66,16 @@ function normalizeHierarchy(countries, custom) {
   const byId = new Map();
   const byExternalId = new Map();
   const byNameTypeParent = new Map();
+  const registeredParentIds = new Map();
   const register = (region, type, parentId = null) => {
     if (!region || typeof region !== "object") return;
     const id = region.id != null ? String(region.id) : "";
     const externalId = region.importMeta?.properties?.id ?? region.external_id ?? null;
     const name = normalizeName(region.name || region.properties?.name || "");
-    if (id) byId.set(id, region);
+    if (id) {
+      byId.set(id, region);
+      if (parentId != null && String(parentId)) registeredParentIds.set(id, String(parentId));
+    }
     if (externalId != null && String(externalId)) byExternalId.set(String(externalId), region);
     if (name) byNameTypeParent.set(`${type}:${name}:${String(parentId || "")}`, region);
   };
@@ -96,7 +100,8 @@ function normalizeHierarchy(countries, custom) {
 
   const resolveParent = (region) => {
     const hierarchy = region?.hierarchy || {};
-    const parentId = hierarchy.parentId ?? region?.parent_id ?? null;
+    const ownId = region?.id ?? region?.importMeta?.sourceId ?? null;
+    const parentId = hierarchy.parentId ?? region?.parent_id ?? (ownId != null ? registeredParentIds.get(String(ownId)) : null) ?? null;
     const parentName = normalizeName(hierarchy.parentName || region?.parent_name);
     const parentType = String(hierarchy.parentType || region?.parent_type || "").toLowerCase();
     if (parentId != null) {
