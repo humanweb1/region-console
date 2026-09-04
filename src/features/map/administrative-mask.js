@@ -60,7 +60,7 @@ function ensurePane(map) {
 function render(mapState) {
   const map = mapState?.map;
   const mask = mapState?.mask;
-  if (!map || !mask || !L) return;
+  if (!map || !mask) return;
 
   ensurePane(map);
   mask.clearLayers();
@@ -75,8 +75,7 @@ function render(mapState) {
   // highest available level becomes a transparent hole. Region polygons live
   // in their own panes and therefore cannot alter this mask geometry.
   const world = [[89, -180], [89, 180], [-89, 180], [-89, -180], [89, -180]];
-  const holes = rings.filter((ring) => ring.length >= 3);
-  const layer = L.polygon([world, ...holes], {
+  const layer = L.polygon([world, ...rings], {
     pane: MASK_PANE,
     stroke: false,
     fill: true,
