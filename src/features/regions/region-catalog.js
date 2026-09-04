@@ -1,68 +1,80 @@
-const API_BASE = "https://api.turkiyeapi.dev/v2/datasets";
-const CACHE_KEY = "region-console:administrative-catalog:v2";
-let loading = null;
+const CACHE_KEY = "region-console:administrative-catalog:v3";
 let ready = false;
 let catalogData = { provinces: [], districts: [], neighborhoods: [] };
 
-function readCache() {
-  try {
-    const value = sessionStorage.getItem(CACHE_KEY);
-    return value ? JSON.parse(value) : null;
-  } catch { return null; }
+function normalizeName(value) {
+  return String(value ?? "").trim().toLocaleLowerCase("tr-TR")
+    .replace(/ı/g, "i").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-function writeCache(value) {
-  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(value)); } catch { /* optional cache */ }
-}
-
-async function fetchDataset(name) {
-  const response = await fetch(`${API_BASE}/${name}.json`, {
-    headers: { Accept: "application/json" },
-    cache: "force-cache"
+function uniqueById(items) {
+  const seen = new Set();
+  return (Array.isArray(items) ? items : []).filter((item) => {
+    const id = String(item?.id ?? item?.external_id ?? "");
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
   });
-  if (!response.ok) throw new Error(`Katalog verisi alınamadı: ${name} (${response.status})`);
-  const data = await response.json();
-  return Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+}
+
+function regionCatalogFromAccess() {
+  const accessCatalog = window.RegionConsoleRBAC?.access?.regionCatalog;
+  return Array.isArray(accessCatalog) ? accessCatalog : [];
+}
+
+function buildFromCatalog(catalog) {
+  const countries = catalog.filter((item) => String(item?.type || "").toLowerCase() === "country");
+  const turkey = countries.find((item) => normalizeName(item?.name) === "turkey" || normalizeName(item?.name) === "türkiye") || null;
+  const turkeyId = turkey?.id || null;
+  const provinces = catalog
+    .filter((item) => String(item?.type || "").toLowerCase() === "province")
+    .map((item) => ({ ...item, _countryId: item.parent_id || turkeyId, _countryName: turkey?.name || "Turkey", catalogOnly: true, geometryStatus: "missing" }));
+  const provinceById = new Map(provinces.map((item) => [String(item.id), item]));
+  const provinceByExternalId = new Map(provinces.map((item) => [String(item.external_id || ""), item]));
+  const districts = catalog
+    .filter((item) => String(item?.type || "").toLowerCase() === "district")
+    .map((item) => {
+      const province = provinceById.get(String(item.parent_id || "")) || provinceByExternalId.get(String(item.parent_id || ""));
+      return { ...item, _countryId: province?._countryId || turkeyId, _countryName: province?._countryName || turkey?.name || "Turkey", _provinceId: province?.id || item.parent_id || null, _provinceName: province?.name || null, catalogOnly: true, geometryStatus: "missing" };
+    });
+  const districtById = new Map(districts.map((item) => [String(item.id), item]));
+  const districtByExternalId = new Map(districts.map((item) => [String(item.external_id || ""), item]));
+  const neighborhoods = catalog
+    .filter((item) => String(item?.type || "").toLowerCase() === "neighborhood")
+    .map((item) => {
+      const district = districtById.get(String(item.parent_id || "")) || districtByExternalId.get(String(item.parent_id || ""));
+      return { ...item, _countryId: district?._countryId || turkeyId, _countryName: district?._countryName || turkey?.name || "Turkey", _provinceId: district?._provinceId || null, _provinceName: district?._provinceName || null, _districtId: district?.id || item.parent_id || null, _districtName: district?.name || null, catalogOnly: true, geometryStatus: "missing" };
+    });
+  return { provinces: uniqueById(provinces), districts: uniqueById(districts), neighborhoods: uniqueById(neighborhoods) };
 }
 
 export async function ensureAdministrativeCatalog({ includeNeighborhoods = false } = {}) {
-  if (ready && (!includeNeighborhoods || catalogData.neighborhoods.length)) return true;
-  if (loading) return loading;
-
-  loading = (async () => {
-    const cached = readCache();
-    if (cached?.provinces?.length && cached?.districts?.length && (!includeNeighborhoods || cached?.neighborhoods?.length)) {
-      catalogData = {
-        provinces: cached.provinces,
-        districts: cached.districts,
-        neighborhoods: cached.neighborhoods || []
-      };
-      ready = true;
-      return true;
-    }
-
-    const [provinces, districts] = await Promise.all([
-      catalogData.provinces.length ? Promise.resolve(catalogData.provinces) : fetchDataset("provinces"),
-      catalogData.districts.length ? Promise.resolve(catalogData.districts) : fetchDataset("districts")
-    ]);
-
-    let neighborhoods = catalogData.neighborhoods;
-    if (includeNeighborhoods && !neighborhoods.length) neighborhoods = await fetchDataset("neighborhoods");
-
-    catalogData = { provinces, districts, neighborhoods };
-    writeCache({ ...catalogData, fetchedAt: new Date().toISOString() });
+  const catalog = regionCatalogFromAccess();
+  if (catalog.length) {
+    const next = buildFromCatalog(catalog);
+    catalogData = next;
     ready = true;
     return true;
-  })().catch((error) => {
-    loading = null;
-    throw error;
-  });
+  }
 
   try {
-    return await loading;
-  } finally {
-    loading = null;
+    const cached = sessionStorage.getItem(CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed?.provinces?.length || parsed?.districts?.length || parsed?.neighborhoods?.length) {
+        catalogData = { provinces: parsed.provinces || [], districts: parsed.districts || [], neighborhoods: parsed.neighborhoods || [] };
+        ready = true;
+        return true;
+      }
+    }
+  } catch {
+    // Cache is optional.
   }
+
+  catalogData = { provinces: [], districts: [], neighborhoods: [] };
+  ready = true;
+  return true;
 }
 
 export function getAdministrativeCatalogData() {
@@ -76,18 +88,14 @@ export function getAdministrativeCatalogData() {
 export function catalogStatus() {
   return {
     ready,
-    loading: Boolean(loading),
+    loading: false,
     provinces: catalogData.provinces.length,
     districts: catalogData.districts.length,
     neighborhoods: catalogData.neighborhoods.length
   };
 }
 
-export function normalizeName(value) {
-  return String(value ?? "").trim().toLocaleLowerCase("tr-TR")
-    .replace(/ı/g, "i").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c")
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-}
+export { normalizeName };
 
 if (typeof window !== "undefined") {
   window.RegionConsoleRegionCatalog = {
