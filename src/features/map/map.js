@@ -166,6 +166,17 @@ function isOpenServiceRegion(region) {
   return Boolean(region.geometry);
 }
 
+function sameRegionIdentity(a, b) {
+  if (!a || !b) return false;
+  const aType = regionType(a);
+  const bType = regionType(b);
+  if (aType && bType && aType !== bType) return false;
+  const aIds = [a.id, a.importMeta?.sourceId, a.importMeta?.properties?.id].filter((value) => value != null).map(String);
+  const bIds = [b.id, b.importMeta?.sourceId, b.importMeta?.properties?.id].filter((value) => value != null).map(String);
+  if (aIds.some((id) => bIds.includes(id))) return true;
+  return normalizeName(a.name || a.properties?.name) === normalizeName(b.name || b.properties?.name);
+}
+
 function serviceMaskRoots(regions) {
   const openRegions = (Array.isArray(regions) ? regions : []).filter(isOpenServiceRegion);
   if (!openRegions.length) return [];
@@ -177,7 +188,7 @@ function serviceMaskRoots(regions) {
     let hasOpenAncestor = false;
     while (current && !visited.has(current)) {
       visited.add(current);
-      if (openRegions.includes(current)) {
+      if (openRegions.some((candidate) => sameRegionIdentity(candidate, current))) {
         hasOpenAncestor = true;
         break;
       }
@@ -243,7 +254,7 @@ function pointInRing(point, ring) {
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const [xi, yi] = ring[i];
     const [xj, yj] = ring[j];
-    const intersects = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yj)) / ((yj - yi) || Number.EPSILON) + xi);
+    const intersects = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi);
     if (intersects) inside = !inside;
   }
   return inside;
