@@ -1,3 +1,5 @@
+import "../cemeteries/cemetery-ui.js";
+
 // Some feature modules still listen on document while the canonical RBAC
 // service dispatches on window. Keep both event targets synchronized so a
 // permission/scope refresh immediately reaches every feature.
