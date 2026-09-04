@@ -21,6 +21,7 @@ const entries = [
   "./src/core/app.js",
   "./src/features/auth/rbac-event-bridge.js",
   "./src/features/auth/rbac-bootstrap.js",
+  "./src/features/auth/rbac-permission-compat.js",
   "./src/features/auth/startup-gate.js",
   "./src/features/map/map-access-fit.js",
   "./src/features/auth/menu-rbac-fix.js",
