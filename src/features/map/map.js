@@ -85,14 +85,7 @@ function regionIdentityIds(region) {
   if (!region || typeof region !== "object") return [];
   const type = regionType(region);
   const hierarchy = region.hierarchy || {};
-  const values = [
-    region.id,
-    region.importMeta?.sourceId,
-    region.importMeta?.properties?.id,
-    type === "country" ? hierarchy.countryId : null,
-    type === "province" ? hierarchy.provinceId : null,
-    type === "district" ? hierarchy.districtId : null
-  ];
+  const values = [region.id, region.importMeta?.sourceId, region.importMeta?.properties?.id, type === "country" ? hierarchy.countryId : null, type === "province" ? hierarchy.provinceId : null, type === "district" ? hierarchy.districtId : null];
   return values.filter((value) => value != null && String(value)).map(String);
 }
 
@@ -120,12 +113,7 @@ function hierarchyCandidates(regions) {
     for (const item of items || []) {
       if (!item) continue;
       nested.push(item);
-      const children = [
-        ...(Array.isArray(item.provinces) ? item.provinces : []),
-        ...(Array.isArray(item.districts) ? item.districts : []),
-        ...(Array.isArray(item.neighborhoods) ? item.neighborhoods : []),
-        ...(Array.isArray(item.children) ? item.children : [])
-      ];
+      const children = [...(Array.isArray(item.provinces) ? item.provinces : []), ...(Array.isArray(item.districts) ? item.districts : []), ...(Array.isArray(item.neighborhoods) ? item.neighborhoods : []), ...(Array.isArray(item.children) ? item.children : [])];
       if (children.length) walk(children);
     }
   };
@@ -221,9 +209,7 @@ function renderOutsideMask(mapState, serviceRings, settings) {
   L.polygon([outer, ...holes], { stroke: false, fill: true, fillRule: "evenodd", fillColor: settings.outsideColor, fillOpacity: settings.outsideOpacity, interactive: false }).addTo(mapState.mask);
   if (mapState.overlayVisibility.mask) {
     if (!mapState.map.hasLayer(mapState.mask)) mapState.mask.addTo(mapState.map);
-  } else if (mapState.map.hasLayer(mapState.mask)) {
-    mapState.map.removeLayer(mapState.mask);
-  }
+  } else if (mapState.map.hasLayer(mapState.mask)) mapState.map.removeLayer(mapState.mask);
 }
 
 function syncRegionLayerVisibility(mapState) {
@@ -259,9 +245,7 @@ export function setOverlayVisibility(mapState, name, visible) {
   return true;
 }
 
-export function getOverlayVisibility(mapState) {
-  return { ...mapState.overlayVisibility };
-}
+export function getOverlayVisibility(mapState) { return { ...mapState.overlayVisibility }; }
 
 function pointInRing(point, ring) {
   const [x, y] = point;
@@ -277,20 +261,14 @@ function pointInRing(point, ring) {
 
 function ringBounds(ring) {
   let minLat = Infinity, minLng = Infinity, maxLat = -Infinity, maxLng = -Infinity;
-  for (const [lat, lng] of ring) {
-    minLat = Math.min(minLat, lat);
-    maxLat = Math.max(maxLat, lat);
-    minLng = Math.min(minLng, lng);
-    maxLng = Math.max(maxLng, lng);
-  }
+  for (const [lat, lng] of ring) { minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat); minLng = Math.min(minLng, lng); maxLng = Math.max(maxLng, lng); }
   return { minLat, minLng, maxLat, maxLng };
 }
 
 function ringContainsRing(parentRing, childRing) {
   if (!parentRing?.length || !childRing?.length) return false;
   const p = childRing[Math.floor(childRing.length / 2)];
-  const pb = ringBounds(parentRing);
-  const cb = ringBounds(childRing);
+  const pb = ringBounds(parentRing); const cb = ringBounds(childRing);
   if (cb.minLat < pb.minLat || cb.maxLat > pb.maxLat || cb.minLng < pb.minLng || cb.maxLng > pb.maxLng) return false;
   return pointInRing(p, parentRing);
 }
@@ -304,18 +282,15 @@ function serviceChildRings(region, regions) {
 }
 
 function addServiceHoles(latLngs, holes) {
-  if (!holes.length) return latLngs;
-  if (!Array.isArray(latLngs[0])) return latLngs;
+  if (!holes.length || !Array.isArray(latLngs[0])) return latLngs;
   if (Array.isArray(latLngs[0][0]) && Array.isArray(latLngs[0][0][0])) {
     return latLngs.map((polygon) => {
       if (!polygon?.length) return polygon;
-      const outer = polygon[0];
-      const matching = holes.filter((ring) => ringContainsRing(outer, ring));
+      const outer = polygon[0]; const matching = holes.filter((ring) => ringContainsRing(outer, ring));
       return [outer, ...polygon.slice(1), ...matching];
     });
   }
-  const outer = latLngs[0];
-  const matching = holes.filter((ring) => ringContainsRing(outer, ring));
+  const outer = latLngs[0]; const matching = holes.filter((ring) => ringContainsRing(outer, ring));
   return [outer, ...latLngs.slice(1), ...matching];
 }
 
@@ -332,6 +307,13 @@ function scopeRootTypes(access) {
   return types;
 }
 
+function isRootViewportRegion(region, rootTypes) {
+  const type = String(region?.hierarchy?.type || region?.type || "").trim().toLowerCase();
+  if (rootTypes.has(type)) return true;
+  if (type === "special" && region?.hierarchy?.parentType) return rootTypes.has(String(region.hierarchy.parentType).toLowerCase());
+  return false;
+}
+
 export function fitInitialVisibleAccess(mapState) {
   if (mapState.initialAccessFitDone) return false;
   const access = window.RegionConsoleRBAC?.access || null;
@@ -342,9 +324,7 @@ export function fitInitialVisibleAccess(mapState) {
   const viewportRegions = rootTypes.size ? visibleRegions.filter((region) => isRootViewportRegion(region, rootTypes)) : visibleRegions;
   const candidates = viewportRegions.length ? viewportRegions : visibleRegions;
   const coordinates = [];
-  for (const region of candidates) {
-    for (const ring of geometryToOuterRings(region?.geometry)) coordinates.push(...ring);
-  }
+  for (const region of candidates) for (const ring of geometryToOuterRings(region?.geometry)) coordinates.push(...ring);
   if (!coordinates.length) return false;
   mapState.map.fitBounds(L.latLngBounds(coordinates), { padding: [42, 42], maxZoom: 13, animate: false });
   mapState.initialAccessFitDone = true;
@@ -361,8 +341,7 @@ function regionRenderDepth(region) {
 }
 
 function regionLayerPriority(region) {
-  const depth = regionRenderDepth(region);
-  const category = regionCategory(region);
+  const depth = regionRenderDepth(region); const category = regionCategory(region);
   const categoryPriority = { country: 0, special: 1, province: 2, district: 3, neighborhood: 4, cemetery: 5 };
   return depth * 10 + (categoryPriority[category] ?? 1);
 }
@@ -389,19 +368,12 @@ export function renderRegionsOnMap(mapState, regions = [], settings = null) {
     const geometry = region?.geometry;
     const rawLatLngs = geometryToLatLngs(geometry);
     if (!rawLatLngs.length) continue;
-    const outside = region.status === "outside";
-    const closed = region.status === "closed";
-    const campaign = isCampaignRegion(region);
-    const category = regionCategory(region);
+    const outside = region.status === "outside"; const closed = region.status === "closed"; const campaign = isCampaignRegion(region); const category = regionCategory(region);
     const fillColor = outside ? normalized.outsideColor : closed ? normalized.closedColor : campaign ? normalized.campaignColor : "transparent";
     const fillOpacity = outside ? normalized.outsideOpacity : closed ? normalized.closedOpacity : campaign ? normalized.campaignOpacity : 0;
     const latLngs = closed ? addServiceHoles(rawLatLngs, serviceChildRings(region, visibleRegions)) : rawLatLngs;
     const polygon = L.polygon(latLngs, { color: normalized.boundaryColor, weight: normalized.boundaryWeight, fillColor, fillOpacity });
-    polygon._regionId = region.id;
-    polygon._regionLayerKind = category;
-    polygon._regionCategory = category;
-    polygon._regionStatus = outside ? "outside" : closed ? "closed" : campaign ? "campaign" : "service";
-    polygon.options._baseFillOpacity = fillOpacity;
+    polygon._regionId = region.id; polygon._regionLayerKind = category; polygon._regionCategory = category; polygon._regionStatus = outside ? "outside" : closed ? "closed" : campaign ? "campaign" : "service"; polygon.options._baseFillOpacity = fillOpacity;
     polygon.bindTooltip(hierarchyTooltipText(region, visibleRegions) || region.name || "Alan", { sticky: true, direction: "top", opacity: 0.96, className: "region-hierarchy-tooltip" });
     polygon.on("click", (event) => {
       L.DomEvent.stopPropagation(event);
@@ -435,6 +407,4 @@ export function fitToCoordinates(mapState, coordinates = [], padding = [30, 30])
   return true;
 }
 
-export function invalidateMap(mapState) {
-  requestAnimationFrame(() => mapState.map.invalidateSize({ pan: false }));
-}
+export function invalidateMap(mapState) { requestAnimationFrame(() => mapState.map.invalidateSize({ pan: false })); }
